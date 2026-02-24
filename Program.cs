@@ -1,4 +1,6 @@
+using HRManagement.DataAcess;
 using HRManagement.Models;
+using HRManagement.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -8,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<HrmsDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn"))
 );
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -17,6 +22,7 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+
     .AddJwtBearer(options =>
     {
         var jwtSettings = builder.Configuration.GetSection("Jwt");
