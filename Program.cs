@@ -20,7 +20,9 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials());
 });
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
