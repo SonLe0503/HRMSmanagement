@@ -21,6 +21,8 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
@@ -67,6 +69,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
+
 
 var app = builder.Build();
 app.UseCors("AllowAll");
