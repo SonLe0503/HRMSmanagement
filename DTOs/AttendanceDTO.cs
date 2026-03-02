@@ -7,6 +7,22 @@ public class CheckInRequestDTO
     public string? Remarks { get; set; }
 }
 
+public class CreateShiftAssignmentDto
+{
+    public int EmployeeId { get; set; }
+    public int ShiftId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+}
+
+public class UpdateShiftAssignmentDTO
+{
+    public int ShiftId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public string Status { get; set; } = "Active"; // Active, Cancelled, Completed
+}
+
 public class AttendanceResponseDTO
 {
     public int AttendanceId { get; set; }

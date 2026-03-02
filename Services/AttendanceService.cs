@@ -1,4 +1,5 @@
-﻿using HRManagement.Models;
+﻿using ClosedXML.Excel;
+using HRManagement.Models;
 using HRManagement.DTOs;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,18 +16,15 @@ public class AttendanceService : IAttendanceService
 
     public async Task<string> AssignShiftAsync(CreateShiftAssignmentDTO dto)
     {
-        var overlappingShift = await _context.ShiftAssignments
-            .AnyAsync(s => s.EmployeeId == dto.EmployeeId &&
-                           s.Status == "Active" &&
-                           ((dto.EndDate == null || s.StartDate <= dto.EndDate) &&
-                            (s.EndDate == null || s.EndDate >= dto.StartDate)));
+        // Simple Overlap Check
+        bool isOverlapping = await _context.ShiftAssignments
+            .AnyAsync(sa => sa.EmployeeId == dto.EmployeeId && sa.Status == "Active" &&
+                ((dto.EndDate == null || sa.StartDate <= dto.EndDate) &&
+                 (sa.EndDate == null || sa.EndDate >= dto.StartDate)));
 
-        if (overlappingShift)
-        {
-            return "MSG-ATT-01"; 
-        }
+        if (isOverlapping) return "MSG-ATT-01";
 
-        var newAssignment = new ShiftAssignment
+        var assignment = new ShiftAssignment
         {
             EmployeeId = dto.EmployeeId,
             ShiftId = dto.ShiftId,
@@ -37,10 +35,152 @@ public class AttendanceService : IAttendanceService
             CreatedDate = DateTime.Now
         };
 
-        _context.ShiftAssignments.Add(newAssignment);
+        _context.ShiftAssignments.Add(assignment);
         await _context.SaveChangesAsync();
-
         return "MSG-SUC-01";
+    }
+
+    public async Task<List<AdminAttendanceDTO>> GetAdminAttendanceAsync(DateOnly? date, int? deptId, string? status)
+    {
+        var query = _context.AttendanceRecords
+            .Include(a => a.Employee).ThenInclude(e => e.Department)
+            .Include(a => a.Shift)
+            .AsQueryable();
+
+        if (date.HasValue) query = query.Where(a => a.AttendanceDate == date.Value);
+        if (deptId.HasValue) query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
+        if (!string.IsNullOrEmpty(status)) query = query.Where(a => a.Status == status);
+
+        return await query.Select(a => new AdminAttendanceDTO
+        {
+            AttendanceId = a.AttendanceId,
+            EmployeeCode = a.Employee.EmployeeCode,
+            FullName = a.Employee.FullName,
+            DepartmentName = a.Employee.Department != null ? a.Employee.Department.DepartmentName : "N/A",
+            Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
+            ShiftName = a.Shift != null ? a.Shift.ShiftName : "No Shift",
+            CheckIn = a.CheckInTime.HasValue ? a.CheckInTime.Value.ToString("HH:mm:ss") : null,
+            CheckOut = a.CheckOutTime.HasValue ? a.CheckOutTime.Value.ToString("HH:mm:ss") : null,
+            Status = a.Status,
+            LateMinutes = a.LateMinutes
+        }).ToListAsync();
+    }
+
+    public async Task<string> UpdateAssignmentAsync(int id, UpdateShiftAssignmentDTO dto)
+    {
+        var assignment = await _context.ShiftAssignments.FindAsync(id);
+        if (assignment == null) return "MSG-SYS-03";
+
+        int oldShiftId = assignment.ShiftId;
+
+        assignment.ShiftId = dto.ShiftId;
+        assignment.StartDate = dto.StartDate;
+        assignment.EndDate = dto.EndDate;
+        assignment.Status = dto.Status;
+
+        var log = new AuditLog
+        {
+            TableName = "ShiftAssignments",
+            Action = "UPDATE",
+            RecordId = assignment.AssignmentId,
+            OldValues = $"ShiftId: {oldShiftId}",
+            NewValues = $"ShiftId: {dto.ShiftId}",
+            ActionDate = DateTime.Now,
+            UserId = 1
+        };
+        _context.AuditLogs.Add(log);
+
+        await _context.SaveChangesAsync();
+        return "MSG-SUC-02";
+    }
+
+    public async Task<AttendanceImportResultDto> ImportMachineDataAsync(IFormFile file)
+    {
+        var result = new AttendanceImportResultDto();
+        using var workbook = new XLWorkbook(file.OpenReadStream());
+        var worksheet = workbook.Worksheet(1);
+        var rows = worksheet.RangeUsed().RowsUsed().Skip(1);
+
+        foreach (var row in rows)
+        {
+            result.TotalRows++;
+            try
+            {
+                // Assume Excel Columns: A = MachineID, B = Date, C = CheckInTime, D = CheckOutTime
+                var machineId = row.Cell(1).GetValue<int>();
+                var date = DateOnly.FromDateTime(row.Cell(2).GetDateTime());
+                var checkIn = row.Cell(3).GetDateTime();
+                var checkOut = row.Cell(4).GetDateTime();
+
+                // Find Employee by MachineID (need to add this column to Employee table)
+                var employee = await _context.Employees.FirstOrDefaultAsync(e => e.EmployeeId == machineId);
+                if (employee == null)
+                {
+                    result.Errors.Add($"Row {result.TotalRows + 1}: Employee {machineId} not found.");
+                    continue;
+                }
+
+                var assignment = await _context.ShiftAssignments.Include(s => s.Shift)
+                    .FirstOrDefaultAsync(sa => sa.EmployeeId == employee.EmployeeId && sa.Status == "Active");
+
+                int lateMinutes = 0;
+                if (assignment != null)
+                {
+                    var scheduledStart = date.ToDateTime(assignment.Shift.StartTime);
+                    var diff = checkIn - scheduledStart;
+                    if (diff.TotalMinutes > 5) lateMinutes = (int)diff.TotalMinutes;
+                }
+
+                var existing = await _context.AttendanceRecords
+                    .FirstOrDefaultAsync(a => a.EmployeeId == employee.EmployeeId && a.AttendanceDate == date);
+
+                if (existing == null)
+                {
+                    _context.AttendanceRecords.Add(new AttendanceRecord
+                    {
+                        EmployeeId = employee.EmployeeId,
+                        AttendanceDate = date,
+                        CheckInTime = checkIn,
+                        CheckOutTime = checkOut,
+                        Status = lateMinutes > 0 ? "Late" : "Present",
+                        LateMinutes = lateMinutes,
+                        CreatedDate = DateTime.Now
+                    });
+                }
+                else
+                {
+                    existing.CheckInTime = checkIn;
+                    existing.CheckOutTime = checkOut;
+                    existing.LateMinutes = lateMinutes;
+                }
+                result.SuccessCount++;
+            }
+            catch (Exception)
+            {
+                result.Errors.Add($"Row {result.TotalRows + 1}: Data format error.");
+            }
+        }
+        await _context.SaveChangesAsync();
+        result.Message = "MSG-SUC-05";
+        return result;
+    }
+
+    public async Task<List<ShiftScheduleDTO>> GetWeeklyScheduleAsync(int employeeId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        return await _context.ShiftAssignments
+            .Include(sa => sa.Shift)
+            .Where(sa => sa.EmployeeId == employeeId && sa.Status == "Active")
+            .Select(sa => new ShiftScheduleDTO
+            {
+                Date = today,
+                ShiftName = sa.Shift.ShiftName,
+                StartTime = sa.Shift.StartTime,
+                EndTime = sa.Shift.EndTime,
+                Status = sa.Status
+            })
+            .ToListAsync();
     }
 
     public async Task<AttendanceResponseDTO> CheckInAsync(CheckInRequestDTO dto)
@@ -143,5 +283,36 @@ public class AttendanceService : IAttendanceService
                 TotalHours = a.WorkingHours,
                 Status = a.Status
             }).ToListAsync();
+    }
+
+    public async Task<List<AdminAttendanceDTO>> GetAdminViewAsync(DateOnly? date, int? deptId, string? status)
+    {
+        var query = _context.AttendanceRecords
+            .Include(a => a.Employee).ThenInclude(e => e.Department)
+            .Include(a => a.Shift)
+            .AsQueryable();
+
+        var filterDate = date ?? DateOnly.FromDateTime(DateTime.Now);
+        query = query.Where(a => a.AttendanceDate == filterDate);
+
+        if (deptId.HasValue)
+            query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
+
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(a => a.Status == status);
+
+        return await query.Select(a => new AdminAttendanceDTO
+        {
+            AttendanceId = a.AttendanceId,
+            EmployeeCode = a.Employee.EmployeeCode,
+            FullName = a.Employee.FullName,
+            DepartmentName = a.Employee.Department != null ? a.Employee.Department.DepartmentName : "N/A",
+            Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
+            ShiftName = a.Shift != null ? a.Shift.ShiftName : "No Shift",
+            CheckIn = a.CheckInTime.HasValue ? a.CheckInTime.Value.ToString("HH:mm:ss") : null,
+            CheckOut = a.CheckOutTime.HasValue ? a.CheckOutTime.Value.ToString("HH:mm:ss") : null,
+            Status = a.Status,
+            LateMinutes = a.LateMinutes
+        }).ToListAsync();
     }
 }
