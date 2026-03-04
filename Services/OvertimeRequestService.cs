@@ -51,6 +51,26 @@ namespace HRManagement.Services
                 overtime.Status
             }, "Overtime request created successfully", 201);
         }
+        public async Task<ApiResponse<object>> CancelAsync(int requestId, int employeeId)
+        {
+            var request = await _context.OvertimeRequests
+                .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
+
+            if (request == null)
+                return ApiResponse<object>.FailResponse("Request not found", 404);
+
+            if (request.EmployeeId != employeeId)
+                return ApiResponse<object>.FailResponse("Not allowed", 403);
+
+            if (request.Status != "Pending")
+                return ApiResponse<object>.FailResponse("Request cannot be cancelled");
+
+            request.Status = "Cancelled";
+
+            await _context.SaveChangesAsync();
+
+            return ApiResponse<object>.SuccessResponse(null, "Request cancelled successfully");
+        }
 
     }
 }
