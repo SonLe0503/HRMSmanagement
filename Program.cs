@@ -21,6 +21,8 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IApprovalService, ApprovalService>();
+
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
