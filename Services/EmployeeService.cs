@@ -15,7 +15,7 @@ namespace HRManagement.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public async Task<Employee> AddEmployeeAsync(CreateEmployeeDto dto)
+        public async Task<EmployeeResponseDetailDto> AddEmployeeAsync(CreateEmployeeDto dto)
         {
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
             {
@@ -45,34 +45,28 @@ namespace HRManagement.Services
                 CreatedBy = dto.CreatedBy ?? int.Parse(_httpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value ?? "0")
             };
 
-            return await _employeeRepository.AddEmployeeAsync(employee);
+             await _employeeRepository.AddEmployeeAsync(employee);
+
+            return await GetEmployeeByIdAsync(employee.EmployeeId) ?? throw new InvalidOperationException("Failed to retrieve the newly created employee.");
         }
 
-        public async Task<bool> DisableEmployeeAsync(int id, int? disabledBy = null)
+        public async Task<bool> UpdateStatusAsync(int id, string status, int? modifiedBy = null)
         {
             var employee = await _employeeRepository.GetEmployeeByIdAsync(id);
             if (employee == null)
                 return false;
 
-            employee.EmploymentStatus = "Resigned";
-            employee.ResignationDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (status == "Resigned" || status == "Terminated")
+            {
+                employee.ResignationDate = DateOnly.FromDateTime(DateTime.Now);
+            }
+            else if(status == "Active")
+            {
+                employee.ResignationDate = null;
+            }
+            employee.EmploymentStatus = status;
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = disabledBy;
-
-            await _employeeRepository.UpdateEmployeeAsync(employee);
-            return true;
-        }
-
-        public async Task<bool> EnableEmployeeAsync(int id, int? enabledBy = null)
-        {
-            var employee = await _employeeRepository.GetEmployeeByIdAsync(id);
-            if (employee == null)
-                return false;
-
-            employee.EmploymentStatus = "Active";
-            employee.ResignationDate = null;
-            employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = enabledBy;
+            employee.ModifiedBy = modifiedBy;
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
             return true;
@@ -127,12 +121,13 @@ namespace HRManagement.Services
             };
         }
 
-        public async Task<Employee> UpdateEmployeeAsync(int employeeId, UpdateEmployeeDto dto)
+        public async Task<EmployeeResponseDetailDto?> UpdateEmployeeAsync(int employeeId, UpdateEmployeeDto dto)
         {
             var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
             if (employee == null)
-                throw new InvalidOperationException($"Employee with ID {employeeId} not found."); 
-
+            {
+                return null;
+            }
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode, employeeId))
             {
                 throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
@@ -167,7 +162,7 @@ namespace HRManagement.Services
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
 
-            return employee;
+            return await GetEmployeeByIdAsync(employeeId);
         }
     }
 }
