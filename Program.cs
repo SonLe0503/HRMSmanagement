@@ -1,3 +1,4 @@
+using HRManagement.DataAcess;
 ﻿using HRManagement.Filters;
 using HRManagement.Mappers;
 using HRManagement.Models;
@@ -12,6 +13,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<HrmsDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn"))
 );
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -48,6 +52,7 @@ builder.Services.AddSwaggerGen(c =>
     c.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+
     .AddJwtBearer(options =>
     {
         var jwtSettings = builder.Configuration.GetSection("Jwt");
