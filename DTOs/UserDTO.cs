@@ -4,7 +4,6 @@
     {
         public string Username { get; set; } = null!;
         public string Email { get; set; } = null!;
-        public string Password { get; set; } = null!;
         public int? EmployeeId { get; set; }
         public List<int> RoleIds { get; set; } = new();
     }
