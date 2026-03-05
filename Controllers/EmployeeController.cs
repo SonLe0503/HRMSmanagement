@@ -41,17 +41,10 @@ namespace HRManagement.Controllers
                 return NotFound(new { message = $"Employee {id} not found." });
             }
         }
-        [HttpPatch("{id}/disable")]
-        public async Task<IActionResult> Disable(int id, [FromQuery] int? disabledBy = null)
+        [HttpPatch("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(int id, string status, [FromQuery] int? disabledBy = null)
         {
-            var result = await _employeeService.DisableEmployeeAsync(id, disabledBy);
-            if (!result) return NotFound(new { message = $"Employee {id} not found." });
-            return NoContent();
-        }
-        [HttpPatch("{id}/enable")]
-        public async Task<IActionResult> Enable(int id, [FromQuery] int? enabledBy = null)
-        {
-            var result = await _employeeService.EnableEmployeeAsync(id, enabledBy);
+            var result = await _employeeService.UpdateStatusAsync(id, status, disabledBy);
             if (!result) return NotFound(new { message = $"Employee {id} not found." });
             return NoContent();
         }
