@@ -1,3 +1,4 @@
+using HRManagement.Configuration;
 using HRManagement.DataAcess;
 ﻿using HRManagement.Filters;
 using HRManagement.Mappers;
@@ -14,11 +15,14 @@ builder.Services.AddDbContext<HrmsDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn"))
 );
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient();
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("Cloudinary"));
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IEmployeeDocumentRepository, EmployeeDocumentRepository>();
-//builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
+builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddCors(options =>
 {
@@ -71,7 +75,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             )
         };
     });
+// Configure file upload limits
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 5 * 1024 * 1024;
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
 
+// Configure Kestrel server limits (optional)
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 5 * 1024 * 1024; 
+});
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
