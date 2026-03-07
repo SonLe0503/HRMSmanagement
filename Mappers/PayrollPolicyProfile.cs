@@ -11,7 +11,12 @@ namespace HRManagement.Mappers
             CreateMap<PayrollPolicy, PayrollPolicyListDTO>()
               .ForMember(dest => dest.LastModifiedDate,
                   opt => opt.MapFrom(src => src.ModifiedDate ?? src.CreatedDate));
+
+            CreateMap<PayrollPolicy, PayrollPolicyDetailDTO>();
+
             CreateMap<CreatePayrollPolicyDTO, PayrollPolicy>();
+
+            CreateMap<UpdatePayrollPolicyDto, PayrollPolicy>();
         }
     }
 }

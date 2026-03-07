@@ -32,4 +32,14 @@
         public string? ApplicableEmployeeGroup { get; set; }
         public string? CalculationFormula { get; set; }
     }
+    public class UpdatePayrollPolicyDto
+    {
+        public string PolicyName { get; set; } = null!;
+        public string PolicyType { get; set; } = null!;
+        public string? Description { get; set; }
+        public string? CalculationFormula { get; set; }
+        public string? ApplicableEmployeeGroup { get; set; }
+        public DateOnly EffectiveStartDate { get; set; }
+        public DateOnly? EffectiveEndDate { get; set; }
+    }
 }

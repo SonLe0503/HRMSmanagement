@@ -150,5 +150,79 @@ namespace HRManagement.Controllers
                 PolicyId = policy.PolicyId
             });
         }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdatePayrollPolicy(int id, [FromBody] UpdatePayrollPolicyDto dto)
+        {
+            var existingPolicy = await _context.PayrollPolicies
+                .FirstOrDefaultAsync(p => p.PolicyId == id);
+
+            if (existingPolicy == null)
+                return NotFound(new { Message = "Payroll policy not found." });
+
+            // ===== STEP 8 VALIDATION =====
+
+            if (string.IsNullOrWhiteSpace(dto.PolicyName) ||
+                string.IsNullOrWhiteSpace(dto.PolicyType))
+            {
+                return BadRequest(new
+                {
+                    MessageCode = "MSG-52",
+                    Message = "Required fields missing."
+                });
+            }
+
+            // Check duplicate name
+            var duplicateName = await _context.PayrollPolicies
+                .AnyAsync(p => p.PolicyName == dto.PolicyName && p.PolicyId != id);
+
+            if (duplicateName)
+            {
+                return Conflict(new
+                {
+                    MessageCode = "MSG-55",
+                    Message = "Policy name already exists."
+                });
+            }
+
+            // ===== STEP 9 CHECK PAYROLL IMPACT =====
+
+            var affectedPayroll = await _context.PayrollRecords
+                .Include(r => r.Period)
+                .AnyAsync(r =>
+                    r.Period.StartDate >= dto.EffectiveStartDate
+                    && r.Status != "Draft");
+
+            if (affectedPayroll)
+            {
+                return Conflict(new
+                {
+                    MessageCode = "MSG-58",
+                    Message = "Update affects processed payroll periods."
+                });
+            }
+
+            // ===== STEP 12 CREATE NEW POLICY VERSION =====
+
+            existingPolicy.IsActive = false;
+
+            var newPolicy = _mapper.Map<PayrollPolicy>(dto);
+
+            newPolicy.CreatedDate = DateTime.Now;
+            newPolicy.CreatedBy = _currentUser.UserId;
+            newPolicy.IsActive = dto.EffectiveStartDate <= DateOnly.FromDateTime(DateTime.Today);
+
+            _context.PayrollPolicies.Add(newPolicy);
+
+            await _context.SaveChangesAsync();
+
+            // ===== STEP 14 SUCCESS =====
+
+            return Ok(new
+            {
+                MessageCode = "MSG-57",
+                Message = "Payroll policy updated successfully.",
+                NewPolicyId = newPolicy.PolicyId
+            });
+        }
     }
 }
