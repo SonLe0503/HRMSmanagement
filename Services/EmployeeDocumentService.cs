@@ -10,11 +10,13 @@ namespace HRManagement.Services
         private readonly IEmployeeDocumentRepository _documentRepository;
         private readonly ICloudinaryService _cloudinaryService;
         private readonly IHttpClientFactory _httpClientFactory;
-        public EmployeeDocumentService(IEmployeeDocumentRepository documentRepository,ICloudinaryService cloudinaryService, IHttpClientFactory httpClientFactory)
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        public EmployeeDocumentService(IEmployeeDocumentRepository documentRepository,ICloudinaryService cloudinaryService, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
         {
             _documentRepository = documentRepository;
             _cloudinaryService = cloudinaryService;
             _httpClientFactory = httpClientFactory;
+            _httpContextAccessor = httpContextAccessor;
         }
         public async Task<bool> DeleteDocumentAsync(int documentId)
         {
@@ -25,6 +27,12 @@ namespace HRManagement.Services
             }
             var cloudinaryPublicId = document.FilePath;
             var deleted = await _cloudinaryService.DeleteFileAsync(cloudinaryPublicId);
+
+            if (!deleted)
+            {
+                throw new InvalidOperationException("Failed to delete file from storage.");
+            }
+
             return await _documentRepository.DeleteDocumentAsync(documentId);
         }
 
@@ -40,7 +48,16 @@ namespace HRManagement.Services
                 return null;
 
             var httpClient = _httpClientFactory.CreateClient();
-            var fileContent = await httpClient.GetByteArrayAsync(cloudinaryUrl);
+
+            byte[] fileContent;
+            try
+            {
+                fileContent = await httpClient.GetByteArrayAsync(cloudinaryUrl);
+            }
+            catch
+            {
+                throw new InvalidOperationException("Failed to download file from storage.");
+            }
             var contentType = GetContentType(document.FileType);
 
             return (fileContent, document.FileName, contentType);
@@ -121,7 +138,21 @@ namespace HRManagement.Services
             var document = await _documentRepository.GetDocumentByIdAsync(documentId);
             if(document == null)
                 return null;
-            document.DocumentTitle = updateDto.DocumentTitle;
+            var validCategories = new[]
+{
+                "Contract","Certificate","Identification","Resume","Other"
+            };
+
+            if (!validCategories.Contains(updateDto.DocumentCategory))
+            {
+                throw new ArgumentException("Invalid document category.");
+            }
+            if (string.IsNullOrWhiteSpace(updateDto.DocumentTitle))
+            {
+                throw new ArgumentException("Document title is required.");
+            }
+
+                document.DocumentTitle = updateDto.DocumentTitle;
             document.DocumentCategory = updateDto.DocumentCategory;
             document.IsConfidential = updateDto.IsConfidential;
             document.ModifiedDate = DateTime.UtcNow;
@@ -165,7 +196,7 @@ namespace HRManagement.Services
             {
                 throw new ArgumentException("The file format is not supported.");
             }           
-            if (file.Length > 10 * 1024 * 1024)
+            if (file.Length > 5 * 1024 * 1024)
             {
                 throw new ArgumentException("File size exceeds the 5MB limit.");
             }
@@ -174,12 +205,32 @@ namespace HRManagement.Services
             {
                 throw new KeyNotFoundException("Employee not found in the system.");
             }
-               
+            var validCategories = new[]
+            {
+                "Contract","Certificate","Identification","Resume","Other"
+            };
+
+            if (!validCategories.Contains(uploadDto.DocumentCategory))
+            {
+                throw new ArgumentException("Invalid document category.");
+            }
+            if (string.IsNullOrWhiteSpace(uploadDto.DocumentTitle))
+            {
+                throw new ArgumentException("Document title is required.");
+            }
+
+            int uploadedBy = uploadDto.UploadedBy ?? GetCurrentUserId();
+
+            if (uploadedBy <= 0)
+            {
+                throw new ArgumentException("UploadedBy must be a valid user.");
+            }
+
             var folder = $"HRMS/Employee_{uploadDto.EmployeeId}/{uploadDto.DocumentCategory}";
             var uploadResult = await _cloudinaryService.UploadFileAsync(file, folder);
             if (!uploadResult.Success || string.IsNullOrEmpty(uploadResult.PublicId))
             {
-                throw new Exception($"Upload failed: {uploadResult.Error}");
+                throw new InvalidOperationException($"Upload failed: {uploadResult.Error}");
             }
             var document = new EmployeeDocument
             {
@@ -192,7 +243,7 @@ namespace HRManagement.Services
                 FileSize = (int)file.Length,
                 IsConfidential = uploadDto.IsConfidential,
                 UploadDate = DateTime.UtcNow,
-                UploadedBy = uploadDto.UploadedBy ?? 0
+                UploadedBy = uploadDto.UploadedBy ?? uploadedBy
             };
             await _documentRepository.AddDocumentAsync(document);
             return new EmployeeDocumentResponseDto
@@ -245,6 +296,16 @@ namespace HRManagement.Services
                 ".bmp" => "image/bmp",
                 _ => "application/octet-stream"
             };
+        }
+        private int GetCurrentUserId()
+        {
+            var claim = _httpContextAccessor.HttpContext?
+                .User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
+
+            if (int.TryParse(claim, out int userId))
+                return userId;
+
+            return 1;
         }
     }
 

@@ -48,5 +48,13 @@ namespace HRManagement.DataAcess
             return await _context.Employees
                 .AnyAsync(e => e.EmployeeCode == employeeCode && (excludeEmployeeId == null || e.EmployeeId != excludeEmployeeId.Value));
         }
+        public async Task<bool> DepartmentExistsAsync(int id)
+        {
+            return await _context.Departments.AnyAsync(d => d.DepartmentId == id);
+        }
+        public async Task<bool> PositionExistsAsync(int id)
+        {
+            return await _context.Positions.AnyAsync(p => p.PositionId == id);
+        }
     }
 }
