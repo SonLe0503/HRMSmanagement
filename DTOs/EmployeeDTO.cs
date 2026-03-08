@@ -42,6 +42,7 @@ namespace HRManagement.DTOs
     }
     public class CreateEmployeeDto
     {
+        public int EmployeeId { get; set; }
         [Required]
         [MaxLength(20)]
         public string EmployeeCode { get; set; } = null!;

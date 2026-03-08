@@ -22,15 +22,33 @@ namespace HRManagement.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var created = await _employeeService.AddEmployeeAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = created.EmployeeId }, created);
+            try
+            {
+                var created = await _employeeService.AddEmployeeAsync(dto);
+
+                return CreatedAtAction(
+                    nameof(GetById),
+                    new { id = created.EmployeeId },
+                    created);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
         }
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             try
             {
                 var updated = await _employeeService.UpdateEmployeeAsync(id, dto);
@@ -40,13 +58,34 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = $"Employee {id} not found." });
             }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
         }
         [HttpPatch("{id}/status")]
-        public async Task<IActionResult> UpdateStatus(int id, string status, [FromQuery] int? disabledBy = null)
+        public async Task<IActionResult> UpdateStatus(
+            int id,
+            [FromQuery] string status,
+            [FromQuery] int? modifiedBy = null)
         {
-            var result = await _employeeService.UpdateStatusAsync(id, status, disabledBy);
-            if (!result) return NotFound(new { message = $"Employee {id} not found." });
-            return NoContent();
+            try
+            {
+                var result = await _employeeService.UpdateStatusAsync(id, status, modifiedBy);
+
+                if (!result)
+                    return NotFound(new { message = $"Employee {id} not found." });
+
+                return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
