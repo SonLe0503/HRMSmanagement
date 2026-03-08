@@ -23,21 +23,9 @@ namespace HRManagement.Controllers
             _currentUser = currentUser;
         }
         [HttpGet]
-        public async Task<IActionResult> GetPayrollPolicies(
-            string? policyType,
-            bool? status,
-            string? employeeGroup)
+        public async Task<IActionResult> GetPayrollPolicies()
         {
             var query = _context.PayrollPolicies.AsQueryable();
-
-            if (!string.IsNullOrEmpty(policyType))
-                query = query.Where(p => p.PolicyType == policyType);
-
-            if (status.HasValue)
-                query = query.Where(p => p.IsActive == status.Value);
-
-            if (!string.IsNullOrEmpty(employeeGroup))
-                query = query.Where(p => p.ApplicableEmployeeGroup == employeeGroup);
 
             var policies = await query
                 .OrderByDescending(p => p.EffectiveStartDate)
