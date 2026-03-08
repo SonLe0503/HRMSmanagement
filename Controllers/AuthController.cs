@@ -50,6 +50,7 @@ namespace HRManagement.Controllers
             {
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
+                  new Claim("EmployeeID", user.EmployeeId?.ToString() ?? "")
 
             };
 
