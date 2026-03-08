@@ -1,7 +1,8 @@
 ﻿using System;
 
-public class ICurrentUserService
+public interface ICurrentUserService
 {
-    Guid UserId { get; }
-    string Role { get; }
+    int UserId { get; }
+    int? EmployeeId { get; }
+    string RoleName { get; }
 }

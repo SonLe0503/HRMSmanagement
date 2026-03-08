@@ -10,11 +10,24 @@ public class CurrentUserService : ICurrentUserService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public Guid UserId =>
-        Guid.Parse(_httpContextAccessor.HttpContext!
-            .User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    public int UserId
+    {
+        get
+        {
+            var value = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(value, out var result) ? result : 0;
+        }
+    }
 
-    public string Role =>
-        _httpContextAccessor.HttpContext!
-            .User.FindFirst(ClaimTypes.Role)!.Value;
+    public int? EmployeeId
+    {
+        get
+        {
+            var value = _httpContextAccessor.HttpContext?.User?.FindFirst("EmployeeID")?.Value;
+            return int.TryParse(value, out var result) ? result : null;
+        }
+    }
+
+    public string RoleName =>
+        _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
 }
