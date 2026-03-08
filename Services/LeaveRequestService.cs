@@ -1,5 +1,8 @@
-﻿using HRManagement.Models;
+﻿using HRManagement.DTOs;
+using HRManagement.DTOs.Common;
+using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HRManagement.Services
 {

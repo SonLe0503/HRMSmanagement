@@ -1,4 +1,7 @@
-﻿using HRManagement.Models;
+﻿using HRManagement.DTOs;
+using HRManagement.DTOs.Common;
+using HRManagement.Models;
+using System.Security.Claims;
 
 namespace HRManagement.Services
 {
@@ -11,3 +14,4 @@ namespace HRManagement.Services
         Task<bool> DeleteAsync(int id);
     }
 }
+

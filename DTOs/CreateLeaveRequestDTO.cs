@@ -1,6 +1,7 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
 
-public class CreateLeaveRequestDTO
+public class CreateLeaveRequestDto
 {
     public string LeaveType { get; set; } = null!;
     public DateTime StartDate { get; set; }

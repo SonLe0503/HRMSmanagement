@@ -10,7 +10,7 @@ obj/
 *.log
 *.userosscache
 *.sln.docstates
-
+*.sln
 # NuGet packages
 *.nupkg
 packages/
