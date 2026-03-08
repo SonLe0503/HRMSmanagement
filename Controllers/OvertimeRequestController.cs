@@ -31,6 +31,20 @@ namespace HRManagement.Controllers
 
             return Ok(result);
         }
+        [HttpPut("{id}/cancel")]
+        public async Task<IActionResult> Cancel(int id)
+        {
+            var employeeIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (employeeIdClaim == null)
+                return Unauthorized();
+
+            int employeeId = int.Parse(employeeIdClaim);
+
+            var result = await _service.CancelAsync(id, employeeId);
+
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }
 
