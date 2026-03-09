@@ -16,14 +16,36 @@ public class AttendanceService : IAttendanceService
 
     public async Task<string> AssignShiftAsync(CreateShiftAssignmentDTO dto)
     {
-        // Simple Overlap Check
+        // 1. Check Employee tồn tại
+        var employeeExists = await _context.Employees
+            .AnyAsync(e => e.EmployeeId == dto.EmployeeId);
+
+        if (!employeeExists)
+            return "MSG-EMP-01"; // Employee not found
+
+
+        // 2. Check Shift tồn tại
+        var shiftExists = await _context.Shifts
+            .AnyAsync(s => s.ShiftId == dto.ShiftId);
+
+        if (!shiftExists)
+            return "MSG-SHF-01"; // Shift not found
+
+
+        // 3. Check Overlap Shift
         bool isOverlapping = await _context.ShiftAssignments
-            .AnyAsync(sa => sa.EmployeeId == dto.EmployeeId && sa.Status == "Active" &&
+            .AnyAsync(sa =>
+                sa.EmployeeId == dto.EmployeeId &&
+                sa.Status == "Active" &&
                 ((dto.EndDate == null || sa.StartDate <= dto.EndDate) &&
-                 (sa.EndDate == null || sa.EndDate >= dto.StartDate)));
+                 (sa.EndDate == null || sa.EndDate >= dto.StartDate))
+            );
 
-        if (isOverlapping) return "MSG-ATT-01";
+        if (isOverlapping)
+            return "MSG-ATT-01";
 
+
+        // 4. Create Assignment
         var assignment = new ShiftAssignment
         {
             EmployeeId = dto.EmployeeId,
@@ -37,6 +59,7 @@ public class AttendanceService : IAttendanceService
 
         _context.ShiftAssignments.Add(assignment);
         await _context.SaveChangesAsync();
+
         return "MSG-SUC-01";
     }
 
@@ -69,28 +92,58 @@ public class AttendanceService : IAttendanceService
     public async Task<string> UpdateAssignmentAsync(int id, UpdateShiftAssignmentDTO dto)
     {
         var assignment = await _context.ShiftAssignments.FindAsync(id);
-        if (assignment == null) return "MSG-SYS-03";
+        if (assignment == null)
+            return "MSG-SYS-03";
 
-        int oldShiftId = assignment.ShiftId;
+        // Validate Shift
+        var shiftExists = await _context.Shifts
+            .AnyAsync(s => s.ShiftId == dto.ShiftId);
 
+        if (!shiftExists)
+            return "MSG-SHF-01";
+
+        // Validate Date
+        if (dto.EndDate.HasValue && dto.EndDate < dto.StartDate)
+            return "MSG-VAL-02";
+
+        // Check overlap
+        bool overlap = await _context.ShiftAssignments
+            .AnyAsync(sa =>
+                sa.AssignmentId != id &&
+                sa.EmployeeId == assignment.EmployeeId &&
+                sa.Status == "Active" &&
+                ((dto.EndDate == null || sa.StartDate <= dto.EndDate) &&
+                 (sa.EndDate == null || sa.EndDate >= dto.StartDate)));
+
+        if (overlap)
+            return "MSG-ATT-01";
+
+        // Save old values
+        var oldValues = $"ShiftId:{assignment.ShiftId}, Start:{assignment.StartDate}, End:{assignment.EndDate}, Status:{assignment.Status}";
+
+        // Update
         assignment.ShiftId = dto.ShiftId;
         assignment.StartDate = dto.StartDate;
         assignment.EndDate = dto.EndDate;
         assignment.Status = dto.Status;
+
+        var newValues = $"ShiftId:{dto.ShiftId}, Start:{dto.StartDate}, End:{dto.EndDate}, Status:{dto.Status}";
 
         var log = new AuditLog
         {
             TableName = "ShiftAssignments",
             Action = "UPDATE",
             RecordId = assignment.AssignmentId,
-            OldValues = $"ShiftId: {oldShiftId}",
-            NewValues = $"ShiftId: {dto.ShiftId}",
+            OldValues = oldValues,
+            NewValues = newValues,
             ActionDate = DateTime.Now,
             UserId = 1
         };
+
         _context.AuditLogs.Add(log);
 
         await _context.SaveChangesAsync();
+
         return "MSG-SUC-02";
     }
 
@@ -188,38 +241,54 @@ public class AttendanceService : IAttendanceService
         var today = DateOnly.FromDateTime(DateTime.Now);
         var now = DateTime.Now;
 
+        // 1. Get shift assignment
         var assignment = await _context.ShiftAssignments
             .Include(s => s.Shift)
-            .FirstOrDefaultAsync(s => s.EmployeeId == dto.EmployeeId &&
-                                      s.Status == "Active" &&
-                                      today >= s.StartDate &&
-                                      (s.EndDate == null || today <= s.EndDate));
+            .FirstOrDefaultAsync(s =>
+                s.EmployeeId == dto.EmployeeId &&
+                s.Status == "Active" &&
+                today >= s.StartDate &&
+                (s.EndDate == null || today <= s.EndDate));
 
-        if (assignment == null)
+        if (assignment == null || assignment.Shift == null)
         {
-            return new AttendanceResponseDTO { Message = "MSG-VAL-04", Status = "Error" };
+            return new AttendanceResponseDTO
+            {
+                Message = "MSG-VAL-04", // No shift assigned
+                Status = "Error"
+            };
         }
 
-        var existingRecord = await _context.AttendanceRecords
-            .AnyAsync(a => a.EmployeeId == dto.EmployeeId && a.AttendanceDate == today);
+        // 2. Check duplicate check-in
+        bool alreadyCheckedIn = await _context.AttendanceRecords
+            .AnyAsync(a =>
+                a.EmployeeId == dto.EmployeeId &&
+                a.AttendanceDate == today &&
+                a.ShiftId == assignment.ShiftId);
 
-        if (existingRecord)
+        if (alreadyCheckedIn)
         {
-            return new AttendanceResponseDTO { Message = "MSG-VAL-03", Status = "Error" };
+            return new AttendanceResponseDTO
+            {
+                Message = "MSG-VAL-03", // Already checked in
+                Status = "Error"
+            };
         }
 
         int lateMinutes = 0;
         string finalStatus = "Present";
 
+        // 3. Calculate late time
         var scheduledStart = today.ToDateTime(assignment.Shift.StartTime);
         var diff = now - scheduledStart;
 
-        if (diff.TotalMinutes > 5) 
+        if (diff.TotalMinutes > 5)
         {
             lateMinutes = (int)diff.TotalMinutes;
             finalStatus = "Late";
         }
 
+        // 4. Create attendance record
         var record = new AttendanceRecord
         {
             EmployeeId = dto.EmployeeId,
@@ -236,6 +305,7 @@ public class AttendanceService : IAttendanceService
         _context.AttendanceRecords.Add(record);
         await _context.SaveChangesAsync();
 
+        // 5. Response
         return new AttendanceResponseDTO
         {
             AttendanceId = record.AttendanceId,
@@ -258,6 +328,15 @@ public class AttendanceService : IAttendanceService
             return new AttendanceResponseDTO { Message = "MSG-VAL-04", Status = "Error" };
         }
 
+        if (record.CheckOutTime != null)
+        {
+            return new AttendanceResponseDTO
+            {
+                Message = "MSG-VAL-05", // Already checked out
+                Status = "Error"
+            };
+        }
+
         record.CheckOutTime = DateTime.Now;
 
         var duration = record.CheckOutTime.Value - record.CheckInTime.Value;
@@ -270,8 +349,14 @@ public class AttendanceService : IAttendanceService
 
     public async Task<List<AttendanceHistoryDTO>> GetHistoryAsync(int employeeId)
     {
+        var employeeExists = await _context.Employees
+            .AnyAsync(e => e.EmployeeId == employeeId);
+
+        if (!employeeExists)
+            return new List<AttendanceHistoryDTO>();
+
         return await _context.AttendanceRecords
-            .Include(a => a.Shift)
+            .AsNoTracking()
             .Where(a => a.EmployeeId == employeeId)
             .OrderByDescending(a => a.AttendanceDate)
             .Select(a => new AttendanceHistoryDTO
@@ -282,37 +367,56 @@ public class AttendanceService : IAttendanceService
                 CheckOut = a.CheckOutTime,
                 TotalHours = a.WorkingHours,
                 Status = a.Status
-            }).ToListAsync();
+            })
+            .ToListAsync();
     }
 
-    public async Task<List<AdminAttendanceDTO>> GetAdminViewAsync(DateOnly? date, int? deptId, string? status)
+    public async Task<List<AdminAttendanceDTO>> GetAdminViewAsync(
+    DateOnly? date,
+    int? deptId,
+    string? status)
     {
+        var filterDate = date ?? DateOnly.FromDateTime(DateTime.Now);
+
         var query = _context.AttendanceRecords
-            .Include(a => a.Employee).ThenInclude(e => e.Department)
-            .Include(a => a.Shift)
+            .AsNoTracking()
+            .Where(a => a.AttendanceDate == filterDate)
             .AsQueryable();
 
-        var filterDate = date ?? DateOnly.FromDateTime(DateTime.Now);
-        query = query.Where(a => a.AttendanceDate == filterDate);
-
         if (deptId.HasValue)
-            query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
-
-        if (!string.IsNullOrEmpty(status))
-            query = query.Where(a => a.Status == status);
-
-        return await query.Select(a => new AdminAttendanceDTO
         {
-            AttendanceId = a.AttendanceId,
-            EmployeeCode = a.Employee.EmployeeCode,
-            FullName = a.Employee.FullName,
-            DepartmentName = a.Employee.Department != null ? a.Employee.Department.DepartmentName : "N/A",
-            Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
-            ShiftName = a.Shift != null ? a.Shift.ShiftName : "No Shift",
-            CheckIn = a.CheckInTime.HasValue ? a.CheckInTime.Value.ToString("HH:mm:ss") : null,
-            CheckOut = a.CheckOutTime.HasValue ? a.CheckOutTime.Value.ToString("HH:mm:ss") : null,
-            Status = a.Status,
-            LateMinutes = a.LateMinutes
-        }).ToListAsync();
+            query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            status = status.Trim();
+            query = query.Where(a => a.Status == status);
+        }
+
+        return await query
+            .OrderBy(a => a.Employee.FullName)
+            .Select(a => new AdminAttendanceDTO
+            {
+                AttendanceId = a.AttendanceId,
+                EmployeeCode = a.Employee.EmployeeCode,
+                FullName = a.Employee.FullName,
+                DepartmentName = a.Employee.Department != null
+                    ? a.Employee.Department.DepartmentName
+                    : "N/A",
+                Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
+                ShiftName = a.Shift != null
+                    ? a.Shift.ShiftName
+                    : "No Shift",
+                CheckIn = a.CheckInTime.HasValue
+                    ? a.CheckInTime.Value.ToString("HH:mm:ss")
+                    : null,
+                CheckOut = a.CheckOutTime.HasValue
+                    ? a.CheckOutTime.Value.ToString("HH:mm:ss")
+                    : null,
+                Status = a.Status,
+                LateMinutes = a.LateMinutes
+            })
+            .ToListAsync();
     }
 }

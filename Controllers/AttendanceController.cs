@@ -22,10 +22,14 @@ public class AttendanceController : ControllerBase
     {
         var result = await _attendanceService.AssignShiftAsync(dto);
 
-        if (result == "MSG-ATT-01")
-            return BadRequest(new { code = result, message = "Shift Overlap Detected" });
-
-        return Ok(new { code = result });
+        return result switch
+        {
+            "MSG-EMP-01" => BadRequest(new { code = result, message = "Employee not found" }),
+            "MSG-SHF-01" => BadRequest(new { code = result, message = "Shift not found" }),
+            "MSG-ATT-01" => BadRequest(new { code = result, message = "Shift Overlap Detected" }),
+            "MSG-SUC-01" => Ok(new { code = result, message = "Assign shift successfully" }),
+            _ => StatusCode(500, new { message = "Unknown error" })
+        };
     }
 
     [HttpGet("schedule/{employeeId}")]
