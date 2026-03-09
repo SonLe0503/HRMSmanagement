@@ -22,6 +22,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
+builder.Services.AddScoped<ILeaveBalanceAdjustmentService, LeaveBalanceAdjustmentService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
