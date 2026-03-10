@@ -42,9 +42,7 @@ namespace HRManagement.Services
             if (document == null)
                 return null;
 
-            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath);
-
-            if (string.IsNullOrEmpty(cloudinaryUrl))
+            if (string.IsNullOrEmpty(document.FilePath))
                 return null;
 
             var httpClient = _httpClientFactory.CreateClient();
@@ -52,7 +50,7 @@ namespace HRManagement.Services
             byte[] fileContent;
             try
             {
-                fileContent = await httpClient.GetByteArrayAsync(cloudinaryUrl);
+                fileContent = await httpClient.GetByteArrayAsync(document.FilePath);
             }
             catch
             {
@@ -70,7 +68,7 @@ namespace HRManagement.Services
                 return null;
 
             
-            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath);
+            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath, document.FileType);
             return new EmployeeDocumentResponseDto
             {
                 DocumentId = document.DocumentId,
@@ -79,7 +77,7 @@ namespace HRManagement.Services
                 DocumentTitle = document.DocumentTitle,
                 DocumentCategory = document.DocumentCategory,
                 FileName = document.FileName,
-                FilePath = cloudinaryUrl!, 
+                FilePath = document.FilePath, 
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 FileSizeFormatted = FormatFileSize(document.FileSize),
@@ -156,11 +154,11 @@ namespace HRManagement.Services
             document.DocumentCategory = updateDto.DocumentCategory;
             document.IsConfidential = updateDto.IsConfidential;
             document.ModifiedDate = DateTime.UtcNow;
-            document.ModifiedBy = updateDto.ModifiedBy;
+            document.ModifiedBy = GetCurrentUserId();
 
             await _documentRepository.UpdateDocumentAsync(document);
-            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath);
-            
+            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath, document.FileType);
+
             return new EmployeeDocumentResponseDto
             {
                 DocumentId = document.DocumentId,
@@ -169,7 +167,7 @@ namespace HRManagement.Services
                 DocumentTitle = document.DocumentTitle,
                 DocumentCategory = document.DocumentCategory,
                 FileName = document.FileName,
-                FilePath = cloudinaryUrl, 
+                FilePath = document.FilePath, 
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 FileSizeFormatted = FormatFileSize(document.FileSize),
@@ -238,12 +236,12 @@ namespace HRManagement.Services
                 DocumentTitle = uploadDto.DocumentTitle,
                 DocumentCategory = uploadDto.DocumentCategory,
                 FileName = file.FileName,
-                FilePath = uploadResult.PublicId, 
+                FilePath = uploadResult.CheckUrl!,
                 FileType = extension,
                 FileSize = (int)file.Length,
                 IsConfidential = uploadDto.IsConfidential,
                 UploadDate = DateTime.UtcNow,
-                UploadedBy = uploadDto.UploadedBy ?? uploadedBy
+                UploadedBy = GetCurrentUserId()
             };
             await _documentRepository.AddDocumentAsync(document);
             return new EmployeeDocumentResponseDto
@@ -267,7 +265,6 @@ namespace HRManagement.Services
                 ModifiedByName = document.ModifiedBy.HasValue ? "System" : null
             };
         }
-
         private string FormatFileSize(long bytes)
         {
             string[] sizes = { "B", "KB", "MB", "GB", "TB" };
@@ -305,7 +302,7 @@ namespace HRManagement.Services
             if (int.TryParse(claim, out int userId))
                 return userId;
 
-            return 1;
+            return 0;
         }
     }
 

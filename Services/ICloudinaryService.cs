@@ -4,7 +4,7 @@
     {
         Task<CloudinaryUploadResult> UploadFileAsync(IFormFile file, string? folder = null);
         Task<bool> DeleteFileAsync(string publicId);
-        string GetOptimizedUrl(string publicId, int? width = null, int? height = null);
+        string GetOptimizedUrl(string publicId, string? fileType = null, int? width = null, int? height = null);
 
     }
     public class CloudinaryUploadResult
