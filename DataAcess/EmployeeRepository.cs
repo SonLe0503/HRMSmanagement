@@ -56,5 +56,9 @@ namespace HRManagement.DataAcess
         {
             return await _context.Positions.AnyAsync(p => p.PositionId == id);
         }
+        public async Task<bool> EmailExistsAsync(string email)
+        {
+            return await _context.Employees.AnyAsync(e => e.Email == email);
+        }
     }
 }

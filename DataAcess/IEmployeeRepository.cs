@@ -10,5 +10,7 @@ namespace HRManagement.DataAcess
         Task<bool> EmployeeCodeExistsAsync(string employeeCode, int? excludeEmployeeId = null);
         Task<bool> DepartmentExistsAsync(int id);
         Task<bool> PositionExistsAsync(int id);
+
+        Task<bool> EmailExistsAsync(string email);
     }
 }

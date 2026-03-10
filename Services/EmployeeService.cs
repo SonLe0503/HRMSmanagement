@@ -20,6 +20,9 @@ namespace HRManagement.Services
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
                 throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
 
+            if (await _employeeRepository.EmailExistsAsync(dto.Email))
+                throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
+
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
 
@@ -28,6 +31,13 @@ namespace HRManagement.Services
 
             if (dto.DateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow))
                 throw new ArgumentException("Date of birth cannot be in the future.");
+            if (dto.JoinDate <= dto.DateOfBirth)
+                throw new ArgumentException("Join date must be after date of birth.");
+
+            var minJoinDate = dto.DateOfBirth.Value.AddYears(18);
+
+            if (dto.JoinDate < minJoinDate)
+                throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
 
             if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
                 throw new ArgumentException("Employee cannot be their own manager.");
