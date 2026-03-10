@@ -17,39 +17,39 @@ namespace HRManagement.Services
 
         public async Task<EmployeeResponseDetailDto> AddEmployeeAsync(CreateEmployeeDto dto)
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
                 throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
 
             if (await _employeeRepository.EmailExistsAsync(dto.Email))
                 throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
 
+
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
 
-            if (dto.JoinDate > DateOnly.FromDateTime(DateTime.UtcNow))
+
+            if (dto.JoinDate > today)
                 throw new ArgumentException("Join date cannot be in the future.");
 
-            if (dto.DateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow))
-                throw new ArgumentException("Date of birth cannot be in the future.");
-            if (dto.JoinDate <= dto.DateOfBirth)
-                throw new ArgumentException("Join date must be after date of birth.");
 
-            var minJoinDate = dto.DateOfBirth.Value.AddYears(18);
+            if (dto.DateOfBirth is DateOnly dob)
+            {
+                if (dob > today)
+                    throw new ArgumentException("Date of birth cannot be in the future.");
 
-            if (dto.JoinDate < minJoinDate)
-                throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
+                if (dto.JoinDate <= dob)
+                    throw new ArgumentException("Join date must be after date of birth.");
+
+                if (dto.JoinDate < dob.AddYears(18))
+                    throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
+            }
+
 
             if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
                 throw new ArgumentException("Employee cannot be their own manager.");
 
-            if (dto.DateOfBirth.HasValue && dto.DateOfBirth.Value > DateOnly.FromDateTime(DateTime.UtcNow))
-                throw new ArgumentException("Date of birth cannot be in the future.");
-
-            if (dto.DateOfBirth.HasValue && dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
-                throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
-
-            if (dto.DateOfBirth.HasValue && dto.DateOfBirth.Value.AddYears(18) < dto.JoinDate)
-                throw new ArgumentException("Join date cannot be before employee turns 18.");
 
             if (dto.DepartmentId.HasValue)
             {
@@ -59,35 +59,35 @@ namespace HRManagement.Services
                     throw new ArgumentException($"Department {dto.DepartmentId} does not exist.");
             }
 
+
             if (dto.PositionId.HasValue)
             {
-                var positionExists = await _employeeRepository.DepartmentExistsAsync(dto.PositionId.Value);
+                var positionExists = await _employeeRepository.PositionExistsAsync(dto.PositionId.Value);
+
                 if (!positionExists)
                     throw new ArgumentException($"Position {dto.PositionId} does not exist.");
             }
+
+
             var validTypes = new[]
             {
-                "Full-Time","Part-Time","Contract","Intern"
-            };
+        "Full-Time", "Part-Time", "Contract", "Intern"
+    };
 
             if (!validTypes.Contains(dto.EmploymentType))
-            {
                 throw new ArgumentException(
                     "Invalid employment type. Allowed values: Full-Time, Part-Time, Contract, Intern."
                 );
-            }
 
             var validStatus = new[]
             {
-                "Active", "Resigned", "Terminated", "On Leave", "Suspended","Inactive"
-            };
+        "Active", "Resigned", "Terminated", "On Leave", "Suspended", "Inactive"
+    };
 
-            if (!validTypes.Contains(dto.EmploymentType))
-            {
+            if (!validStatus.Contains(dto.EmploymentStatus))
                 throw new ArgumentException(
-                    "Invalid employment type. Allowed values: Active, Resigned, Terminated, On Leave, Suspended,Inactive"
+                    "Invalid employment status. Allowed values: Active, Resigned, Terminated, On Leave, Suspended, Inactive"
                 );
-            }
 
             int createdBy = GetCurrentUserId(dto.CreatedBy);
 
