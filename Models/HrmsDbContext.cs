@@ -180,7 +180,14 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ParentDepartment).WithMany(p => p.InverseParentDepartment)
                 .HasForeignKey(d => d.ParentDepartmentId)
                 .HasConstraintName("FK_Departments_Parent");
-        });
+
+            entity
+        .HasOne(d => d.Manager)
+        .WithMany()  
+        .HasForeignKey(d => d.ManagerId)
+        .OnDelete(DeleteBehavior.Restrict);
+        }
+        );
 
         modelBuilder.Entity<Employee>(entity =>
         {
