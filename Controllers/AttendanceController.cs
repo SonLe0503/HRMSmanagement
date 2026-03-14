@@ -1,86 +1,433 @@
-﻿using HRManagement.DTOs;
+﻿using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
-namespace HRManagement.Controllers;
-
-[Route("api/[controller]")]
-[ApiController]
-public class AttendanceController : ControllerBase
+namespace HRManagement.Controllers
 {
-    private readonly IAttendanceService _attendanceService;
-
-    public AttendanceController(IAttendanceService attendanceService)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AttendanceController : Controller
     {
-        _attendanceService = attendanceService;
-    }
+        private readonly IAttendanceService _attendanceService;
+        private readonly HrmsDbContext _context;
 
-    [HttpPost("assign-shift")]
-    public async Task<IActionResult> AssignShift([FromBody] CreateShiftAssignmentDTO dto)
-    {
-        var result = await _attendanceService.AssignShiftAsync(dto);
-
-        return result switch
+        public AttendanceController(IAttendanceService attendanceService, HrmsDbContext context)
         {
-            "MSG-EMP-01" => BadRequest(new { code = result, message = "Employee not found" }),
-            "MSG-SHF-01" => BadRequest(new { code = result, message = "Shift not found" }),
-            "MSG-ATT-01" => BadRequest(new { code = result, message = "Shift Overlap Detected" }),
-            "MSG-SUC-01" => Ok(new { code = result, message = "Assign shift successfully" }),
-            _ => StatusCode(500, new { message = "Unknown error" })
-        };
-    }
+            _attendanceService = attendanceService;
+            _context = context;
+        }
 
-    [HttpGet("schedule/{employeeId}")]
-    public async Task<IActionResult> GetMySchedule(int employeeId)
-    {
-        var schedule = await _attendanceService.GetWeeklyScheduleAsync(employeeId);
-        return Ok(schedule);
-    }
+        private int GetCurrentUserId()
+        {
+            if (User?.Identity == null || !User.Identity.IsAuthenticated)
+                throw new UnauthorizedAccessException("Bạn chưa đăng nhập.");
 
-    [HttpPost("check-in")]
-    public async Task<IActionResult> CheckIn([FromBody] CheckInRequestDTO DTO)
-    {
-        var response = await _attendanceService.CheckInAsync(DTO);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                              ?? User.FindFirst("sub")?.Value;
 
-        if (response.Status == "Error")
-            return BadRequest(response);
+            if (string.IsNullOrWhiteSpace(userIdClaim))
+                throw new UnauthorizedAccessException("Không tìm thấy UserId trong token.");
 
-        return Ok(response);
-    }
+            if (!int.TryParse(userIdClaim, out var userId))
+                throw new UnauthorizedAccessException("UserId trong token không hợp lệ.");
 
-    [HttpPost("check-out/{employeeId}")]
-    public async Task<IActionResult> CheckOut(int employeeId)
-    {
-        var response = await _attendanceService.CheckOutAsync(employeeId);
+            return userId;
+        }
 
-        if (response.Status == "Error")
-            return BadRequest(response);
+        private async Task<int> GetCurrentEmployeeIdAsync()
+        {
+            var userId = GetCurrentUserId();
 
-        return Ok(response);
-    }
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
 
-    [HttpPut("assignment/{id}")]
-    public async Task<IActionResult> UpdateAssignment(int id, [FromBody] UpdateShiftAssignmentDTO dto)
-    {
-        var result = await _attendanceService.UpdateAssignmentAsync(id, dto);
-        if (result.StartsWith("MSG-SUC")) return Ok(new { code = result });
-        return BadRequest(new { code = result });
-    }
+            if (user == null)
+                throw new KeyNotFoundException("Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.");
 
-    // GET: api/Attendance/history/1
-    [HttpGet("history/{employeeId}")]
-    public async Task<IActionResult> GetAttendanceHistory(int employeeId)
-    {
-        var history = await _attendanceService.GetHistoryAsync(employeeId);
-        return Ok(history);
-    }
+            if (!user.EmployeeId.HasValue)
+                throw new InvalidOperationException("Tài khoản này chưa được liên kết với nhân viên.");
 
-    [HttpGet("admin-view")]
-    public async Task<IActionResult> GetAdminView([FromQuery] DateOnly? date, [FromQuery] int? deptId, [FromQuery] string? status)
-    {
-        var data = await _attendanceService.GetAdminViewAsync(date, deptId, status);
-        return Ok(data);
+            return user.EmployeeId.Value;
+        }
+
+        // =========================
+        // EMPLOYEE ATTENDANCE
+        // =========================
+
+        [HttpPost("check-in")]
+        [Authorize]
+        public async Task<IActionResult> CheckIn([FromBody] CheckInRequestDto dto)
+        {
+            try
+            {
+                var employeeId = await GetCurrentEmployeeIdAsync();
+                var result = await _attendanceService.CheckInAsync(employeeId, dto);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPost("check-out")]
+        [Authorize]
+        public async Task<IActionResult> CheckOut([FromBody] CheckOutRequestDto dto)
+        {
+            try
+            {
+                var employeeId = await GetCurrentEmployeeIdAsync();
+                var result = await _attendanceService.CheckOutAsync(employeeId, dto);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpGet("my-today")]
+        [Authorize]
+        public async Task<IActionResult> GetMyToday()
+        {
+            try
+            {
+                var employeeId = await GetCurrentEmployeeIdAsync();
+                var result = await _attendanceService.GetMyTodayAsync(employeeId);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpGet("my-history")]
+        [Authorize]
+        public async Task<IActionResult> GetMyHistory(
+            [FromQuery] DateOnly? fromDate,
+            [FromQuery] DateOnly? toDate)
+        {
+            try
+            {
+                if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
+                    return BadRequest(new { message = "Từ ngày không được lớn hơn đến ngày." });
+
+                var employeeId = await GetCurrentEmployeeIdAsync();
+                var result = await _attendanceService.GetMyHistoryAsync(employeeId, fromDate, toDate);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        // =========================
+        // MANAGEMENT ATTENDANCE
+        // =========================
+
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> GetByDate([FromQuery] DateOnly date)
+        {
+            try
+            {
+                var result = await _attendanceService.GetAttendanceByDateAsync(date);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpGet("search")]
+        [Authorize]
+        public async Task<IActionResult> Search(
+            [FromQuery] DateOnly? fromDate,
+            [FromQuery] DateOnly? toDate,
+            [FromQuery] int? employeeId,
+            [FromQuery] string? status)
+        {
+            try
+            {
+                if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
+                    return BadRequest(new { message = "Từ ngày không được lớn hơn đến ngày." });
+
+                if (employeeId.HasValue && employeeId.Value <= 0)
+                    return BadRequest(new { message = "EmployeeId không hợp lệ." });
+
+                if (status != null && string.IsNullOrWhiteSpace(status))
+                    return BadRequest(new { message = "Status không hợp lệ." });
+
+                var result = await _attendanceService.SearchAttendanceAsync(fromDate, toDate, employeeId, status);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpGet("{employeeId:int}/{date}")]
+        [Authorize]
+        public async Task<IActionResult> GetDetail(int employeeId, DateOnly date)
+        {
+            try
+            {
+                if (employeeId <= 0)
+                    return BadRequest(new { message = "EmployeeId không hợp lệ." });
+
+                var result = await _attendanceService.GetAttendanceDetailAsync(employeeId, date);
+
+                if (result == null)
+                    return NotFound(new { message = "Không tìm thấy dữ liệu chấm công." });
+
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPut("manual-adjust/{attendanceId:int}")]
+        [Authorize]
+        public async Task<IActionResult> ManualAdjust(int attendanceId, [FromBody] ManualAdjustAttendanceDto dto)
+        {
+            try
+            {
+                if (attendanceId <= 0)
+                    return BadRequest(new { message = "AttendanceId không hợp lệ." });
+
+                var approverId = GetCurrentUserId(); // UserId là đúng
+                var result = await _attendanceService.ManualAdjustAttendanceAsync(attendanceId, approverId, dto);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPost("manual-create")]
+        [Authorize]
+        public async Task<IActionResult> ManualCreate([FromBody] ManualCreateAttendanceDto dto)
+        {
+            try
+            {
+                var approverId = GetCurrentUserId(); // UserId là đúng
+                var result = await _attendanceService.ManualCreateAttendanceAsync(approverId, dto);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPut("{attendanceId:int}/lock")]
+        [Authorize]
+        public async Task<IActionResult> Lock(int attendanceId)
+        {
+            try
+            {
+                if (attendanceId <= 0)
+                    return BadRequest(new { message = "AttendanceId không hợp lệ." });
+
+                var userId = GetCurrentUserId(); // UserId là đúng
+                await _attendanceService.LockAttendanceAsync(attendanceId, userId);
+
+                return Ok(new { message = "Khóa chấm công thành công." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPut("{attendanceId:int}/unlock")]
+        [Authorize]
+        public async Task<IActionResult> Unlock(int attendanceId)
+        {
+            try
+            {
+                if (attendanceId <= 0)
+                    return BadRequest(new { message = "AttendanceId không hợp lệ." });
+
+                var userId = GetCurrentUserId(); // UserId là đúng
+                await _attendanceService.UnlockAttendanceAsync(attendanceId, userId);
+
+                return Ok(new { message = "Mở khóa chấm công thành công." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpGet("logs")]
+        [Authorize]
+        public async Task<IActionResult> GetLogs([FromQuery] int employeeId, [FromQuery] DateOnly date)
+        {
+            try
+            {
+                if (employeeId <= 0)
+                    return BadRequest(new { message = "EmployeeId không hợp lệ." });
+
+                var result = await _attendanceService.GetLogsAsync(employeeId, date);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
     }
 }

@@ -1,422 +1,425 @@
-﻿using ClosedXML.Excel;
+﻿using HRManagement.DataAcess;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
-using HRManagement.DTOs;
-using Microsoft.EntityFrameworkCore;
 
-namespace HRManagement.Services;
-
-public class AttendanceService : IAttendanceService
+namespace HRManagement.Services
 {
-    private readonly HrmsDbContext _context;
-
-    public AttendanceService(HrmsDbContext context)
+    public class AttendanceService : IAttendanceService
     {
-        _context = context;
-    }
-
-    public async Task<string> AssignShiftAsync(CreateShiftAssignmentDTO dto)
-    {
-        // 1. Check Employee tồn tại
-        var employeeExists = await _context.Employees
-            .AnyAsync(e => e.EmployeeId == dto.EmployeeId);
-
-        if (!employeeExists)
-            return "MSG-EMP-01"; // Employee not found
-
-
-        // 2. Check Shift tồn tại
-        var shiftExists = await _context.Shifts
-            .AnyAsync(s => s.ShiftId == dto.ShiftId);
-
-        if (!shiftExists)
-            return "MSG-SHF-01"; // Shift not found
-
-
-        // 3. Check Overlap Shift
-        bool isOverlapping = await _context.ShiftAssignments
-            .AnyAsync(sa =>
-                sa.EmployeeId == dto.EmployeeId &&
-                sa.Status == "Active" &&
-                ((dto.EndDate == null || sa.StartDate <= dto.EndDate) &&
-                 (sa.EndDate == null || sa.EndDate >= dto.StartDate))
-            );
-
-        if (isOverlapping)
-            return "MSG-ATT-01";
-
-
-        // 4. Create Assignment
-        var assignment = new ShiftAssignment
+        private readonly IAttendanceRepository _attendanceRepository;
+        public AttendanceService(IAttendanceRepository attendanceRepository)
         {
-            EmployeeId = dto.EmployeeId,
-            ShiftId = dto.ShiftId,
-            StartDate = dto.StartDate,
-            EndDate = dto.EndDate,
-            AssignmentDate = DateOnly.FromDateTime(DateTime.Now),
-            Status = "Active",
-            CreatedDate = DateTime.Now
-        };
-
-        _context.ShiftAssignments.Add(assignment);
-        await _context.SaveChangesAsync();
-
-        return "MSG-SUC-01";
-    }
-
-    public async Task<List<AdminAttendanceDTO>> GetAdminAttendanceAsync(DateOnly? date, int? deptId, string? status)
-    {
-        var query = _context.AttendanceRecords
-            .Include(a => a.Employee).ThenInclude(e => e.Department)
-            .Include(a => a.Shift)
-            .AsQueryable();
-
-        if (date.HasValue) query = query.Where(a => a.AttendanceDate == date.Value);
-        if (deptId.HasValue) query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
-        if (!string.IsNullOrEmpty(status)) query = query.Where(a => a.Status == status);
-
-        return await query.Select(a => new AdminAttendanceDTO
+            _attendanceRepository = attendanceRepository;
+        }
+        public async Task<AttendanceResponseDto> CheckInAsync(int employeeId, CheckInRequestDto dto)
         {
-            AttendanceId = a.AttendanceId,
-            EmployeeCode = a.Employee.EmployeeCode,
-            FullName = a.Employee.FullName,
-            DepartmentName = a.Employee.Department != null ? a.Employee.Department.DepartmentName : "N/A",
-            Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
-            ShiftName = a.Shift != null ? a.Shift.ShiftName : "No Shift",
-            CheckIn = a.CheckInTime.HasValue ? a.CheckInTime.Value.ToString("HH:mm:ss") : null,
-            CheckOut = a.CheckOutTime.HasValue ? a.CheckOutTime.Value.ToString("HH:mm:ss") : null,
-            Status = a.Status,
-            LateMinutes = a.LateMinutes
-        }).ToListAsync();
-    }
+            var now = DateTime.Now;
+            var today = DateOnly.FromDateTime(now);
 
-    public async Task<string> UpdateAssignmentAsync(int id, UpdateShiftAssignmentDTO dto)
-    {
-        var assignment = await _context.ShiftAssignments.FindAsync(id);
-        if (assignment == null)
-            return "MSG-SYS-03";
+            var assignment = await _attendanceRepository.GetActiveShiftAssignmentAsync(employeeId, today);
+            if (assignment == null)
+                throw new InvalidOperationException("Bạn chưa được phân ca làm việc hôm nay.");
 
-        // Validate Shift
-        var shiftExists = await _context.Shifts
-            .AnyAsync(s => s.ShiftId == dto.ShiftId);
+            var shift = assignment.Shift;
+            if (shift == null)
+                throw new InvalidOperationException("Không tìm thấy ca làm việc.");
 
-        if (!shiftExists)
-            return "MSG-SHF-01";
+            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today);
 
-        // Validate Date
-        if (dto.EndDate.HasValue && dto.EndDate < dto.StartDate)
-            return "MSG-VAL-02";
+            if (attendance != null && (attendance.IsLocked ?? false))
+                throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
 
-        // Check overlap
-        bool overlap = await _context.ShiftAssignments
-            .AnyAsync(sa =>
-                sa.AssignmentId != id &&
-                sa.EmployeeId == assignment.EmployeeId &&
-                sa.Status == "Active" &&
-                ((dto.EndDate == null || sa.StartDate <= dto.EndDate) &&
-                 (sa.EndDate == null || sa.EndDate >= dto.StartDate)));
+            if (attendance != null && attendance.CheckInTime.HasValue)
+                throw new InvalidOperationException("Bạn đã check-in hôm nay rồi.");
 
-        if (overlap)
-            return "MSG-ATT-01";
+            var shiftStart = today.ToDateTime(shift.StartTime);
+            var earlyCheckInMinutes = shift.EarlyCheckInMinutes ?? 30;
+            var latestCheckInMinutes = shift.LatestCheckInMinutes ?? 120;
+            var lateGraceMinutes = shift.LateGraceMinutes ?? 5;
 
-        // Save old values
-        var oldValues = $"ShiftId:{assignment.ShiftId}, Start:{assignment.StartDate}, End:{assignment.EndDate}, Status:{assignment.Status}";
+            var earliestCheckIn = shiftStart.AddMinutes(-earlyCheckInMinutes);
+            var latestCheckIn = shiftStart.AddMinutes(latestCheckInMinutes);
 
-        // Update
-        assignment.ShiftId = dto.ShiftId;
-        assignment.StartDate = dto.StartDate;
-        assignment.EndDate = dto.EndDate;
-        assignment.Status = dto.Status;
+            if (now < earliestCheckIn)
+                throw new InvalidOperationException($"Chưa đến thời gian check-in. Bạn chỉ được check-in từ {earliestCheckIn:HH:mm}.");
 
-        var newValues = $"ShiftId:{dto.ShiftId}, Start:{dto.StartDate}, End:{dto.EndDate}, Status:{dto.Status}";
+            if (now > latestCheckIn)
+                throw new InvalidOperationException("Đã quá thời gian check-in cho phép.");
 
-        var log = new AuditLog
-        {
-            TableName = "ShiftAssignments",
-            Action = "UPDATE",
-            RecordId = assignment.AssignmentId,
-            OldValues = oldValues,
-            NewValues = newValues,
-            ActionDate = DateTime.Now,
-            UserId = 1
-        };
+            int lateMinutes = 0;
+            var lateThreshold = shiftStart.AddMinutes(lateGraceMinutes);
 
-        _context.AuditLogs.Add(log);
-
-        await _context.SaveChangesAsync();
-
-        return "MSG-SUC-02";
-    }
-
-    public async Task<AttendanceImportResultDto> ImportMachineDataAsync(IFormFile file)
-    {
-        var result = new AttendanceImportResultDto();
-        using var workbook = new XLWorkbook(file.OpenReadStream());
-        var worksheet = workbook.Worksheet(1);
-        var rows = worksheet.RangeUsed().RowsUsed().Skip(1);
-
-        foreach (var row in rows)
-        {
-            result.TotalRows++;
-            try
+            if (now > lateThreshold)
             {
-                // Assume Excel Columns: A = MachineID, B = Date, C = CheckInTime, D = CheckOutTime
-                var machineId = row.Cell(1).GetValue<int>();
-                var date = DateOnly.FromDateTime(row.Cell(2).GetDateTime());
-                var checkIn = row.Cell(3).GetDateTime();
-                var checkOut = row.Cell(4).GetDateTime();
+                lateMinutes = (int)Math.Floor((now - shiftStart).TotalMinutes);
+            }
 
-                // Find Employee by MachineID (need to add this column to Employee table)
-                var employee = await _context.Employees.FirstOrDefaultAsync(e => e.EmployeeId == machineId);
-                if (employee == null)
+            var log = new AttendanceLog
+            {
+                EmployeeId = employeeId,
+                ShiftId = shift.ShiftId,
+                LogTime = now,
+                LogType = "CheckIn",
+                Source = "Web",
+                DeviceInfo = dto.DeviceInfo,
+                IpAddress = dto.IpAddress,
+                Location = dto.Location,
+                Remarks = dto.Remarks,
+                IsValid = true,
+                CreatedDate = now,
+                CreatedBy = employeeId
+            };
+
+            await _attendanceRepository.AddAttendanceLogAsync(log);
+
+            if (attendance == null)
+            {
+                attendance = new AttendanceRecord
                 {
-                    result.Errors.Add($"Row {result.TotalRows + 1}: Employee {machineId} not found.");
-                    continue;
+                    EmployeeId = employeeId,
+                    AttendanceDate = today,
+                    ShiftId = shift.ShiftId,
+                    CheckInTime = now,
+                    CheckOutTime = null,
+                    WorkingHours = null,
+                    OvertimeHours = 0,
+                    LateMinutes = lateMinutes,
+                    EarlyLeaveMinutes = 0,
+                    Status = lateMinutes > 0 ? "Late" : "Present",
+                    Source = "Web",
+                    IsManualAdjusted = false,
+                    IsLocked = false,
+                    ApprovedBy = null,
+                    ApprovedDate = null,
+                    Location = dto.Location,
+                    Remarks = dto.Remarks,
+                    CreatedDate = now,
+                    ModifiedDate = null,
+                    ModifiedBy = null
+                };
+
+                await _attendanceRepository.AddAttendanceAsync(attendance);
+            }
+            else
+            {
+                attendance.ShiftId = shift.ShiftId;
+                attendance.CheckInTime = now;
+                attendance.LateMinutes = lateMinutes;
+                attendance.Status = lateMinutes > 0 ? "Late" : "Present";
+                attendance.Source = "Web";
+                attendance.Location = dto.Location;
+                attendance.Remarks = dto.Remarks;
+                attendance.ModifiedDate = now;
+                attendance.ModifiedBy = employeeId;
+
+                await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            }
+
+            await _attendanceRepository.SaveChangesAsync();
+
+            var result = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công sau khi check-in.");
+
+            return MapAttendance(result);
+        }
+
+        public async Task<AttendanceResponseDto> CheckOutAsync(int employeeId, CheckOutRequestDto dto)
+        {
+            var now = DateTime.Now;
+            var today = DateOnly.FromDateTime(now);
+
+            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today);
+            if (attendance == null)
+                throw new InvalidOperationException("Bạn chưa check-in hôm nay.");
+
+            if (attendance.IsLocked ?? false)
+                throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
+
+            if (!attendance.CheckInTime.HasValue)
+                throw new InvalidOperationException("Bạn chưa check-in hôm nay.");
+
+            if (attendance.CheckOutTime.HasValue)
+                throw new InvalidOperationException("Bạn đã check-out hôm nay rồi.");
+
+            Shift? shift = null;
+            if (attendance.ShiftId.HasValue)
+            {
+                shift = await _attendanceRepository.GetShiftByIdAsync(attendance.ShiftId.Value);
+            }
+
+            var log = new AttendanceLog
+            {
+                EmployeeId = employeeId,
+                ShiftId = attendance.ShiftId,
+                LogTime = now,
+                LogType = "CheckOut",
+                Source = "Web",
+                DeviceInfo = dto.DeviceInfo,
+                IpAddress = dto.IpAddress,
+                Location = dto.Location,
+                Remarks = dto.Remarks,
+                IsValid = true,
+                CreatedDate = now,
+                CreatedBy = employeeId
+            };
+
+            await _attendanceRepository.AddAttendanceLogAsync(log);
+
+            attendance.CheckOutTime = now;
+            attendance.Location = dto.Location ?? attendance.Location;
+            attendance.Remarks = dto.Remarks ?? attendance.Remarks;
+            attendance.ModifiedDate = now;
+            attendance.ModifiedBy = employeeId;
+
+            var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
+            attendance.WorkingHours = Math.Round(workingHours, 2);
+
+            if (shift != null)
+            {
+                var shiftEnd = today.ToDateTime(shift.EndTime);
+
+                if (shift.IsOvernight ?? false)
+                {
+                    shiftEnd = shiftEnd.AddDays(1);
                 }
 
-                var assignment = await _context.ShiftAssignments.Include(s => s.Shift)
-                    .FirstOrDefaultAsync(sa => sa.EmployeeId == employee.EmployeeId && sa.Status == "Active");
-
-                int lateMinutes = 0;
-                if (assignment != null)
+                if (now < shiftEnd)
                 {
-                    var scheduledStart = date.ToDateTime(assignment.Shift.StartTime);
-                    var diff = checkIn - scheduledStart;
-                    if (diff.TotalMinutes > 5) lateMinutes = (int)diff.TotalMinutes;
-                }
-
-                var existing = await _context.AttendanceRecords
-                    .FirstOrDefaultAsync(a => a.EmployeeId == employee.EmployeeId && a.AttendanceDate == date);
-
-                if (existing == null)
-                {
-                    _context.AttendanceRecords.Add(new AttendanceRecord
-                    {
-                        EmployeeId = employee.EmployeeId,
-                        AttendanceDate = date,
-                        CheckInTime = checkIn,
-                        CheckOutTime = checkOut,
-                        Status = lateMinutes > 0 ? "Late" : "Present",
-                        LateMinutes = lateMinutes,
-                        CreatedDate = DateTime.Now
-                    });
+                    attendance.EarlyLeaveMinutes = (int)Math.Floor((shiftEnd - now).TotalMinutes);
+                    attendance.OvertimeHours = 0;
                 }
                 else
                 {
-                    existing.CheckInTime = checkIn;
-                    existing.CheckOutTime = checkOut;
-                    existing.LateMinutes = lateMinutes;
+                    attendance.EarlyLeaveMinutes = 0;
+                    var overtime = (decimal)(now - shiftEnd).TotalHours;
+                    attendance.OvertimeHours = overtime > 0 ? Math.Round(overtime, 2) : 0;
                 }
-                result.SuccessCount++;
             }
-            catch (Exception)
+
+            if (!attendance.CheckInTime.HasValue || !attendance.CheckOutTime.HasValue)
             {
-                result.Errors.Add($"Row {result.TotalRows + 1}: Data format error.");
+                attendance.Status = "Incomplete";
             }
+            else if ((attendance.LateMinutes ?? 0) > 0)
+            {
+                attendance.Status = "Late";
+            }
+            else
+            {
+                attendance.Status = "Present";
+            }
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            var result = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công sau khi check-out.");
+
+            return MapAttendance(result);
         }
-        await _context.SaveChangesAsync();
-        result.Message = "MSG-SUC-05";
-        return result;
-    }
 
-    public async Task<List<ShiftScheduleDTO>> GetWeeklyScheduleAsync(int employeeId)
-    {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-
-        return await _context.ShiftAssignments
-            .Include(sa => sa.Shift)
-            .Where(sa => sa.EmployeeId == employeeId && sa.Status == "Active")
-            .Select(sa => new ShiftScheduleDTO
-            {
-                Date = today,
-                ShiftName = sa.Shift.ShiftName,
-                StartTime = sa.Shift.StartTime,
-                EndTime = sa.Shift.EndTime,
-                Status = sa.Status
-            })
-            .ToListAsync();
-    }
-
-    public async Task<AttendanceResponseDTO> CheckInAsync(CheckInRequestDTO dto)
-    {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var now = DateTime.Now;
-
-        // 1. Get shift assignment
-        var assignment = await _context.ShiftAssignments
-            .Include(s => s.Shift)
-            .FirstOrDefaultAsync(s =>
-                s.EmployeeId == dto.EmployeeId &&
-                s.Status == "Active" &&
-                today >= s.StartDate &&
-                (s.EndDate == null || today <= s.EndDate));
-
-        if (assignment == null || assignment.Shift == null)
+        public async Task<AttendanceDetailResponseDto?> GetMyTodayAsync(int employeeId)
         {
-            return new AttendanceResponseDTO
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today);
+
+            if (attendance == null)
+                return null;
+
+            var logs = await _attendanceRepository.GetLogsByEmployeeAndDateAsync(employeeId, today);
+
+            return new AttendanceDetailResponseDto
             {
-                Message = "MSG-VAL-04", // No shift assigned
-                Status = "Error"
+                Attendance = MapAttendance(attendance),
+                Logs = logs.Select(MapLog).ToList()
             };
         }
 
-        // 2. Check duplicate check-in
-        bool alreadyCheckedIn = await _context.AttendanceRecords
-            .AnyAsync(a =>
-                a.EmployeeId == dto.EmployeeId &&
-                a.AttendanceDate == today &&
-                a.ShiftId == assignment.ShiftId);
-
-        if (alreadyCheckedIn)
+        public async Task<List<AttendanceResponseDto>> GetMyHistoryAsync(int employeeId, DateOnly? fromDate, DateOnly? toDate)
         {
-            return new AttendanceResponseDTO
+            var records = await _attendanceRepository.SearchAttendanceAsync(fromDate, toDate, employeeId, null);
+            return records.Select(MapAttendance).ToList();
+        }
+
+        public async Task<List<AttendanceResponseDto>> GetAttendanceByDateAsync(DateOnly date)
+        {
+            var records = await _attendanceRepository.GetAttendanceByDateAsync(date);
+            return records.Select(MapAttendance).ToList();
+        }
+
+        public async Task<List<AttendanceResponseDto>> SearchAttendanceAsync(DateOnly? fromDate, DateOnly? toDate, int? employeeId, string? status)
+        {
+            var records = await _attendanceRepository.SearchAttendanceAsync(fromDate, toDate, employeeId, status);
+            return records.Select(MapAttendance).ToList();
+        }
+
+        public async Task<AttendanceDetailResponseDto?> GetAttendanceDetailAsync(int employeeId, DateOnly date)
+        {
+            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, date);
+            if (attendance == null)
+                return null;
+
+            var logs = await _attendanceRepository.GetLogsByEmployeeAndDateAsync(employeeId, date);
+
+            return new AttendanceDetailResponseDto
             {
-                Message = "MSG-VAL-03", // Already checked in
-                Status = "Error"
+                Attendance = MapAttendance(attendance),
+                Logs = logs.Select(MapLog).ToList()
             };
         }
 
-        int lateMinutes = 0;
-        string finalStatus = "Present";
-
-        // 3. Calculate late time
-        var scheduledStart = today.ToDateTime(assignment.Shift.StartTime);
-        var diff = now - scheduledStart;
-
-        if (diff.TotalMinutes > 5)
+        public async Task<AttendanceResponseDto> ManualAdjustAttendanceAsync(int attendanceId, int approverId, ManualAdjustAttendanceDto dto)
         {
-            lateMinutes = (int)diff.TotalMinutes;
-            finalStatus = "Late";
-        }
+            var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
 
-        // 4. Create attendance record
-        var record = new AttendanceRecord
-        {
-            EmployeeId = dto.EmployeeId,
-            AttendanceDate = today,
-            ShiftId = assignment.ShiftId,
-            CheckInTime = now,
-            Status = finalStatus,
-            LateMinutes = lateMinutes,
-            Location = dto.Location,
-            Remarks = dto.Remarks,
-            CreatedDate = DateTime.Now
-        };
+            if (attendance.IsLocked ?? false)
+                throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
 
-        _context.AttendanceRecords.Add(record);
-        await _context.SaveChangesAsync();
+            attendance.CheckInTime = dto.CheckInTime;
+            attendance.CheckOutTime = dto.CheckOutTime;
+            attendance.Status = dto.Status;
+            attendance.IsManualAdjusted = true;
+            attendance.Source = "Manual";
+            attendance.Remarks = dto.Remarks;
+            attendance.ApprovedBy = approverId;
+            attendance.ApprovedDate = DateTime.Now;
+            attendance.ModifiedDate = DateTime.Now;
+            attendance.ModifiedBy = approverId;
 
-        // 5. Response
-        return new AttendanceResponseDTO
-        {
-            AttendanceId = record.AttendanceId,
-            AttendanceDate = today,
-            CheckInTime = now,
-            Status = finalStatus,
-            LateMinutes = lateMinutes,
-            Message = "MSG-SUC-04"
-        };
-    }
-
-    public async Task<AttendanceResponseDTO> CheckOutAsync(int employeeId)
-    {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var record = await _context.AttendanceRecords
-            .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.AttendanceDate == today);
-
-        if (record == null || record.CheckInTime == null)
-        {
-            return new AttendanceResponseDTO { Message = "MSG-VAL-04", Status = "Error" };
-        }
-
-        if (record.CheckOutTime != null)
-        {
-            return new AttendanceResponseDTO
+            if (attendance.CheckInTime.HasValue && attendance.CheckOutTime.HasValue)
             {
-                Message = "MSG-VAL-05", // Already checked out
-                Status = "Error"
+                var hours = (decimal)(attendance.CheckOutTime.Value - attendance.CheckInTime.Value).TotalHours;
+                attendance.WorkingHours = Math.Round(hours, 2);
+            }
+            else
+            {
+                attendance.WorkingHours = null;
+            }
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            return MapAttendance(attendance);
+        }
+
+        public async Task<AttendanceResponseDto> ManualCreateAttendanceAsync(int approverId, ManualCreateAttendanceDto dto)
+        {
+            var existing = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(dto.EmployeeId, dto.AttendanceDate);
+            if (existing != null)
+                throw new InvalidOperationException("Nhân viên đã có bản ghi chấm công trong ngày này.");
+
+            decimal? workingHours = null;
+            if (dto.CheckInTime.HasValue && dto.CheckOutTime.HasValue)
+            {
+                workingHours = Math.Round((decimal)(dto.CheckOutTime.Value - dto.CheckInTime.Value).TotalHours, 2);
+            }
+
+            var attendance = new AttendanceRecord
+            {
+                EmployeeId = dto.EmployeeId,
+                AttendanceDate = dto.AttendanceDate,
+                ShiftId = dto.ShiftId,
+                CheckInTime = dto.CheckInTime,
+                CheckOutTime = dto.CheckOutTime,
+                WorkingHours = workingHours,
+                OvertimeHours = 0,
+                LateMinutes = 0,
+                EarlyLeaveMinutes = 0,
+                Status = dto.Status,
+                Source = "Manual",
+                IsManualAdjusted = true,
+                IsLocked = false,
+                ApprovedBy = approverId,
+                ApprovedDate = DateTime.Now,
+                Remarks = dto.Remarks,
+                CreatedDate = DateTime.Now,
+                ModifiedDate = null,
+                ModifiedBy = null
             };
+
+            await _attendanceRepository.AddAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            var created = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(dto.EmployeeId, dto.AttendanceDate)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi sau khi tạo.");
+
+            return MapAttendance(created);
         }
 
-        record.CheckOutTime = DateTime.Now;
-
-        var duration = record.CheckOutTime.Value - record.CheckInTime.Value;
-        record.WorkingHours = (decimal)duration.TotalHours;
-
-        await _context.SaveChangesAsync();
-
-        return new AttendanceResponseDTO { Message = "MSG-SUC-04", Status = record.Status };
-    }
-
-    public async Task<List<AttendanceHistoryDTO>> GetHistoryAsync(int employeeId)
-    {
-        var employeeExists = await _context.Employees
-            .AnyAsync(e => e.EmployeeId == employeeId);
-
-        if (!employeeExists)
-            return new List<AttendanceHistoryDTO>();
-
-        return await _context.AttendanceRecords
-            .AsNoTracking()
-            .Where(a => a.EmployeeId == employeeId)
-            .OrderByDescending(a => a.AttendanceDate)
-            .Select(a => new AttendanceHistoryDTO
-            {
-                Date = a.AttendanceDate,
-                ShiftName = a.Shift != null ? a.Shift.ShiftName : "No Shift",
-                CheckIn = a.CheckInTime,
-                CheckOut = a.CheckOutTime,
-                TotalHours = a.WorkingHours,
-                Status = a.Status
-            })
-            .ToListAsync();
-    }
-
-    public async Task<List<AdminAttendanceDTO>> GetAdminViewAsync(
-    DateOnly? date,
-    int? deptId,
-    string? status)
-    {
-        var filterDate = date ?? DateOnly.FromDateTime(DateTime.Now);
-
-        var query = _context.AttendanceRecords
-            .AsNoTracking()
-            .Where(a => a.AttendanceDate == filterDate)
-            .AsQueryable();
-
-        if (deptId.HasValue)
+        public async Task LockAttendanceAsync(int attendanceId, int userId)
         {
-            query = query.Where(a => a.Employee.DepartmentId == deptId.Value);
+            var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
+
+            attendance.IsLocked = true;
+            attendance.ModifiedDate = DateTime.Now;
+            attendance.ModifiedBy = userId;
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
         }
 
-        if (!string.IsNullOrWhiteSpace(status))
+        public async Task UnlockAttendanceAsync(int attendanceId, int userId)
         {
-            status = status.Trim();
-            query = query.Where(a => a.Status == status);
+            var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
+
+            attendance.IsLocked = false;
+            attendance.ModifiedDate = DateTime.Now;
+            attendance.ModifiedBy = userId;
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
         }
 
-        return await query
-            .OrderBy(a => a.Employee.FullName)
-            .Select(a => new AdminAttendanceDTO
+        public async Task<List<AttendanceLogResponseDto>> GetLogsAsync(int employeeId, DateOnly date)
+        {
+            var logs = await _attendanceRepository.GetLogsByEmployeeAndDateAsync(employeeId, date);
+            return logs.Select(MapLog).ToList();
+        }
+
+        private static AttendanceResponseDto MapAttendance(AttendanceRecord a)
+        {
+            return new AttendanceResponseDto
             {
                 AttendanceId = a.AttendanceId,
-                EmployeeCode = a.Employee.EmployeeCode,
-                FullName = a.Employee.FullName,
-                DepartmentName = a.Employee.Department != null
-                    ? a.Employee.Department.DepartmentName
-                    : "N/A",
-                Date = a.AttendanceDate.ToString("yyyy-MM-dd"),
-                ShiftName = a.Shift != null
-                    ? a.Shift.ShiftName
-                    : "No Shift",
-                CheckIn = a.CheckInTime.HasValue
-                    ? a.CheckInTime.Value.ToString("HH:mm:ss")
-                    : null,
-                CheckOut = a.CheckOutTime.HasValue
-                    ? a.CheckOutTime.Value.ToString("HH:mm:ss")
-                    : null,
+                EmployeeId = a.EmployeeId,
+                EmployeeName = a.Employee?.FullName ?? string.Empty,
+                AttendanceDate = a.AttendanceDate,
+                ShiftId = a.ShiftId,
+                ShiftName = a.Shift?.ShiftName,
+                CheckInTime = a.CheckInTime,
+                CheckOutTime = a.CheckOutTime,
+                WorkingHours = a.WorkingHours,
+                OvertimeHours = a.OvertimeHours,
+                LateMinutes = a.LateMinutes,
+                EarlyLeaveMinutes = a.EarlyLeaveMinutes,
                 Status = a.Status,
-                LateMinutes = a.LateMinutes
-            })
-            .ToListAsync();
+                Source = a.Source,
+                IsManualAdjusted = a.IsManualAdjusted,
+                IsLocked = a.IsLocked,
+                Location = a.Location,
+                Remarks = a.Remarks
+            };
+        }
+
+        private static AttendanceLogResponseDto MapLog(AttendanceLog l)
+        {
+            return new AttendanceLogResponseDto
+            {
+                LogId = l.LogId,
+                EmployeeId = l.EmployeeId,
+                ShiftId = l.ShiftId,
+                LogTime = l.LogTime,
+                LogType = l.LogType,
+                Source = l.Source,
+                DeviceInfo = l.DeviceInfo,
+                IpAddress = l.IpAddress,
+                Location = l.Location,
+                Remarks = l.Remarks
+            };
+        }
+
     }
 }

@@ -25,6 +25,8 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
@@ -75,8 +77,6 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 
 var app = builder.Build();
 app.UseCors("AllowAll");
