@@ -33,6 +33,8 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
@@ -89,7 +91,10 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
     serverOptions.Limits.MaxRequestBodySize = 5 * 1024 * 1024; 
 });
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
