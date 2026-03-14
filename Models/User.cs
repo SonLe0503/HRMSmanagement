@@ -41,7 +41,7 @@ public partial class User
 
     public virtual ICollection<OvertimeRequest> OvertimeRequestReviewedByNavigations { get; set; } = new List<OvertimeRequest>();
 
-    public virtual ICollection<WorkTask> Tasks { get; set; } = new List<WorkTask>();
+    public virtual ICollection<Task> Tasks { get; set; } = new List<Task>();
 
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 

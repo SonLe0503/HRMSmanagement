@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace HRManagement.Models;
 
-public partial class WorkTask
+public partial class Task
 {
     public int TaskId { get; set; }
 

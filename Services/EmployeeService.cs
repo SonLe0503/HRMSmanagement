@@ -15,12 +15,82 @@ namespace HRManagement.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public async Task<Employee> AddEmployeeAsync(CreateEmployeeDto dto)
+        public async Task<EmployeeResponseDetailDto> AddEmployeeAsync(CreateEmployeeDto dto)
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
-            {
                 throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
+
+            if (await _employeeRepository.EmailExistsAsync(dto.Email))
+                throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
+
+
+            if (dto.BaseSalary < 0)
+                throw new ArgumentException("Base salary cannot be negative.");
+
+
+            if (dto.JoinDate > today)
+                throw new ArgumentException("Join date cannot be in the future.");
+
+
+            if (dto.DateOfBirth is DateOnly dob)
+            {
+                if (dob > today)
+                    throw new ArgumentException("Date of birth cannot be in the future.");
+
+                if (dto.JoinDate <= dob)
+                    throw new ArgumentException("Join date must be after date of birth.");
+
+                if (dto.JoinDate < dob.AddYears(18))
+                    throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
             }
+
+
+            if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
+                throw new ArgumentException("Employee cannot be their own manager.");
+
+
+            if (dto.DepartmentId.HasValue)
+            {
+                var departmentExists = await _employeeRepository.DepartmentExistsAsync(dto.DepartmentId.Value);
+
+                if (!departmentExists)
+                    throw new ArgumentException($"Department {dto.DepartmentId} does not exist.");
+            }
+
+
+            if (dto.PositionId.HasValue)
+            {
+                var positionExists = await _employeeRepository.PositionExistsAsync(dto.PositionId.Value);
+
+                if (!positionExists)
+                    throw new ArgumentException($"Position {dto.PositionId} does not exist.");
+            }
+
+
+            var validTypes = new[]
+            {
+        "Full-Time", "Part-Time", "Contract", "Intern"
+    };
+
+            if (!validTypes.Contains(dto.EmploymentType))
+                throw new ArgumentException(
+                    "Invalid employment type. Allowed values: Full-Time, Part-Time, Contract, Intern."
+                );
+
+            var validStatus = new[]
+            {
+        "Active", "Resigned", "Terminated", "On Leave", "Suspended", "Inactive"
+    };
+
+            if (!validStatus.Contains(dto.EmploymentStatus))
+                throw new ArgumentException(
+                    "Invalid employment status. Allowed values: Active, Resigned, Terminated, On Leave, Suspended, Inactive"
+                );
+
+            int createdBy = GetCurrentUserId(dto.CreatedBy);
+
             var employee = new Employee
             {
                 EmployeeCode = dto.EmployeeCode,
@@ -42,39 +112,48 @@ namespace HRManagement.Services
                 EmploymentType = dto.EmploymentType,
                 BaseSalary = dto.BaseSalary,
                 CreatedDate = DateTime.UtcNow,
-                CreatedBy = dto.CreatedBy ?? int.Parse(_httpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value ?? "0")
+                CreatedBy = createdBy
             };
 
-            return await _employeeRepository.AddEmployeeAsync(employee);
+            await _employeeRepository.AddEmployeeAsync(employee);
+
+            return await GetEmployeeByIdAsync(employee.EmployeeId)
+                ?? throw new InvalidOperationException("Failed to retrieve the created employee.");
         }
 
-        public async Task<bool> DisableEmployeeAsync(int id, int? disabledBy = null)
+
+        public async Task<bool> UpdateStatusAsync(int id, string status, int? modifiedBy = null)
         {
+            var validStatuses = new[]
+            {
+                "Active",
+                "Inactive",
+                "Resigned",
+                "Terminated",
+                "On Leave",
+                "Suspended"
+            };
+
+            if (!validStatuses.Contains(status))
+                throw new ArgumentException("Invalid employment status.");
+
             var employee = await _employeeRepository.GetEmployeeByIdAsync(id);
+
             if (employee == null)
                 return false;
 
-            employee.EmploymentStatus = "Resigned";
-            employee.ResignationDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (status == "Resigned" || status == "Terminated" || status == "Inactive")
+                employee.ResignationDate = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            if (status == "Active")
+                employee.ResignationDate = null;
+
+            employee.EmploymentStatus = status;
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = disabledBy;
+            employee.ModifiedBy = modifiedBy;
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
-            return true;
-        }
 
-        public async Task<bool> EnableEmployeeAsync(int id, int? enabledBy = null)
-        {
-            var employee = await _employeeRepository.GetEmployeeByIdAsync(id);
-            if (employee == null)
-                return false;
-
-            employee.EmploymentStatus = "Active";
-            employee.ResignationDate = null;
-            employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = enabledBy;
-
-            await _employeeRepository.UpdateEmployeeAsync(employee);
             return true;
         }
 
@@ -127,20 +206,73 @@ namespace HRManagement.Services
             };
         }
 
-        public async Task<Employee> UpdateEmployeeAsync(int employeeId, UpdateEmployeeDto dto)
+        public async Task<EmployeeResponseDetailDto> UpdateEmployeeAsync(int employeeId, UpdateEmployeeDto dto)
         {
             var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
+
             if (employee == null)
-                throw new InvalidOperationException($"Employee with ID {employeeId} not found."); 
+                throw new KeyNotFoundException($"Employee {employeeId} not found.");
 
             if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode, employeeId))
-            {
                 throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
-            }
+
+            if (dto.BaseSalary < 0)
+                throw new ArgumentException("Base salary cannot be negative.");
+
+            if (dto.JoinDate > DateOnly.FromDateTime(DateTime.UtcNow))
+                throw new ArgumentException("Join date cannot be in the future.");
 
             if (dto.ResignationDate.HasValue && dto.ResignationDate.Value < dto.JoinDate)
+                throw new ArgumentException("Resignation date cannot be before join date.");
+
+            if (dto.ManagerId.HasValue && dto.ManagerId == employeeId)
+                throw new ArgumentException("Employee cannot be their own manager.");
+
+            if(dto.DateOfBirth.HasValue && dto.DateOfBirth.Value > DateOnly.FromDateTime(DateTime.UtcNow))
+                throw new ArgumentException("Date of birth cannot be in the future.");
+
+            if (dto.DateOfBirth.HasValue && dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
+                throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
+
+            if(dto.DateOfBirth.HasValue && dto.DateOfBirth.Value.AddYears(18) < dto.JoinDate)
+                throw new ArgumentException("Join date cannot be before employee turns 18.");
+
+            if (dto.DepartmentId.HasValue)
             {
-                throw new InvalidOperationException("Resignation date cannot be before join date.");
+                var departmentExists = await _employeeRepository.DepartmentExistsAsync(dto.DepartmentId.Value);
+
+                if (!departmentExists)
+                    throw new ArgumentException($"Department {dto.DepartmentId} does not exist.");
+            }
+
+            if (dto.PositionId.HasValue)
+            {
+                var positionExists = await _employeeRepository.DepartmentExistsAsync(dto.PositionId.Value);
+                if (!positionExists)
+                    throw new ArgumentException($"Position {dto.PositionId} does not exist.");
+            }
+            var validTypes = new[]
+            {
+                "Full-Time","Part-Time","Contract","Intern"
+            };
+
+            if (!validTypes.Contains(dto.EmploymentType))
+            {
+                throw new ArgumentException(
+                    "Invalid employment type. Allowed values: Full-Time, Part-Time, Contract, Intern."
+                );
+            }
+
+            var validStatus = new[]
+            {
+                "Active", "Resigned", "Terminated", "On Leave", "Suspended","Inactive"
+            };
+
+            if (!validTypes.Contains(dto.EmploymentType))
+            {
+                throw new ArgumentException(
+                    "Invalid employment type. Allowed values: Active, Resigned, Terminated, On Leave, Suspended,Inactive"
+                );
             }
 
             employee.EmployeeCode = dto.EmployeeCode;
@@ -162,12 +294,26 @@ namespace HRManagement.Services
             employee.EmploymentStatus = dto.EmploymentStatus;
             employee.EmploymentType = dto.EmploymentType;
             employee.BaseSalary = dto.BaseSalary;
-            employee.ModifiedDate = DateTime.Now;
+            employee.ModifiedDate = DateTime.UtcNow;
             employee.ModifiedBy = dto.ModifiedBy;
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
 
-            return employee;
+            return await GetEmployeeByIdAsync(employee.EmployeeId)
+                ?? throw new InvalidOperationException("Failed to retrieve updated employee.");
+        }
+        private int GetCurrentUserId(int? createdBy)
+        {
+            if (createdBy.HasValue)
+                return createdBy.Value;
+
+            var userIdClaim = _httpContextAccessor.HttpContext?
+                .User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
+
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            throw new ArgumentException("Cannot determine CreatedBy user.");
         }
     }
 }

@@ -75,7 +75,7 @@ public partial class HrmsDbContext : DbContext
 
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
 
-    public virtual DbSet<WorkTask> Tasks { get; set; }
+    public virtual DbSet<Task> Tasks { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
@@ -882,7 +882,7 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.SettingKey).HasMaxLength(100);
         });
 
-        modelBuilder.Entity<WorkTask>(entity =>
+        modelBuilder.Entity<Task>(entity =>
         {
             entity.HasKey(e => e.TaskId).HasName("PK__Tasks__7C6949D1D79FA7B9");
 

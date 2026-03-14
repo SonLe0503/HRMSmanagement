@@ -8,5 +8,9 @@ namespace HRManagement.DataAcess
         Task<Employee> AddEmployeeAsync(Employee employee);
         Task<Employee> UpdateEmployeeAsync(Employee employee);
         Task<bool> EmployeeCodeExistsAsync(string employeeCode, int? excludeEmployeeId = null);
+        Task<bool> DepartmentExistsAsync(int id);
+        Task<bool> PositionExistsAsync(int id);
+
+        Task<bool> EmailExistsAsync(string email);
     }
 }
