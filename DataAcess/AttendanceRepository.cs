@@ -62,18 +62,18 @@ namespace HRManagement.DataAcess
                 .ToListAsync();
         }
 
-        public async Task AddAttendanceAsync(AttendanceRecord attendance)
+        public async System.Threading.Tasks.Task AddAttendanceAsync(AttendanceRecord attendance)
         {
             await _context.AttendanceRecords.AddAsync(attendance);
         }
 
-        public Task UpdateAttendanceAsync(AttendanceRecord attendance)
+        public System.Threading.Tasks.Task UpdateAttendanceAsync(AttendanceRecord attendance)
         {
             _context.AttendanceRecords.Update(attendance);
-            return Task.CompletedTask;
+            return System.Threading.Tasks.Task.CompletedTask;
         }
 
-        public async Task AddAttendanceLogAsync(AttendanceLog log)
+        public async System.Threading.Tasks.Task AddAttendanceLogAsync(AttendanceLog log)
         {
             await _context.AttendanceLogs.AddAsync(log);
         }
@@ -106,7 +106,7 @@ namespace HRManagement.DataAcess
             return await _context.Shifts.FirstOrDefaultAsync(s => s.ShiftId == shiftId);
         }
 
-        public async Task SaveChangesAsync()
+        public async System.Threading.Tasks.Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
         }

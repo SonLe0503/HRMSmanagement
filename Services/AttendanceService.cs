@@ -347,7 +347,7 @@ namespace HRManagement.Services
             return MapAttendance(created);
         }
 
-        public async Task LockAttendanceAsync(int attendanceId, int userId)
+        public async System.Threading.Tasks.Task LockAttendanceAsync(int attendanceId, int userId)
         {
             var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
@@ -360,7 +360,7 @@ namespace HRManagement.Services
             await _attendanceRepository.SaveChangesAsync();
         }
 
-        public async Task UnlockAttendanceAsync(int attendanceId, int userId)
+        public async System.Threading.Tasks.Task UnlockAttendanceAsync(int attendanceId, int userId)
         {
             var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");

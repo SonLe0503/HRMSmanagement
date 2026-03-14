@@ -9,15 +9,15 @@ namespace HRManagement.DataAcess
         Task<List<AttendanceRecord>> GetAttendanceByDateAsync(DateOnly date);
         Task<List<AttendanceRecord>> SearchAttendanceAsync(DateOnly? fromDate, DateOnly? toDate, int? employeeId, string? status);
 
-        Task AddAttendanceAsync(AttendanceRecord attendance);
-        Task UpdateAttendanceAsync(AttendanceRecord attendance);
+        System.Threading.Tasks.Task AddAttendanceAsync(AttendanceRecord attendance);
+        System.Threading.Tasks.Task UpdateAttendanceAsync(AttendanceRecord attendance);
 
-        Task AddAttendanceLogAsync(AttendanceLog log);
+        System.Threading.Tasks.Task AddAttendanceLogAsync(AttendanceLog log);
         Task<List<AttendanceLog>> GetLogsByEmployeeAndDateAsync(int employeeId, DateOnly date);
 
         Task<ShiftAssignment?> GetActiveShiftAssignmentAsync(int employeeId, DateOnly date);
         Task<Shift?> GetShiftByIdAsync(int shiftId);
 
-        Task SaveChangesAsync();
+        System.Threading.Tasks.Task SaveChangesAsync();
     }
 }
