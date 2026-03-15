@@ -62,13 +62,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = "System",
+                SubmittedByName = GetCurrentUserName(),
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
+                ReviewedByName = GetCurrentUserName(),
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
+                ApprovedByName = GetCurrentUserName()
             };
         }
 
@@ -100,7 +100,7 @@ namespace HRManagement.Services
                 EffectiveDate = p.EffectiveDate,
                 Status = p.Status,
                 SubmittedDate = p.SubmittedDate,
-                SubmittedByName = "System"
+                SubmittedByName = GetCurrentUserName()
             }).ToList();
         }
 
@@ -117,7 +117,7 @@ namespace HRManagement.Services
                 EffectiveDate = p.EffectiveDate,
                 Status = p.Status,
                 SubmittedDate = p.SubmittedDate,
-                SubmittedByName = "System"
+                SubmittedByName = GetCurrentUserName()
             }).ToList();
         }
 
@@ -145,13 +145,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = "System",
+                SubmittedByName = GetCurrentUserName(),
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
+                ReviewedByName = GetCurrentUserName(),
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
+                ApprovedByName = GetCurrentUserName()
             };
         }
 
@@ -239,13 +239,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = "System",
+                SubmittedByName = GetCurrentUserName(),
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
+                ReviewedByName = GetCurrentUserName(),
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
+                ApprovedByName = GetCurrentUserName()
             };
         }
 
@@ -313,6 +313,7 @@ namespace HRManagement.Services
 
             await _hrProcedureRepository.AddAsync(procedure);
 
+            var submittedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.SubmittedBy);
             return new HRProcedureResponseDto
             {
                 ProcedureId = procedure.ProcedureId,
@@ -332,13 +333,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = "System",
+                SubmittedByName = GetCurrentUserName(),
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
+                ReviewedByName = GetCurrentUserName(),
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
+                ApprovedByName = GetCurrentUserName()
             };
 
         }
@@ -383,13 +384,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = "System",
+                SubmittedByName = GetCurrentUserName(),
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
+                ReviewedByName = GetCurrentUserName(),
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
+                ApprovedByName = GetCurrentUserName()
             };
         }
 
@@ -452,6 +453,11 @@ namespace HRManagement.Services
                 return userId;
 
             return 0;
+        }
+        private string GetCurrentUserName()
+        {
+            return _contextAccessor.HttpContext?
+                .User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
         }
     }
 }
