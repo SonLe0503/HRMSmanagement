@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HRManagement.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     public class HRProcedureController : ControllerBase
     {
         private readonly IHRProcedureService _procedureService;

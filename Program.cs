@@ -24,10 +24,6 @@ builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IEmployeeDocumentRepository, EmployeeDocumentRepository>();
 builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
-builder.Services.AddScoped<IDepartmentService, DepartmentService>();
-builder.Services.AddScoped<IPositionRepository, PositionRepository>();
-builder.Services.AddScoped<IPositionService, PositionService>();
 builder.Services.AddScoped<IHRProcedureRepository, HRProcedureRepository>();
 builder.Services.AddScoped<IHRProcedureService, HRProcedureService>();
 builder.Services.AddCors(options =>
