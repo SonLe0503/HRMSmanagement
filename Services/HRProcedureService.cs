@@ -35,13 +35,16 @@ namespace HRManagement.Services
 
             procedure.Status = "Approved";
             procedure.ApprovedDate = DateTime.UtcNow;
-            procedure.ApprovedBy = GetCurrentUserId();
+            procedure.ApprovedBy = await GetCurrentEmployeeIdAsync();
             procedure.ReviewedDate = DateTime.UtcNow;
-            procedure.ReviewedBy = GetCurrentUserId();
+            procedure.ReviewedBy = await GetCurrentEmployeeIdAsync();
 
             await _hrProcedureRepository.UpdateAsync(procedure);
 
             await UpdateEmployeeProfileAsync(procedure);
+            var submittedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.SubmittedBy);
+            var reviewedByEmployee =  await _employeeRepository.GetEmployeeByIdAsync(procedure.ReviewedBy.Value);
+            var approvedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.ApprovedBy.Value);
 
             return new HRProcedureResponseDto
             {
@@ -62,13 +65,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = GetCurrentUserName(),
+                SubmittedByName = submittedByEmployee?.FullName ?? "System",
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = GetCurrentUserName(),
+                ReviewedByName = reviewedByEmployee?.FullName ?? "System",
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = GetCurrentUserName()
+                ApprovedByName = approvedByEmployee?.FullName ?? "System"
             };
         }
 
@@ -88,36 +91,51 @@ namespace HRManagement.Services
 
         public async Task<IEnumerable<HRProcedureListDto>> GetAllProceduresAsync()
         {
-            var procedure = await _hrProcedureRepository.GetAllAsync();
+            var procedures = await _hrProcedureRepository.GetAllAsync();
+            var employees = await _employeeRepository.GetAllEmployeesAsync();
 
-            return procedure.Select(p => new HRProcedureListDto
+            return procedures.Select(p =>
             {
-                ProcedureId = p.ProcedureId,
-                ProcedureNumber = p.ProcedureNumber,
-                EmployeeFullName = p.Employee?.FullName ?? "Unknown",
-                EmployeeCode = p.Employee?.EmployeeCode ?? "",
-                ProcedureType = p.ProcedureType,
-                EffectiveDate = p.EffectiveDate,
-                Status = p.Status,
-                SubmittedDate = p.SubmittedDate,
-                SubmittedByName = GetCurrentUserName()
+                var submittedByEmployee = employees
+                    .FirstOrDefault(e => e.EmployeeId == p.SubmittedBy);
+
+                return new HRProcedureListDto
+                {
+                    ProcedureId = p.ProcedureId,
+                    ProcedureNumber = p.ProcedureNumber,
+                    EmployeeFullName = p.Employee?.FullName ?? "Unknown",
+                    EmployeeCode = p.Employee?.EmployeeCode ?? "",
+                    ProcedureType = p.ProcedureType,
+                    EffectiveDate = p.EffectiveDate,
+                    Status = p.Status,
+                    SubmittedDate = p.SubmittedDate,
+                    SubmittedByName = submittedByEmployee?.FullName ?? "System"
+                };
             }).ToList();
         }
 
         public async Task<IEnumerable<HRProcedureListDto>> GetPendingProceduresAsync()
         {
-            var procedure = await _hrProcedureRepository.GetPendingProceduresAsync();
-            return procedure.Select(p => new HRProcedureListDto
+            var procedures = await _hrProcedureRepository.GetPendingProceduresAsync();
+            var employees = await _employeeRepository.GetAllEmployeesAsync();
+
+            return procedures.Select(p =>
             {
-                ProcedureId = p.ProcedureId,
-                ProcedureNumber = p.ProcedureNumber,
-                EmployeeFullName = p.Employee?.FullName ?? "Unknown",
-                EmployeeCode = p.Employee?.EmployeeCode ?? "",
-                ProcedureType = p.ProcedureType,
-                EffectiveDate = p.EffectiveDate,
-                Status = p.Status,
-                SubmittedDate = p.SubmittedDate,
-                SubmittedByName = GetCurrentUserName()
+                var submittedByEmployee = employees
+                    .FirstOrDefault(e => e.EmployeeId == p.SubmittedBy);
+
+                return new HRProcedureListDto
+                {
+                    ProcedureId = p.ProcedureId,
+                    ProcedureNumber = p.ProcedureNumber,
+                    EmployeeFullName = p.Employee?.FullName ?? "Unknown",
+                    EmployeeCode = p.Employee?.EmployeeCode ?? "",
+                    ProcedureType = p.ProcedureType,
+                    EffectiveDate = p.EffectiveDate,
+                    Status = p.Status,
+                    SubmittedDate = p.SubmittedDate,
+                    SubmittedByName = submittedByEmployee?.FullName ?? "System"
+                };
             }).ToList();
         }
 
@@ -126,6 +144,15 @@ namespace HRManagement.Services
             var procedure = await _hrProcedureRepository.GetByIdWithDetailsAsync(procedureId);
             if (procedure == null)
                 return null;
+
+            var submittedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.SubmittedBy);
+
+            var reviewedByEmployee = procedure.ReviewedBy.HasValue
+                ? await _employeeRepository.GetEmployeeByIdAsync(procedure.ReviewedBy.Value): null;
+
+            var approvedByEmployee = procedure.ApprovedBy.HasValue
+                ? await _employeeRepository.GetEmployeeByIdAsync(procedure.ApprovedBy.Value) : null;
+
             return new HRProcedureResponseDto
             {
                 ProcedureId = procedure.ProcedureId,
@@ -143,15 +170,18 @@ namespace HRManagement.Services
                 Reason = procedure.Reason,
                 Status = procedure.Status,
                 RejectionReason = procedure.RejectionReason,
+
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = GetCurrentUserName(),
+                SubmittedByName = submittedByEmployee?.FullName ?? "System",
+
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = GetCurrentUserName(),
+                ReviewedByName = reviewedByEmployee?.FullName ?? "System",
+
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = GetCurrentUserName()
+                ApprovedByName = approvedByEmployee?.FullName ?? "System",
             };
         }
 
@@ -163,34 +193,49 @@ namespace HRManagement.Services
             }
             
             var procedure = await _hrProcedureRepository.GetByEmployeeIdAsync(employeeId);
-            return procedure.Select(p => new HRProcedureListDto
+            var employee = await _employeeRepository.GetAllEmployeesAsync();
+
+            return procedure.Select(p =>
             {
-                ProcedureId = p.ProcedureId,
-                ProcedureNumber = p.ProcedureNumber,
-                EmployeeFullName = p.Employee?.FullName ?? "Unknown",
-                EmployeeCode = p.Employee?.EmployeeCode ?? "",
-                ProcedureType = p.ProcedureType,
-                EffectiveDate = p.EffectiveDate,
-                Status = p.Status,
-                SubmittedDate = p.SubmittedDate,
-                SubmittedByName = "System"
+                var submittedByEmployee = employee
+                    .FirstOrDefault(e => e.EmployeeId == p.SubmittedBy);
+
+                return new HRProcedureListDto
+                {
+                    ProcedureId = p.ProcedureId,
+                    ProcedureNumber = p.ProcedureNumber,
+                    EmployeeFullName = p.Employee?.FullName ?? "Unknown",
+                    EmployeeCode = p.Employee?.EmployeeCode ?? "",
+                    ProcedureType = p.ProcedureType,
+                    EffectiveDate = p.EffectiveDate,
+                    Status = p.Status,
+                    SubmittedDate = p.SubmittedDate,
+                    SubmittedByName = submittedByEmployee?.FullName ?? "System"
+                };
             }).ToList();
         }
 
         public async Task<IEnumerable<HRProcedureListDto>> GetProceduresByStatusAsync(string status)
         {
             var procedure = await _hrProcedureRepository.GetByStatusAsync(status);
-            return procedure.Select(p => new HRProcedureListDto
+            var employee = await _employeeRepository.GetAllEmployeesAsync();
+            return procedure.Select(p =>
             {
-                ProcedureId = p.ProcedureId,
-                ProcedureNumber = p.ProcedureNumber,
-                EmployeeFullName = p.Employee?.FullName ?? "Unknown",
-                EmployeeCode = p.Employee?.EmployeeCode ?? "",
-                ProcedureType = p.ProcedureType,
-                EffectiveDate = p.EffectiveDate,
-                Status = p.Status,
-                SubmittedDate = p.SubmittedDate,
-                SubmittedByName = "System"
+                var submittedByEmployee = employee
+                    .FirstOrDefault(e => e.EmployeeId == p.SubmittedBy);
+
+                return new HRProcedureListDto
+                {
+                    ProcedureId = p.ProcedureId,
+                    ProcedureNumber = p.ProcedureNumber,
+                    EmployeeFullName = p.Employee?.FullName ?? "Unknown",
+                    EmployeeCode = p.Employee?.EmployeeCode ?? "",
+                    ProcedureType = p.ProcedureType,
+                    EffectiveDate = p.EffectiveDate,
+                    Status = p.Status,
+                    SubmittedDate = p.SubmittedDate,
+                    SubmittedByName = submittedByEmployee?.FullName ?? "System"
+                };
             }).ToList();
         }
 
@@ -216,10 +261,11 @@ namespace HRManagement.Services
             procedure.Status = "Rejected";
             procedure.RejectionReason = rejectDto.RejectionReason;
             procedure.ReviewedDate = DateTime.UtcNow;
-            procedure.ReviewedBy = GetCurrentUserId();
+            procedure.ReviewedBy = await GetCurrentEmployeeIdAsync();
 
             await _hrProcedureRepository.UpdateAsync(procedure);
-
+            var submittedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.SubmittedBy);
+            var reviewedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.ReviewedBy.Value);
             return new HRProcedureResponseDto
             {
                 ProcedureId = procedure.ProcedureId,
@@ -239,13 +285,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = GetCurrentUserName(),
+                SubmittedByName = submittedByEmployee?.FullName ?? "System",
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = GetCurrentUserName(),
+                ReviewedByName = reviewedByEmployee?.FullName ?? "System",
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = GetCurrentUserName()
+                ApprovedByName = procedure.ApprovedBy.HasValue ? "System" : null
             };
         }
 
@@ -308,7 +354,7 @@ namespace HRManagement.Services
                 Reason = createDto.Reason,
                 Status = "Pending",
                 SubmittedDate = DateTime.UtcNow,
-                SubmittedBy = GetCurrentUserId()
+                SubmittedBy = await GetCurrentEmployeeIdAsync()
             };
 
             await _hrProcedureRepository.AddAsync(procedure);
@@ -333,13 +379,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = GetCurrentUserName(),
+                SubmittedByName = submittedByEmployee?.FullName ?? "System",
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = GetCurrentUserName(),
+                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = GetCurrentUserName()
+                ApprovedByName = procedure.ApprovedDate.HasValue ? "System" : null
             };
 
         }
@@ -365,6 +411,7 @@ namespace HRManagement.Services
             procedure.Reason = updateDto.Reason;
 
             await _hrProcedureRepository.UpdateAsync(procedure);
+            var submittedByEmployee = await _employeeRepository.GetEmployeeByIdAsync(procedure.SubmittedBy);
             return new HRProcedureResponseDto
             {
                 ProcedureId = procedure.ProcedureId,
@@ -384,13 +431,13 @@ namespace HRManagement.Services
                 RejectionReason = procedure.RejectionReason,
                 SubmittedDate = procedure.SubmittedDate,
                 SubmittedBy = procedure.SubmittedBy,
-                SubmittedByName = GetCurrentUserName(),
+                SubmittedByName = submittedByEmployee?.FullName ?? "System",
                 ReviewedDate = procedure.ReviewedDate,
                 ReviewedBy = procedure.ReviewedBy,
-                ReviewedByName = GetCurrentUserName(),
+                ReviewedByName = procedure.ReviewedBy.HasValue ? "System" : null,
                 ApprovedDate = procedure.ApprovedDate,
                 ApprovedBy = procedure.ApprovedBy,
-                ApprovedByName = GetCurrentUserName()
+                ApprovedByName = procedure.ReviewedBy.HasValue ? "System" : null
             };
         }
 
@@ -433,7 +480,7 @@ namespace HRManagement.Services
             }
 
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = GetCurrentUserId();
+            employee.ModifiedBy = await GetCurrentEmployeeIdAsync();
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
         }
@@ -444,20 +491,17 @@ namespace HRManagement.Services
             var random = new Random().Next(1000, 9999);
             return $"PR-{datePrefix}-{random}";
         }
-        private int GetCurrentUserId()
+        private async Task<int> GetCurrentEmployeeIdAsync()
         {
             var claim = _contextAccessor.HttpContext?
                 .User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            if (int.TryParse(claim, out int userId))
-                return userId;
+            if (!int.TryParse(claim, out int userId))
+                return 0;
 
-            return 0;
-        }
-        private string GetCurrentUserName()
-        {
-            return _contextAccessor.HttpContext?
-                .User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+            var user = await _employeeRepository.GetUserByIdAsync(userId);
+
+            return user?.EmployeeId ?? 0;
         }
     }
 }
