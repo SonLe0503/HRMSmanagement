@@ -30,6 +30,7 @@ namespace HRManagement.Controllers
                     UserId = u.UserId,
                     Username = u.Username,
                     Email = u.Email,
+                    EmployeeId = u.EmployeeId,
                     IsActive = u.IsActive,
                     Roles = u.UserRoles.Select(ur => ur.Role.RoleName).ToList()
                 })
@@ -48,6 +49,7 @@ namespace HRManagement.Controllers
                     UserId = u.UserId,
                     Username = u.Username,
                     Email = u.Email,
+                    EmployeeId = u.EmployeeId,
                     IsActive = u.IsActive,
                     Roles = u.UserRoles.Select(r => r.Role.RoleName).ToList()
                 })
@@ -65,6 +67,21 @@ namespace HRManagement.Controllers
             if (await _context.Users.AnyAsync(x =>
                 x.Username == dto.Username || x.Email == dto.Email))
                 return BadRequest("Username or Email already exists");
+            if (dto.EmployeeId == null)
+                return BadRequest("EmployeeId is required");
+
+            var employeeExists = await _context.Employees
+                .AnyAsync(e => e.EmployeeId == dto.EmployeeId);
+
+            if (!employeeExists)
+                return BadRequest("Employee does not exist");
+
+            var employeeAlreadyHasUser = await _context.Users
+                .AnyAsync(u => u.EmployeeId == dto.EmployeeId);
+
+            if (employeeAlreadyHasUser)
+                return BadRequest("This employee already has an account");
+
 
             var tempPassword = Guid.NewGuid().ToString("N").Substring(0, 8);
 
@@ -117,6 +134,21 @@ namespace HRManagement.Controllers
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .FirstOrDefaultAsync(u => u.UserId == id);
+
+            if (dto.EmployeeId == null)
+                return BadRequest("EmployeeId is required");
+
+            var employeeExists = await _context.Employees
+                .AnyAsync(e => e.EmployeeId == dto.EmployeeId);
+
+            if (!employeeExists)
+                return BadRequest("Employee does not exist");
+
+            var employeeAlreadyUsed = await _context.Users
+                .AnyAsync(u => u.EmployeeId == dto.EmployeeId && u.UserId != id);
+
+            if (employeeAlreadyUsed)
+                return BadRequest("This employee is already linked to another account");
 
             if (user == null)
                 return NotFound();
@@ -173,6 +205,7 @@ namespace HRManagement.Controllers
             }
             return Ok("User updated successfully");
         }
+
         [Authorize(Roles = "ADMIN")]
         [HttpPatch("{id}/deactivate")]
         public async Task<IActionResult> DeactivateUser(int id)
