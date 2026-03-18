@@ -14,50 +14,17 @@ namespace HRManagement.Controllers
     {
         private readonly IAttendanceService _attendanceService;
         private readonly HrmsDbContext _context;
+        private readonly ICurrentUserService _currentUserService;
 
-        public AttendanceController(IAttendanceService attendanceService, HrmsDbContext context)
+        public AttendanceController(IAttendanceService attendanceService, HrmsDbContext context, ICurrentUserService currentUserService)
         {
             _attendanceService = attendanceService;
             _context = context;
+            _currentUserService = currentUserService;
         }
 
-        private int GetCurrentUserId()
-        {
-            if (User?.Identity == null || !User.Identity.IsAuthenticated)
-                throw new UnauthorizedAccessException("Bạn chưa đăng nhập.");
 
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                              ?? User.FindFirst("sub")?.Value;
 
-            if (string.IsNullOrWhiteSpace(userIdClaim))
-                throw new UnauthorizedAccessException("Không tìm thấy UserId trong token.");
-
-            if (!int.TryParse(userIdClaim, out var userId))
-                throw new UnauthorizedAccessException("UserId trong token không hợp lệ.");
-
-            return userId;
-        }
-
-        private async Task<int> GetCurrentEmployeeIdAsync()
-        {
-            var userId = GetCurrentUserId();
-
-            var user = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
-
-            if (user == null)
-                throw new KeyNotFoundException("Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.");
-
-            if (!user.EmployeeId.HasValue)
-                throw new InvalidOperationException("Tài khoản này chưa được liên kết với nhân viên.");
-
-            return user.EmployeeId.Value;
-        }
-
-        // =========================
-        // EMPLOYEE ATTENDANCE
-        // =========================
 
         [HttpPost("check-in")]
         [Authorize]
@@ -65,7 +32,7 @@ namespace HRManagement.Controllers
         {
             try
             {
-                var employeeId = await GetCurrentEmployeeIdAsync();
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
                 var result = await _attendanceService.CheckInAsync(employeeId, dto);
                 return Ok(result);
             }
@@ -97,7 +64,7 @@ namespace HRManagement.Controllers
         {
             try
             {
-                var employeeId = await GetCurrentEmployeeIdAsync();
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
                 var result = await _attendanceService.CheckOutAsync(employeeId, dto);
                 return Ok(result);
             }
@@ -129,7 +96,7 @@ namespace HRManagement.Controllers
         {
             try
             {
-                var employeeId = await GetCurrentEmployeeIdAsync();
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
                 var result = await _attendanceService.GetMyTodayAsync(employeeId);
                 return Ok(result);
             }
@@ -162,7 +129,7 @@ namespace HRManagement.Controllers
                 if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
                     return BadRequest(new { message = "Từ ngày không được lớn hơn đến ngày." });
 
-                var employeeId = await GetCurrentEmployeeIdAsync();
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
                 var result = await _attendanceService.GetMyHistoryAsync(employeeId, fromDate, toDate);
                 return Ok(result);
             }
@@ -274,7 +241,7 @@ namespace HRManagement.Controllers
                 if (attendanceId <= 0)
                     return BadRequest(new { message = "AttendanceId không hợp lệ." });
 
-                var approverId = GetCurrentUserId(); // UserId là đúng
+                var approverId = _currentUserService.GetCurrentUserId();
                 var result = await _attendanceService.ManualAdjustAttendanceAsync(attendanceId, approverId, dto);
                 return Ok(result);
             }
@@ -306,7 +273,7 @@ namespace HRManagement.Controllers
         {
             try
             {
-                var approverId = GetCurrentUserId(); // UserId là đúng
+                var approverId = _currentUserService.GetCurrentUserId();
                 var result = await _attendanceService.ManualCreateAttendanceAsync(approverId, dto);
                 return Ok(result);
             }
@@ -341,7 +308,7 @@ namespace HRManagement.Controllers
                 if (attendanceId <= 0)
                     return BadRequest(new { message = "AttendanceId không hợp lệ." });
 
-                var userId = GetCurrentUserId(); // UserId là đúng
+                var userId = _currentUserService.GetCurrentUserId();
                 await _attendanceService.LockAttendanceAsync(attendanceId, userId);
 
                 return Ok(new { message = "Khóa chấm công thành công." });
@@ -377,7 +344,7 @@ namespace HRManagement.Controllers
                 if (attendanceId <= 0)
                     return BadRequest(new { message = "AttendanceId không hợp lệ." });
 
-                var userId = GetCurrentUserId(); // UserId là đúng
+                var userId = _currentUserService.GetCurrentUserId();
                 await _attendanceService.UnlockAttendanceAsync(attendanceId, userId);
 
                 return Ok(new { message = "Mở khóa chấm công thành công." });
