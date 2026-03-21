@@ -123,5 +123,66 @@ namespace HRManagement.Controllers
                 Message = result.Message
             });
         }
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelLeaveRequest(int id, [FromBody] CancelLeaveRequestDTO dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveRequestService.CancelLeaveRequestAsync(userId, id, dto);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                MessageCode = result.MessageCode,
+                Message = result.Message
+            });
+        }
+        [HttpGet("my-requests")]
+        public async Task<IActionResult> GetMyLeaveRequests()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveRequestService.GetMyLeaveRequestsAsync(userId);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                Data = result.Data
+            });
+        }
     }
 }

@@ -330,7 +330,7 @@ namespace HRManagement.Services
             var auditLog = new AuditLog
             {
                 TableName = "LeaveRequests",
-                Action = "APPROVE",
+                Action = "UPDATE",
                 RecordId = leaveRequest.LeaveRequestId,
                 UserId = managerUserId,
                 NewValues = JsonSerializer.Serialize(new
@@ -422,7 +422,7 @@ namespace HRManagement.Services
             var auditLog = new AuditLog
             {
                 TableName = "LeaveRequests",
-                Action = "REJECT",
+                Action = "UPDATE",
                 RecordId = leaveRequest.LeaveRequestId,
                 UserId = managerUserId,
                 NewValues = JsonSerializer.Serialize(new
@@ -441,6 +441,95 @@ namespace HRManagement.Services
             await _context.SaveChangesAsync();
 
             return ServiceResult<string>.Ok("MSG-44", "Request rejected successfully.", null);
+        }
+        public async Task<ServiceResult<string>> CancelLeaveRequestAsync(int userId, int leaveRequestId, CancelLeaveRequestDTO dto)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null || user.EmployeeId == null)
+            {
+                return ServiceResult<string>.Fail("MSG-106", "Access Denied.");
+            }
+
+            var leaveRequest = await _context.LeaveRequests
+                .FirstOrDefaultAsync(x => x.LeaveRequestId == leaveRequestId);
+
+            if (leaveRequest == null)
+            {
+                return ServiceResult<string>.Fail("MSG-38", "Cannot cancel this request. It has already been approved/rejected/cancelled.");
+            }
+
+            if (leaveRequest.EmployeeId != user.EmployeeId)
+            {
+                return ServiceResult<string>.Fail("MSG-106", "Access Denied.");
+            }
+
+            if (leaveRequest.Status != "Pending")
+            {
+                return ServiceResult<string>.Fail("MSG-38", "Cannot cancel this request. It has already been approved/rejected/cancelled.");
+            }
+
+            leaveRequest.Status = "Cancelled";
+            leaveRequest.ReviewerComments = dto.Reason;
+            leaveRequest.ReviewedDate = DateTime.Now;
+            leaveRequest.ReviewedBy = userId;
+
+            var auditLog = new AuditLog
+            {
+                TableName = "LeaveRequests",
+                Action = "UPDATE",
+                RecordId = leaveRequest.LeaveRequestId,
+                UserId = userId,
+                NewValues = JsonSerializer.Serialize(new
+                {
+                    leaveRequest.LeaveRequestId,
+                    leaveRequest.Status,
+                    CancelReason = dto.Reason
+                }),
+                ActionDate = DateTime.Now
+            };
+
+            _context.AuditLogs.Add(auditLog);
+
+            await _context.SaveChangesAsync();
+
+            return ServiceResult<string>.Ok("MSG-37", "Request cancelled successfully.", null);
+        }
+        public async Task<ServiceResult<List<MyLeaveRequestItemDTO>>> GetMyLeaveRequestsAsync(int userId)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null || user.EmployeeId == null)
+            {
+                return ServiceResult<List<MyLeaveRequestItemDTO>>.Fail("MSG-106", "Access Denied.");
+            }
+
+            var requests = await _context.LeaveRequests
+                .Where(x => x.EmployeeId == user.EmployeeId)
+                .Join(
+                    _context.LeaveTypes,
+                    request => request.LeaveTypeId,
+                    leaveType => leaveType.LeaveTypeId,
+                    (request, leaveType) => new MyLeaveRequestItemDTO
+                    {
+                        LeaveRequestID = request.LeaveRequestId,
+                        RequestNumber = request.RequestNumber,
+                        LeaveTypeID = request.LeaveTypeId,
+                        LeaveTypeName = leaveType.LeaveTypeName,
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
+                        NumberOfDays = request.NumberOfDays,
+                        Reason = request.Reason,
+                        Status = request.Status,
+                        SubmittedDate = request.SubmittedDate
+                    }
+                )
+                .OrderByDescending(x => x.SubmittedDate)
+                .ToListAsync();
+
+            return ServiceResult<List<MyLeaveRequestItemDTO>>.Ok("", "Success", requests);
         }
     }
 }
