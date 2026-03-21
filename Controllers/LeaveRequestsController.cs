@@ -60,5 +60,68 @@ namespace HRManagement.Controllers
                 Data = result.Data
             });
         }
+        [HttpPost("{id}/approve")]
+        public async Task<IActionResult> ApproveLeaveRequest(int id, [FromBody] ApproveLeaveRequestDTO dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveRequestService.ApproveLeaveRequestAsync(userId, id, dto);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                MessageCode = result.MessageCode,
+                Message = result.Message
+            });
+        }
+
+        [HttpPost("{id}/reject")]
+        public async Task<IActionResult> RejectLeaveRequest(int id, [FromBody] RejectLeaveRequestDTO dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveRequestService.RejectLeaveRequestAsync(userId, id, dto);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                MessageCode = result.MessageCode,
+                Message = result.Message
+            });
+        }
     }
 }

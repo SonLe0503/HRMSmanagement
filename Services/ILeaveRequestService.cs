@@ -5,5 +5,8 @@ namespace HRManagement.Services
     public interface ILeaveRequestService
     {
         Task<ServiceResult<LeaveRequestResponseDTO>> CreateLeaveRequestAsync(int userId, CreateLeaveRequestDTO dto);
+        Task<ServiceResult<string>> ApproveLeaveRequestAsync(int managerUserId, int leaveRequestId, ApproveLeaveRequestDTO dto);
+
+        Task<ServiceResult<string>> RejectLeaveRequestAsync(int managerUserId, int leaveRequestId, RejectLeaveRequestDTO dto);
     }
 }
