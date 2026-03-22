@@ -27,6 +27,21 @@ public partial class AttendanceRecord
 
     public string Status { get; set; } = null!;
 
+    // NEW
+    public string? Source { get; set; }
+
+    // NEW
+    public bool? IsManualAdjusted { get; set; }
+
+    // NEW
+    public bool? IsLocked { get; set; }
+
+    // NEW
+    public int? ApprovedBy { get; set; }
+
+    // NEW
+    public DateTime? ApprovedDate { get; set; }
+
     public string? Location { get; set; }
 
     public string? Remarks { get; set; }
