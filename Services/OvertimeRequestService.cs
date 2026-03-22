@@ -189,5 +189,77 @@ namespace HRManagement.Services
 
             return ServiceResult<string>.Ok("MSG-44", "Overtime request rejected.", null);
         }
+        // cancel request
+        public async Task<ServiceResult<string>> CancelOvertimeRequestAsync(int userId, int requestId, CancelOvertimeRequestDTO dto)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null || user.EmployeeId == null)
+                return ServiceResult<string>.Fail("MSG-106", "Access denied.");
+
+            var request = await _context.OvertimeRequests
+                .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
+
+            if (request == null)
+                return ServiceResult<string>.Fail("MSG-104", "Request not found.");
+
+            if (request.EmployeeId != user.EmployeeId)
+                return ServiceResult<string>.Fail("MSG-106", "Access denied.");
+
+            if (request.Status != "Pending")
+                return ServiceResult<string>.Fail("MSG-38", "Cannot cancel processed request.");
+
+            request.Status = "Cancelled";
+            request.RejectionReason = dto.Reason;
+
+            var auditLog = new AuditLog
+            {
+                TableName = "OvertimeRequests",
+                Action = "UPDATE",
+                RecordId = request.OvertimeRequestId,
+                UserId = userId,
+                NewValues = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    request.Status,
+                    request.RejectionReason
+                }),
+                ActionDate = DateTime.Now
+            };
+
+            _context.AuditLogs.Add(auditLog);
+
+            await _context.SaveChangesAsync();
+
+            return ServiceResult<string>.Ok("MSG-37", "Overtime request cancelled successfully.", null);
+        }
+        // get my request
+        public async Task<ServiceResult<List<MyOvertimeRequestDTO>>> GetMyOvertimeRequestsAsync(int userId)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null || user.EmployeeId == null)
+                return ServiceResult<List<MyOvertimeRequestDTO>>.Fail("MSG-106", "Access denied.");
+
+            var requests = await _context.OvertimeRequests
+                .Where(x => x.EmployeeId == user.EmployeeId)
+                .OrderByDescending(x => x.SubmittedDate)
+                .Select(x => new MyOvertimeRequestDTO
+                {
+                    OvertimeRequestId = x.OvertimeRequestId,
+                    RequestNumber = x.RequestNumber,
+                    OvertimeDate = x.OvertimeDate,
+                    StartTime = x.StartTime,
+                    EndTime = x.EndTime,
+                    TotalHours = x.TotalHours,
+                    Reason = x.Reason,
+                    Status = x.Status,
+                    SubmittedDate = x.SubmittedDate
+                })
+                .ToListAsync();
+
+            return ServiceResult<List<MyOvertimeRequestDTO>>.Ok("", "Success", requests);
+        }
     }
 }

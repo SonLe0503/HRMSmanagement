@@ -75,6 +75,30 @@ namespace HRManagement.Controllers
 
             return Ok(new { result.MessageCode, result.Message });
         }
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> Cancel(int id, [FromBody] CancelOvertimeRequestDTO dto)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+            var result = await _overtimeRequestService.CancelOvertimeRequestAsync(userId, id, dto);
+
+            if (!result.Success)
+                return BadRequest(new { result.MessageCode, result.Message });
+
+            return Ok(new { result.MessageCode, result.Message });
+        }
+        [HttpGet("my-requests")]
+        public async Task<IActionResult> GetMyRequests()
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+            var result = await _overtimeRequestService.GetMyOvertimeRequestsAsync(userId);
+
+            if (!result.Success)
+                return BadRequest(new { result.MessageCode, result.Message });
+
+            return Ok(result.Data);
+        }
 
     }
 }
