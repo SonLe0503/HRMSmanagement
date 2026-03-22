@@ -60,5 +60,10 @@ namespace HRManagement.DataAcess
         {
             return await _context.Employees.AnyAsync(e => e.Email == email);
         }
+        public async Task<User?> GetUserByIdAsync(int userId)
+        {
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+        }
     }
 }
