@@ -1,8 +1,8 @@
-﻿using System;
-
-public interface ICurrentUserService
+﻿namespace HRManagement.Services
 {
-    int UserId { get; }
-    int? EmployeeId { get; }
-    string RoleName { get; }
+    public interface ICurrentUserService
+    {
+        int GetCurrentUserId();
+        Task<int> GetCurrentEmployeeIdAsync();
+    }
 }
