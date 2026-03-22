@@ -12,5 +12,6 @@ namespace HRManagement.Services
         Task<ServiceResult<string>> CancelOvertimeRequestAsync(int userId, int requestId, CancelOvertimeRequestDTO dto);
 
         Task<ServiceResult<List<MyOvertimeRequestDTO>>> GetMyOvertimeRequestsAsync(int userId);
+        Task<ServiceResult<List<PendingOvertimeRequestDTO>>> GetPendingOvertimeRequestsAsync(int managerUserId);
     }
 }

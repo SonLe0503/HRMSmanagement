@@ -531,5 +531,49 @@ namespace HRManagement.Services
 
             return ServiceResult<List<MyLeaveRequestItemDTO>>.Ok("", "Success", requests);
         }
+        public async Task<ServiceResult<List<PendingLeaveRequestDTO>>> GetPendingLeaveRequestsAsync(int managerUserId)
+        {
+            var managerUser = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
+
+            if (managerUser == null || managerUser.EmployeeId == null)
+            {
+                return ServiceResult<List<PendingLeaveRequestDTO>>.Fail("MSG-106", "Access Denied.");
+            }
+
+            var pendingRequests = await _context.LeaveRequests
+                .Where(lr => lr.Status == "Pending")
+                .Join(
+                    _context.Employees,
+                    lr => lr.EmployeeId,
+                    e => e.EmployeeId,
+                    (lr, e) => new { lr, e }
+                )
+                .Where(x => x.e.ManagerId == managerUser.EmployeeId)
+                .Join(
+                    _context.LeaveTypes,
+                    x => x.lr.LeaveTypeId,
+                    lt => lt.LeaveTypeId,
+                    (x, lt) => new PendingLeaveRequestDTO
+                    {
+                        LeaveRequestId = x.lr.LeaveRequestId,
+                        RequestNumber = x.lr.RequestNumber,
+                        EmployeeId = x.e.EmployeeId,
+                        EmployeeName = x.e.FullName,
+                        LeaveTypeId = lt.LeaveTypeId,
+                        LeaveTypeName = lt.LeaveTypeName,
+                        StartDate = x.lr.StartDate,
+                        EndDate = x.lr.EndDate,
+                        NumberOfDays = x.lr.NumberOfDays,
+                        Reason = x.lr.Reason,
+                        Status = x.lr.Status,
+                        SubmittedDate = x.lr.SubmittedDate
+                    }
+                )
+                .OrderByDescending(x => x.SubmittedDate)
+                .ToListAsync();
+
+            return ServiceResult<List<PendingLeaveRequestDTO>>.Ok("", "Success", pendingRequests);
+        }
     }
 }

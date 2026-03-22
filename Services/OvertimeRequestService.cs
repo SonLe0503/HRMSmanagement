@@ -261,5 +261,44 @@ namespace HRManagement.Services
 
             return ServiceResult<List<MyOvertimeRequestDTO>>.Ok("", "Success", requests);
         }
+        public async Task<ServiceResult<List<PendingOvertimeRequestDTO>>> GetPendingOvertimeRequestsAsync(int managerUserId)
+        {
+            var managerUser = await _context.Users
+                .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
+
+            if (managerUser == null || managerUser.EmployeeId == null)
+            {
+                return ServiceResult<List<PendingOvertimeRequestDTO>>.Fail("MSG-106", "Access Denied.");
+            }
+
+            var pendingRequests = await _context.OvertimeRequests
+                .Where(or => or.Status == "Pending")
+                .Join(
+                    _context.Employees,
+                    or => or.EmployeeId,
+                    e => e.EmployeeId,
+                    (or, e) => new { or, e }
+                )
+                .Where(x => x.e.ManagerId == managerUser.EmployeeId)
+                .Select(x => new PendingOvertimeRequestDTO
+                {
+                    OvertimeRequestId = x.or.OvertimeRequestId,
+                    RequestNumber = x.or.RequestNumber,
+                    EmployeeId = x.e.EmployeeId,
+                    EmployeeName = x.e.FullName,
+                    OvertimeDate = x.or.OvertimeDate,
+                    StartTime = x.or.StartTime,
+                    EndTime = x.or.EndTime,
+                    TotalHours = x.or.TotalHours,
+                    Reason = x.or.Reason,
+                    TaskDescription = x.or.TaskDescription,
+                    Status = x.or.Status,
+                    SubmittedDate = x.or.SubmittedDate
+                })
+                .OrderByDescending(x => x.SubmittedDate)
+                .ToListAsync();
+
+            return ServiceResult<List<PendingOvertimeRequestDTO>>.Ok("", "Success", pendingRequests);
+        }
     }
 }

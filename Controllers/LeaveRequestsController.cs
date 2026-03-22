@@ -184,5 +184,35 @@ namespace HRManagement.Controllers
                 Data = result.Data
             });
         }
+        [HttpGet("pending")]
+        public async Task<IActionResult> GetPendingLeaveRequests()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveRequestService.GetPendingLeaveRequestsAsync(userId);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                Data = result.Data
+            });
+        }
     }
 }
