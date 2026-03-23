@@ -24,14 +24,51 @@ namespace HRManagement.Controllers
         [Authorize]
         public async Task<IActionResult> AssignShift([FromBody] AssignShiftDto dto)
         {
-            int managerId = _currentUserService.GetCurrentUserId();
-
-            await _attendanceService.AssignShiftAsync(managerId, dto);
-
-            return Ok(new
+            try
             {
-                message = "Phân ca thành công."
-            });
+                int managerId = _currentUserService.GetCurrentUserId();
+
+                await _attendanceService.AssignShiftAsync(managerId, dto);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Phân ca thành công."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    success = false,
+                    message = "Đã xảy ra lỗi hệ thống.",
+                    detail = ex.Message // nếu production thì nên bỏ detail
+                });
+            }
         }
 
         [HttpGet]

@@ -13,6 +13,7 @@
         public int? LateGraceMinutes { get; set; }
         public int? EarlyCheckInMinutes { get; set; }
         public int? LatestCheckInMinutes { get; set; }
+        public int? EarliestCheckOutMinutes { get; set; }
         public int? LatestCheckOutMinutes { get; set; }
         public bool? IsOvernight { get; set; }
 

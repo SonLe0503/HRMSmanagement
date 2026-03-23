@@ -30,6 +30,7 @@ namespace HRManagement.Services
                 LateGraceMinutes = dto.LateGraceMinutes,
                 EarlyCheckInMinutes = dto.EarlyCheckInMinutes,
                 LatestCheckInMinutes = dto.LatestCheckInMinutes,
+                EarliestCheckOutMinutes = dto.EarliestCheckOutMinutes,
                 LatestCheckOutMinutes = dto.LatestCheckOutMinutes,
                 IsOvernight = dto.IsOvernight,
                 IsActive = true,
@@ -76,6 +77,7 @@ namespace HRManagement.Services
             shift.LateGraceMinutes = dto.LateGraceMinutes;
             shift.EarlyCheckInMinutes = dto.EarlyCheckInMinutes;
             shift.LatestCheckInMinutes = dto.LatestCheckInMinutes;
+            shift.EarliestCheckOutMinutes = dto.EarliestCheckOutMinutes;
             shift.LatestCheckOutMinutes = dto.LatestCheckOutMinutes;
             shift.IsOvernight = dto.IsOvernight;
             shift.IsActive = dto.IsActive;
@@ -112,6 +114,7 @@ namespace HRManagement.Services
                 LateGraceMinutes = shift.LateGraceMinutes,
                 EarlyCheckInMinutes = shift.EarlyCheckInMinutes,
                 LatestCheckInMinutes = shift.LatestCheckInMinutes,
+                EarliestCheckOutMinutes = shift.EarliestCheckOutMinutes,
                 LatestCheckOutMinutes = shift.LatestCheckOutMinutes,
                 IsOvernight = shift.IsOvernight,
                 IsActive = shift.IsActive,
