@@ -89,16 +89,30 @@ namespace HRManagement.DataAcess
                 .ToListAsync();
         }
 
+        // FIX: dùng AssignmentDate thay vì StartDate/EndDate
         public async Task<ShiftAssignment?> GetActiveShiftAssignmentAsync(int employeeId, DateOnly date)
         {
             return await _context.ShiftAssignments
                 .Include(sa => sa.Shift)
-                .Where(sa => sa.EmployeeId == employeeId
-                             && sa.Status == "Active"
-                             && sa.StartDate <= date
-                             && (sa.EndDate == null || sa.EndDate >= date))
-                .OrderByDescending(sa => sa.StartDate)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(sa =>
+                    sa.EmployeeId == employeeId &&
+                    sa.Status == "Active" &&
+                    sa.AssignmentDate == date);
+        }
+
+        public async Task<ShiftAssignment?> GetShiftAssignmentByEmployeeAndDateAsync(int employeeId, DateOnly date)
+        {
+            return await _context.ShiftAssignments
+                .Include(sa => sa.Shift)
+                .FirstOrDefaultAsync(sa =>
+                    sa.EmployeeId == employeeId &&
+                    sa.Status == "Active" &&
+                    sa.AssignmentDate == date);
+        }
+
+        public async System.Threading.Tasks.Task AddShiftAssignmentAsync(ShiftAssignment assignment)
+        {
+            await _context.ShiftAssignments.AddAsync(assignment);
         }
 
         public async Task<Shift?> GetShiftByIdAsync(int shiftId)
@@ -106,9 +120,45 @@ namespace HRManagement.DataAcess
             return await _context.Shifts.FirstOrDefaultAsync(s => s.ShiftId == shiftId);
         }
 
+        public async Task<FaceProfile?> GetActiveFaceProfileByEmployeeIdAsync(int employeeId)
+        {
+            return await _context.FaceProfiles
+                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.Status == "Active");
+        }
+
+        public async System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile)
+        {
+            await _context.FaceProfiles.AddAsync(faceProfile);
+        }
+
+        public System.Threading.Tasks.Task UpdateFaceProfileAsync(FaceProfile faceProfile)
+        {
+            _context.FaceProfiles.Update(faceProfile);
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public async System.Threading.Tasks.Task AddFaceVerificationLogAsync(FaceVerificationLog log)
+        {
+            await _context.FaceVerificationLogs.AddAsync(log);
+        }
+
+        public async Task<AttendanceRecord?> GetOpenAttendanceRecordAsync(int employeeId)
+        {
+            return await _context.AttendanceRecords
+                .Include(a => a.Employee)
+                .Include(a => a.Shift)
+                .Where(a => a.EmployeeId == employeeId
+                            && a.CheckInTime.HasValue
+                            && !a.CheckOutTime.HasValue)
+                .OrderByDescending(a => a.AttendanceDate)
+                .ThenByDescending(a => a.CheckInTime)
+                .FirstOrDefaultAsync();
+        }
+
         public async System.Threading.Tasks.Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
         }
+
     }
 }
