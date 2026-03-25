@@ -7,9 +7,11 @@ namespace HRManagement.Services
     public class AttendanceService : IAttendanceService
     {
         private readonly IAttendanceRepository _attendanceRepository;
-        public AttendanceService(IAttendanceRepository attendanceRepository)
+        private readonly IFaceVerificationService _faceVerificationService;
+        public AttendanceService(IAttendanceRepository attendanceRepository, IFaceVerificationService faceVerificationService)
         {
             _attendanceRepository = attendanceRepository;
+            _faceVerificationService = faceVerificationService;
         }
         public async Task<AttendanceResponseDto> CheckInAsync(int employeeId, CheckInRequestDto dto)
         {
@@ -46,6 +48,22 @@ namespace HRManagement.Services
             if (now > latestCheckIn)
                 throw new InvalidOperationException("Đã quá thời gian check-in cho phép.");
 
+            if (string.IsNullOrWhiteSpace(dto.FaceImageBase64))
+                throw new ArgumentException("Vui lòng chụp ảnh khuôn mặt để check-in.");
+
+            // STEP 1: Verify face trước
+            var faceResult = await _faceVerificationService.VerifyAsync(
+                employeeId,
+                dto.FaceImageBase64,
+                "CheckIn",
+                dto.DeviceInfo,
+                dto.IpAddress,
+                dto.Location
+            );
+
+            if (!faceResult.IsMatch)
+                throw new InvalidOperationException($"Xác minh khuôn mặt thất bại. {faceResult.FailureReason}");
+
             int lateMinutes = 0;
             var lateThreshold = shiftStart.AddMinutes(lateGraceMinutes);
 
@@ -66,6 +84,8 @@ namespace HRManagement.Services
                 Location = dto.Location,
                 Remarks = dto.Remarks,
                 IsValid = true,
+                VerificationMethod = "Face",
+                VerificationStatus = "Verified",
                 CreatedDate = now,
                 CreatedBy = employeeId
             };
@@ -95,7 +115,10 @@ namespace HRManagement.Services
                     Remarks = dto.Remarks,
                     CreatedDate = now,
                     ModifiedDate = null,
-                    ModifiedBy = null
+                    ModifiedBy = null,
+                    CheckInVerificationMethod = "Face",
+                    CheckInVerified = true
+
                 };
 
                 await _attendanceRepository.AddAttendanceAsync(attendance);
@@ -111,6 +134,8 @@ namespace HRManagement.Services
                 attendance.Remarks = dto.Remarks;
                 attendance.ModifiedDate = now;
                 attendance.ModifiedBy = employeeId;
+                attendance.CheckInVerificationMethod = "Face";
+                attendance.CheckInVerified = true;
 
                 await _attendanceRepository.UpdateAttendanceAsync(attendance);
             }
@@ -126,11 +151,12 @@ namespace HRManagement.Services
         public async Task<AttendanceResponseDto> CheckOutAsync(int employeeId, CheckOutRequestDto dto)
         {
             var now = DateTime.Now;
-            var today = DateOnly.FromDateTime(now);
 
-            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today);
+            // Ưu tiên lấy bản ghi đang mở (đã check-in nhưng chưa check-out)
+            var attendance = await _attendanceRepository.GetOpenAttendanceRecordAsync(employeeId);
+
             if (attendance == null)
-                throw new InvalidOperationException("Bạn chưa check-in hôm nay.");
+                throw new InvalidOperationException("Bạn chưa check-in hoặc đã check-out rồi.");
 
             if (attendance.IsLocked ?? false)
                 throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
@@ -139,13 +165,54 @@ namespace HRManagement.Services
                 throw new InvalidOperationException("Bạn chưa check-in hôm nay.");
 
             if (attendance.CheckOutTime.HasValue)
-                throw new InvalidOperationException("Bạn đã check-out hôm nay rồi.");
+                throw new InvalidOperationException("Bạn đã check-out rồi.");
+
+            if (string.IsNullOrWhiteSpace(dto.FaceImageBase64))
+                throw new ArgumentException("Vui lòng chụp ảnh khuôn mặt để check-out.");
 
             Shift? shift = null;
             if (attendance.ShiftId.HasValue)
             {
                 shift = await _attendanceRepository.GetShiftByIdAsync(attendance.ShiftId.Value);
             }
+
+            // VALIDATE khung giờ check-out
+            if (shift != null)
+            {
+                var attendanceDate = attendance.AttendanceDate;
+                var shiftEnd = attendanceDate.ToDateTime(shift.EndTime);
+
+                if (shift.IsOvernight ?? false)
+                {
+                    shiftEnd = shiftEnd.AddDays(1);
+                }
+
+                // Cho phép checkout sớm tối đa 2 tiếng trước giờ kết thúc ca
+                var earliestCheckOut = shiftEnd.AddMinutes(-120);
+
+                // Cho phép checkout muộn tối đa X phút sau giờ kết thúc ca
+                var latestCheckOutMinutes = shift.LatestCheckOutMinutes ?? 240;
+                var latestCheckOut = shiftEnd.AddMinutes(latestCheckOutMinutes);
+
+                if (now < earliestCheckOut)
+                    throw new InvalidOperationException($"Chưa đến thời gian check-out. Bạn chỉ được check-out từ {earliestCheckOut:HH:mm}.");
+
+                if (now > latestCheckOut)
+                    throw new InvalidOperationException("Đã quá thời gian check-out cho phép.");
+            }
+
+            // STEP 1: Verify face trước
+            var faceResult = await _faceVerificationService.VerifyAsync(
+                employeeId,
+                dto.FaceImageBase64,
+                "CheckOut",
+                dto.DeviceInfo,
+                dto.IpAddress,
+                dto.Location
+            );
+
+            if (!faceResult.IsMatch)
+                throw new InvalidOperationException($"Xác minh khuôn mặt thất bại. {faceResult.FailureReason}");
 
             var log = new AttendanceLog
             {
@@ -159,6 +226,8 @@ namespace HRManagement.Services
                 Location = dto.Location,
                 Remarks = dto.Remarks,
                 IsValid = true,
+                VerificationMethod = "Face",
+                VerificationStatus = "Verified",
                 CreatedDate = now,
                 CreatedBy = employeeId
             };
@@ -170,13 +239,16 @@ namespace HRManagement.Services
             attendance.Remarks = dto.Remarks ?? attendance.Remarks;
             attendance.ModifiedDate = now;
             attendance.ModifiedBy = employeeId;
+            attendance.CheckOutVerificationMethod = "Face";
+            attendance.CheckOutVerified = true;
 
             var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
             attendance.WorkingHours = Math.Round(workingHours, 2);
 
             if (shift != null)
             {
-                var shiftEnd = today.ToDateTime(shift.EndTime);
+                var attendanceDate = attendance.AttendanceDate;
+                var shiftEnd = attendanceDate.ToDateTime(shift.EndTime);
 
                 if (shift.IsOvernight ?? false)
                 {
@@ -196,23 +268,34 @@ namespace HRManagement.Services
                 }
             }
 
+            // FIX STATUS
             if (!attendance.CheckInTime.HasValue || !attendance.CheckOutTime.HasValue)
             {
                 attendance.Status = "Incomplete";
             }
+            else if ((attendance.LateMinutes ?? 0) > 0 && (attendance.EarlyLeaveMinutes ?? 0) > 0)
+            {
+                attendance.Status = "LateEarlyLeave";
+            }
             else if ((attendance.LateMinutes ?? 0) > 0)
             {
                 attendance.Status = "Late";
+            }
+            else if ((attendance.EarlyLeaveMinutes ?? 0) > 0)
+            {
+                attendance.Status = "EarlyLeave";
             }
             else
             {
                 attendance.Status = "Present";
             }
 
+            attendance.Source = "Web-Face";
+
             await _attendanceRepository.UpdateAttendanceAsync(attendance);
             await _attendanceRepository.SaveChangesAsync();
 
-            var result = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, today)
+            var result = await _attendanceRepository.GetAttendanceByIdAsync(attendance.AttendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công sau khi check-out.");
 
             return MapAttendance(result);
@@ -377,6 +460,83 @@ namespace HRManagement.Services
         {
             var logs = await _attendanceRepository.GetLogsByEmployeeAndDateAsync(employeeId, date);
             return logs.Select(MapLog).ToList();
+        }
+
+        public async System.Threading.Tasks.Task AssignShiftAsync(int managerId, AssignShiftDto dto)
+        {
+            if (dto.StartDate > dto.EndDate)
+                throw new InvalidOperationException("StartDate không được lớn hơn EndDate.");
+
+            var shift = await _attendanceRepository.GetShiftByIdAsync(dto.ShiftId);
+            if (shift == null || !shift.IsActive)
+                throw new InvalidOperationException("Ca làm việc không hợp lệ hoặc đã bị vô hiệu hóa.");
+
+            var datesToAssign = new List<DateOnly>();
+
+            // 1. Tạo danh sách ngày cần phân ca
+            for (var date = dto.StartDate; date <= dto.EndDate; date = date.AddDays(1))
+            {
+                if (dto.AssignType == "Daily")
+                {
+                    datesToAssign.Add(date);
+                }
+                else if (dto.AssignType == "Weekly")
+                {
+                    // DateOnly.DayOfWeek: Sunday = 0, Monday = 1, ..., Saturday = 6
+                    if (dto.DaysOfWeek != null && dto.DaysOfWeek.Contains((int)date.DayOfWeek))
+                    {
+                        datesToAssign.Add(date);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("AssignType không hợp lệ. Chỉ hỗ trợ 'Daily' hoặc 'Weekly'.");
+                }
+            }
+
+            if (!datesToAssign.Any())
+                throw new InvalidOperationException("Không có ngày nào hợp lệ để phân ca.");
+
+            // 2. Check trùng trước khi insert (để tránh đang insert nửa chừng bị lỗi)
+            var duplicatedDates = new List<DateOnly>();
+
+            foreach (var date in datesToAssign)
+            {
+                var existing = await _attendanceRepository.GetShiftAssignmentByEmployeeAndDateAsync(dto.EmployeeId, date);
+                if (existing != null)
+                {
+                    duplicatedDates.Add(date);
+                }
+            }
+
+            if (duplicatedDates.Any())
+            {
+                var duplicateText = string.Join(", ", duplicatedDates.Select(d => d.ToString("yyyy-MM-dd")));
+                throw new InvalidOperationException($"Nhân viên đã được phân ca ở các ngày: {duplicateText}");
+            }
+
+            // 3. Insert từng ngày
+            foreach (var date in datesToAssign)
+            {
+                var assignment = new ShiftAssignment
+                {
+                    EmployeeId = dto.EmployeeId,
+                    ShiftId = dto.ShiftId,
+                    AssignmentDate = date,     // ngày thực tế được phân ca
+                    StartDate = dto.StartDate, // đợt phân ca bắt đầu từ ngày nào
+                    EndDate = dto.EndDate,     // đợt phân ca kết thúc ngày nào
+                    RecurrencePattern = dto.AssignType == "Weekly"
+                        ? $"Weekly:{string.Join(",", dto.DaysOfWeek ?? new List<int>())}"
+                        : "Daily",
+                    Status = "Active",
+                    CreatedDate = DateTime.Now,
+                    CreatedBy = managerId
+                };
+
+                await _attendanceRepository.AddShiftAssignmentAsync(assignment);
+            }
+
+            await _attendanceRepository.SaveChangesAsync();
         }
 
         private static AttendanceResponseDto MapAttendance(AttendanceRecord a)

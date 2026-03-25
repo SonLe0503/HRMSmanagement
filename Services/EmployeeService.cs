@@ -15,12 +15,28 @@ namespace HRManagement.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
+        private async Task<string> GenerateEmployeeCodeAsync()
+        {
+            int number = 1;
+
+            while (true)
+            {
+                string code = $"EMP{number:D3}"; // EMP001, EMP002...
+
+                bool exists = await _employeeRepository.EmployeeCodeExistsAsync(code);
+
+                if (!exists)
+                    return code;
+
+                number++;
+            }
+        }
         public async Task<EmployeeResponseDetailDto> AddEmployeeAsync(CreateEmployeeDto dto)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-            if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
-                throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
+            //if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
+            //    throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
 
             if (await _employeeRepository.EmailExistsAsync(dto.Email))
                 throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
@@ -47,8 +63,8 @@ namespace HRManagement.Services
             }
 
 
-            if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
-                throw new ArgumentException("Employee cannot be their own manager.");
+            //if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
+            //    throw new ArgumentException("Employee cannot be their own manager.");
 
 
             if (dto.DepartmentId.HasValue)
@@ -90,10 +106,11 @@ namespace HRManagement.Services
                 );
 
             int createdBy = GetCurrentUserId(dto.CreatedBy);
+            string employeeCode = await GenerateEmployeeCodeAsync();
 
             var employee = new Employee
             {
-                EmployeeCode = dto.EmployeeCode,
+                EmployeeCode = employeeCode,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 FullName = $"{dto.FirstName} {dto.LastName}",
@@ -213,13 +230,15 @@ namespace HRManagement.Services
             if (employee == null)
                 throw new KeyNotFoundException($"Employee {employeeId} not found.");
 
-            if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode, employeeId))
-                throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
+            if (await _employeeRepository.EmailExistsAsync(dto.Email))
+                throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
 
-            if (dto.JoinDate > DateOnly.FromDateTime(DateTime.UtcNow))
+            if (dto.JoinDate > today)
                 throw new ArgumentException("Join date cannot be in the future.");
 
             if (dto.ResignationDate.HasValue && dto.ResignationDate.Value < dto.JoinDate)
@@ -228,14 +247,17 @@ namespace HRManagement.Services
             if (dto.ManagerId.HasValue && dto.ManagerId == employeeId)
                 throw new ArgumentException("Employee cannot be their own manager.");
 
-            if(dto.DateOfBirth.HasValue && dto.DateOfBirth.Value > DateOnly.FromDateTime(DateTime.UtcNow))
-                throw new ArgumentException("Date of birth cannot be in the future.");
+            if (dto.DateOfBirth.HasValue)
+            {
+                if (dto.DateOfBirth.Value > today)
+                    throw new ArgumentException("Date of birth cannot be in the future.");
 
-            if (dto.DateOfBirth.HasValue && dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
-                throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
+                if (dto.JoinDate <= dto.DateOfBirth.Value)
+                    throw new ArgumentException("Join date must be after date of birth.");
 
-            if(dto.DateOfBirth.HasValue && dto.DateOfBirth.Value.AddYears(18) < dto.JoinDate)
-                throw new ArgumentException("Join date cannot be before employee turns 18.");
+                if (dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
+                    throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
+            }
 
             if (dto.DepartmentId.HasValue)
             {
@@ -247,14 +269,16 @@ namespace HRManagement.Services
 
             if (dto.PositionId.HasValue)
             {
-                var positionExists = await _employeeRepository.DepartmentExistsAsync(dto.PositionId.Value);
+                var positionExists = await _employeeRepository.PositionExistsAsync(dto.PositionId.Value);
+
                 if (!positionExists)
                     throw new ArgumentException($"Position {dto.PositionId} does not exist.");
             }
+
             var validTypes = new[]
             {
-                "Full-Time","Part-Time","Contract","Intern"
-            };
+        "Full-Time", "Part-Time", "Contract", "Intern"
+    };
 
             if (!validTypes.Contains(dto.EmploymentType))
             {
@@ -265,17 +289,17 @@ namespace HRManagement.Services
 
             var validStatus = new[]
             {
-                "Active", "Resigned", "Terminated", "On Leave", "Suspended","Inactive"
-            };
+        "Active", "Resigned", "Terminated", "On Leave", "Suspended", "Inactive"
+    };
 
-            if (!validTypes.Contains(dto.EmploymentType))
+            if (!validStatus.Contains(dto.EmploymentStatus))
             {
                 throw new ArgumentException(
-                    "Invalid employment type. Allowed values: Active, Resigned, Terminated, On Leave, Suspended,Inactive"
+                    "Invalid employment status. Allowed values: Active, Resigned, Terminated, On Leave, Suspended, Inactive."
                 );
             }
 
-            employee.EmployeeCode = dto.EmployeeCode;
+            // KHÔNG update EmployeeCode nữa
             employee.FirstName = dto.FirstName;
             employee.LastName = dto.LastName;
             employee.FullName = $"{dto.FirstName} {dto.LastName}";
@@ -295,7 +319,7 @@ namespace HRManagement.Services
             employee.EmploymentType = dto.EmploymentType;
             employee.BaseSalary = dto.BaseSalary;
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = dto.ModifiedBy;
+            employee.ModifiedBy = GetCurrentUserId(dto.ModifiedBy);
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
 
