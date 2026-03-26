@@ -16,7 +16,18 @@ namespace HRManagement.DataAcess
         Task<List<AttendanceLog>> GetLogsByEmployeeAndDateAsync(int employeeId, DateOnly date);
 
         Task<ShiftAssignment?> GetActiveShiftAssignmentAsync(int employeeId, DateOnly date);
+        Task<ShiftAssignment?> GetShiftAssignmentByEmployeeAndDateAsync(int employeeId, DateOnly date);
+        System.Threading.Tasks.Task AddShiftAssignmentAsync(ShiftAssignment assignment);
+
         Task<Shift?> GetShiftByIdAsync(int shiftId);
+
+        Task<FaceProfile?> GetActiveFaceProfileByEmployeeIdAsync(int employeeId);
+        System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile);
+        System.Threading.Tasks.Task UpdateFaceProfileAsync(FaceProfile faceProfile);
+
+        System.Threading.Tasks.Task AddFaceVerificationLogAsync(FaceVerificationLog log);
+
+        Task<AttendanceRecord?> GetOpenAttendanceRecordAsync(int employeeId);
 
         System.Threading.Tasks.Task SaveChangesAsync();
     }

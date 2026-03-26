@@ -28,6 +28,8 @@ public partial class Shift
     // NEW
     public int? LatestCheckInMinutes { get; set; }
 
+    public int? EarliestCheckOutMinutes { get; set; }
+
     // NEW
     public int? LatestCheckOutMinutes { get; set; }
 

@@ -65,5 +65,12 @@ namespace HRManagement.DataAcess
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == userId);
         }
+        public async Task<string?> GetLastEmployeeCodeAsync()
+        {
+            return await _context.Employees
+                .OrderByDescending(e => e.EmployeeId)
+                .Select(e => e.EmployeeCode)
+                .FirstOrDefaultAsync();
+        }
     }
 }

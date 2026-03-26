@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.Models;
 
@@ -55,4 +56,14 @@ public partial class AttendanceRecord
     public virtual Employee Employee { get; set; } = null!;
 
     public virtual Shift? Shift { get; set; }
+
+    [MaxLength(20)]
+    public string? CheckInVerificationMethod { get; set; }
+
+    [MaxLength(20)]
+    public string? CheckOutVerificationMethod { get; set; }
+
+    public bool? CheckInVerified { get; set; }
+
+    public bool? CheckOutVerified { get; set; }
 }
