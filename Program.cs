@@ -36,7 +36,9 @@ builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IShiftAssignmentService, ShiftAssignmentService>();
-builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();    
+builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
