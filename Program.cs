@@ -31,6 +31,7 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+<<<<<<< HEAD
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
@@ -40,6 +41,10 @@ builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+=======
+builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+
+>>>>>>> f52edbf (feat(leave): implement leave request module with submit, approve, reject, cancel, balance, and team calendar)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
