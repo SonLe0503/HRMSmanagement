@@ -38,6 +38,7 @@ builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IShiftAssignmentService, ShiftAssignmentService>();
 builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddCors(options =>
 {
