@@ -32,8 +32,8 @@ builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
-
-
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
