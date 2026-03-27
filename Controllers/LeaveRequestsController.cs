@@ -18,6 +18,36 @@ namespace HRManagement.Controllers
             _leaveRequestService = leaveRequestService;
         }
 
+        private int? GetUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim))
+                return null;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return null;
+
+            return userId;
+        }
+
+        [HttpGet("my-balance")]
+        public async Task<IActionResult> GetMyLeaveBalance()
+        {
+            var result = await _leaveRequestService.GetMyLeaveBalanceAsync();
+
+            if (!result.Any())
+            {
+                return NotFound(new
+                {
+                    MessageCode = "MSG-104",
+                    Message = "Leave balance not found."
+                });
+            }
+
+            return Ok(result);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateLeaveRequest([FromBody] CreateLeaveRequestDTO dto)
         {
@@ -30,9 +60,9 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetUserId();
 
-            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (userId == null)
             {
                 return Unauthorized(new
                 {
@@ -41,31 +71,20 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var result = await _leaveRequestService.CreateLeaveRequestAsync(userId, dto);
+            var result = await _leaveRequestService.CreateLeaveRequestAsync(userId.Value, dto);
 
             if (!result.Success)
-            {
-                return BadRequest(new
-                {
-                    MessageCode = result.MessageCode,
-                    Message = result.Message,
-                    Data = result.Data
-                });
-            }
+                return BadRequest(result);
 
-            return Ok(new
-            {
-                MessageCode = result.MessageCode,
-                Message = result.Message,
-                Data = result.Data
-            });
+            return Ok(result);
         }
+
         [HttpPost("{id}/approve")]
         public async Task<IActionResult> ApproveLeaveRequest(int id, [FromBody] ApproveLeaveRequestDTO dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetUserId();
 
-            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (userId == null)
             {
                 return Unauthorized(new
                 {
@@ -74,30 +93,20 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var result = await _leaveRequestService.ApproveLeaveRequestAsync(userId, id, dto);
+            var result = await _leaveRequestService.ApproveLeaveRequestAsync(userId.Value, id, dto);
 
             if (!result.Success)
-            {
-                return BadRequest(new
-                {
-                    MessageCode = result.MessageCode,
-                    Message = result.Message
-                });
-            }
+                return BadRequest(result);
 
-            return Ok(new
-            {
-                MessageCode = result.MessageCode,
-                Message = result.Message
-            });
+            return Ok(result);
         }
 
         [HttpPost("{id}/reject")]
         public async Task<IActionResult> RejectLeaveRequest(int id, [FromBody] RejectLeaveRequestDTO dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetUserId();
 
-            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (userId == null)
             {
                 return Unauthorized(new
                 {
@@ -106,29 +115,20 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var result = await _leaveRequestService.RejectLeaveRequestAsync(userId, id, dto);
+            var result = await _leaveRequestService.RejectLeaveRequestAsync(userId.Value, id, dto);
 
             if (!result.Success)
-            {
-                return BadRequest(new
-                {
-                    MessageCode = result.MessageCode,
-                    Message = result.Message
-                });
-            }
+                return BadRequest(result);
 
-            return Ok(new
-            {
-                MessageCode = result.MessageCode,
-                Message = result.Message
-            });
+            return Ok(result);
         }
+
         [HttpPost("{id}/cancel")]
         public async Task<IActionResult> CancelLeaveRequest(int id, [FromBody] CancelLeaveRequestDTO dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetUserId();
 
-            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (userId == null)
             {
                 return Unauthorized(new
                 {
@@ -137,29 +137,20 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var result = await _leaveRequestService.CancelLeaveRequestAsync(userId, id, dto);
+            var result = await _leaveRequestService.CancelLeaveRequestAsync(userId.Value, id, dto);
 
             if (!result.Success)
-            {
-                return BadRequest(new
-                {
-                    MessageCode = result.MessageCode,
-                    Message = result.Message
-                });
-            }
+                return BadRequest(result);
 
-            return Ok(new
-            {
-                MessageCode = result.MessageCode,
-                Message = result.Message
-            });
+            return Ok(result);
         }
+
         [HttpGet("my-requests")]
         public async Task<IActionResult> GetMyLeaveRequests()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetUserId();
 
-            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (userId == null)
             {
                 return Unauthorized(new
                 {
@@ -168,21 +159,46 @@ namespace HRManagement.Controllers
                 });
             }
 
-            var result = await _leaveRequestService.GetMyLeaveRequestsAsync(userId);
+            var result = await _leaveRequestService.GetMyLeaveRequestsAsync(userId.Value);
 
             if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        [HttpGet("team-calendar")]
+        public async Task<IActionResult> GetTeamLeaveCalendar()
+        {
+            var userId = GetUserId();
+
+            if (userId == null)
             {
-                return BadRequest(new
+                return Unauthorized(new
                 {
-                    MessageCode = result.MessageCode,
-                    Message = result.Message
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
                 });
             }
 
-            return Ok(new
+            var result = await _leaveRequestService.GetTeamLeaveCalendarAsync(userId.Value);
+
+            if (!result.Success)
             {
-                Data = result.Data
-            });
+                if (result.MessageCode == "MSG-47")
+                {
+                    return Ok(new
+                    {
+                        MessageCode = result.MessageCode,
+                        Message = result.Message,
+                        Data = new List<TeamLeaveCalendarDTO>()
+                    });
+                }
+
+                return BadRequest(result);
+            }
+
+            return Ok(result);
         }
         [HttpGet("pending")]
         public async Task<IActionResult> GetPendingLeaveRequests()

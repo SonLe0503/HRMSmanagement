@@ -43,6 +43,8 @@ builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
