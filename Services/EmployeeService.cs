@@ -61,12 +61,6 @@ namespace HRManagement.Services
                 if (dto.JoinDate < dob.AddYears(18))
                     throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
             }
-
-
-            //if (dto.ManagerId.HasValue && dto.ManagerId == dto.EmployeeId)
-            //    throw new ArgumentException("Employee cannot be their own manager.");
-
-
             if (dto.DepartmentId.HasValue)
             {
                 var departmentExists = await _employeeRepository.DepartmentExistsAsync(dto.DepartmentId.Value);
@@ -229,9 +223,6 @@ namespace HRManagement.Services
 
             if (employee == null)
                 throw new KeyNotFoundException($"Employee {employeeId} not found.");
-
-            if (await _employeeRepository.EmailExistsAsync(dto.Email))
-                throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
