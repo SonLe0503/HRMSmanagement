@@ -4,7 +4,7 @@ namespace HRManagement.Services
 {
     public interface ILeaveRequestService
     {
-        Task<IEnumerable<LeaveBalanceDTO>> GetMyLeaveBalanceAsync();
+        //Task<IEnumerable<LeaveBalanceDTO>> GetMyLeaveBalanceAsync();
         Task<ServiceResult<LeaveRequestResponseDTO>> CreateLeaveRequestAsync(int userId, CreateLeaveRequestDTO dto);
         Task<ServiceResult<string>> ApproveLeaveRequestAsync(int managerUserId, int leaveRequestId, ApproveLeaveRequestDTO dto);
         Task<ServiceResult<List<MyLeaveRequestItemDTO>>> GetMyLeaveRequestsAsync(int userId);

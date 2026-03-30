@@ -31,22 +31,22 @@ namespace HRManagement.Controllers
             return userId;
         }
 
-        [HttpGet("my-balance")]
-        public async Task<IActionResult> GetMyLeaveBalance()
-        {
-            var result = await _leaveRequestService.GetMyLeaveBalanceAsync();
+        //[HttpGet("my-balance")]
+        //public async Task<IActionResult> GetMyLeaveBalance()
+        //{
+        //    var result = await _leaveRequestService.GetMyLeaveBalanceAsync();
 
-            if (!result.Any())
-            {
-                return NotFound(new
-                {
-                    MessageCode = "MSG-104",
-                    Message = "Leave balance not found."
-                });
-            }
+        //    if (!result.Any())
+        //    {
+        //        return NotFound(new
+        //        {
+        //            MessageCode = "MSG-104",
+        //            Message = "Leave balance not found."
+        //        });
+        //    }
 
-            return Ok(result);
-        }
+        //    return Ok(result);
+        //}
 
         [HttpPost]
         public async Task<IActionResult> CreateLeaveRequest([FromBody] CreateLeaveRequestDTO dto)

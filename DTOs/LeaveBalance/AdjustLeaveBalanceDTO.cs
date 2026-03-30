@@ -11,9 +11,10 @@ namespace HRManagement.DTOs.LeaveBalance
         public int LeaveTypeId { get; set; }
 
         [Required]
-        public string AdjustmentType { get; set; } = string.Empty; // Add / Deduct
+        public string AdjustmentType { get; set; } = string.Empty;
 
         [Required]
+        [Range(0.1, 365)]
         public decimal NumberOfDays { get; set; }
 
         [Required]

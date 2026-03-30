@@ -45,17 +45,103 @@ namespace HRManagement.Controllers
 
             return Ok(result.Data);
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllLeaveBalances()
+        {
+            var result = await _leaveBalanceService.GetAllLeaveBalancesAsync();
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(result.Data);
+        }
+
+        [HttpGet("employee/{employeeId}")]
+        public async Task<IActionResult> GetByEmployee(int employeeId)
+        {
+            var result = await _leaveBalanceService.GetLeaveBalancesByEmployeeAsync(employeeId);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(result.Data);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateLeaveBalance([FromBody] CreateLeaveBalanceDTO dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
+
+            var result = await _leaveBalanceService.CreateLeaveBalanceAsync(userId, dto);
+
+            if (!result.Success)
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
+
+            return Ok(new
+            {
+                MessageCode = result.MessageCode,
+                Message = result.Message
+            });
+        }
+
         [HttpPost("adjust")]
         public async Task<IActionResult> AdjustBalance([FromBody] AdjustLeaveBalanceDTO dto)
         {
-            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new
+                {
+                    MessageCode = "MSG-106",
+                    Message = "Access Denied."
+                });
+            }
 
             var result = await _leaveBalanceService.AdjustLeaveBalanceAsync(userId, dto);
 
             if (!result.Success)
-                return BadRequest(new { result.MessageCode, result.Message });
+            {
+                return BadRequest(new
+                {
+                    MessageCode = result.MessageCode,
+                    Message = result.Message
+                });
+            }
 
-            return Ok(new { result.MessageCode, result.Message });
+            return Ok(new
+            {
+                MessageCode = result.MessageCode,
+                Message = result.Message
+            });
         }
     }
 }
