@@ -1,6 +1,10 @@
 ﻿using HRManagement.DataAcess;
 using HRManagement.DTOs;
 using HRManagement.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services
@@ -12,6 +16,7 @@ namespace HRManagement.Services
         private readonly IEvaluationTemplateRepository _templateRepository;
         private readonly IEmployeeRepository _employeeRepository;
 
+        // Evaluation statuses - Must match CHK_Evaluations_Status constraint
         private const string STATUS_NOT_STARTED = "Not Started";
         private const string STATUS_SELF_EVALUATION = "Self Evaluation";
         private const string STATUS_MANAGER_EVALUATION = "Manager Evaluation";
@@ -31,8 +36,11 @@ namespace HRManagement.Services
             _employeeRepository = employeeRepository;
         }
 
+        #region UC 2.6.2 - Assign Evaluators
+
         public async Task<AssignmentResultDto> AssignEvaluatorsAsync(AssignEvaluatorsDto dto)
         {
+            // Step 2: HR Staff selects active evaluation cycle
             var cycle = await _cycleRepository.GetByIdAsync(dto.CycleId);
             if (cycle == null)
             {
@@ -50,8 +58,10 @@ namespace HRManagement.Services
             {
                 try
                 {
+                    // Step 11: System validates assignments (BR-36)
                     await ValidateAssignment(dto.CycleId, assignment);
 
+                    // Check if employee already has evaluation in this cycle
                     if (await _evaluationRepository.EmployeeHasEvaluationInCycleAsync(dto.CycleId, assignment.EmployeeId))
                     {
                         result.Errors.Add(new AssignmentErrorDto
@@ -64,6 +74,7 @@ namespace HRManagement.Services
                         continue;
                     }
 
+                    // Step 12: System saves evaluator assignments
                     var evaluation = new Evaluation
                     {
                         CycleId = dto.CycleId,
@@ -76,6 +87,7 @@ namespace HRManagement.Services
 
                     await _evaluationRepository.AddAsync(evaluation);
 
+                    // Reload with details
                     var createdEvaluation = await _evaluationRepository.GetByIdWithDetailsAsync(evaluation.EvaluationId);
                     if (createdEvaluation != null)
                     {
@@ -111,13 +123,15 @@ namespace HRManagement.Services
                 throw new InvalidOperationException("Cannot assign evaluators to a non-active cycle.");
             }
 
+            // Validate template
             var template = await _templateRepository.GetByIdAsync(dto.TemplateId);
             if (template == null || !template.IsActive)
             {
                 throw new KeyNotFoundException("Evaluation template not found or inactive.");
             }
 
-            var employees = await GetEmployeesInScopeAsync(cycle.ApplicableDepartments, dto.DepartmentId);
+            // Get employees in scope (ALL active employees)
+            var employees = await GetEmployeesInScopeAsync();
 
             var result = new AssignmentResultDto();
 
@@ -125,11 +139,13 @@ namespace HRManagement.Services
             {
                 try
                 {
+                    // Check if already has evaluation
                     if (await _evaluationRepository.EmployeeHasEvaluationInCycleAsync(dto.CycleId, employee.EmployeeId))
                     {
-                        continue; 
+                        continue;
                     }
 
+                    // Step 7: System assigns direct managers as primary evaluators
                     if (!employee.ManagerId.HasValue)
                     {
                         result.Errors.Add(new AssignmentErrorDto
@@ -145,6 +161,7 @@ namespace HRManagement.Services
                     int? secondaryEvaluatorId = null;
                     if (dto.IncludeSecondaryEvaluator)
                     {
+                        // Step 7: System identifies skip-level managers if configured
                         var manager = await _employeeRepository.GetEmployeeByIdAsync(employee.ManagerId.Value);
                         if (manager?.ManagerId.HasValue == true)
                         {
@@ -199,12 +216,14 @@ namespace HRManagement.Services
                 throw new InvalidOperationException("Cannot assign evaluators to a non-active cycle.");
             }
 
+            // Validate template
             var template = await _templateRepository.GetByIdAsync(dto.TemplateId);
             if (template == null || !template.IsActive)
             {
                 throw new KeyNotFoundException("Evaluation template not found or inactive.");
             }
 
+            // Validate evaluators
             if (!await _employeeRepository.EmployeeExistsAsync(dto.PrimaryEvaluatorId))
             {
                 throw new KeyNotFoundException("Primary evaluator not found.");
@@ -215,6 +234,7 @@ namespace HRManagement.Services
                 throw new KeyNotFoundException("Secondary evaluator not found.");
             }
 
+            // Get employees in department
             var employees = await _employeeRepository.GetAllEmployeesAsync();
             var departmentEmployees = employees.Where(e =>
                 e.DepartmentId == dto.DepartmentId &&
@@ -228,7 +248,7 @@ namespace HRManagement.Services
                 {
                     if (await _evaluationRepository.EmployeeHasEvaluationInCycleAsync(dto.CycleId, employee.EmployeeId))
                     {
-                        continue; 
+                        continue; // Skip already assigned
                     }
 
                     var evaluation = new Evaluation
@@ -274,7 +294,7 @@ namespace HRManagement.Services
                 throw new KeyNotFoundException("Evaluation cycle not found.");
             }
 
-            var employees = await GetEmployeesInScopeAsync(cycle.ApplicableDepartments, null);
+            var employees = await GetEmployeesInScopeAsync();
             var previews = new List<AssignmentPreviewDto>();
 
             foreach (var employee in employees)
@@ -311,6 +331,11 @@ namespace HRManagement.Services
 
             return previews;
         }
+
+        #endregion
+
+        #region Query Operations
+
         public async Task<IEnumerable<EvaluationListDto>> GetEvaluationsByCycleAsync(int cycleId)
         {
             var evaluations = await _evaluationRepository.GetByCycleIdAsync(cycleId);
@@ -337,6 +362,11 @@ namespace HRManagement.Services
 
             return await MapToResponseDto(evaluation);
         }
+
+        #endregion
+
+        #region Update Operations
+
         public async Task<EvaluationResponseDto> ChangeEvaluatorAsync(int evaluationId, ChangeEvaluatorDto dto)
         {
             var evaluation = await _evaluationRepository.GetByIdAsync(evaluationId);
@@ -345,6 +375,7 @@ namespace HRManagement.Services
                 throw new KeyNotFoundException("Evaluation not found.");
             }
 
+            // Can only change evaluator if not yet completed
             if (evaluation.Status == STATUS_COMPLETED || evaluation.Status == STATUS_ACKNOWLEDGED)
             {
                 throw new InvalidOperationException("Cannot change evaluator for completed evaluations.");
@@ -374,23 +405,34 @@ namespace HRManagement.Services
             return await MapToResponseDto(updated!);
         }
 
+        #endregion
+
+        #region Validation & Helper Methods
+
         private async Task ValidateAssignment(int cycleId, EvaluatorAssignmentDto assignment)
         {
+            // BR-36: Validate assignments
+
+            // Validate employee exists
             if (!await _employeeRepository.EmployeeExistsAsync(assignment.EmployeeId))
             {
                 throw new KeyNotFoundException($"Employee with ID {assignment.EmployeeId} not found.");
             }
+
+            // Validate template exists and is active
             var template = await _templateRepository.GetByIdAsync(assignment.TemplateId);
             if (template == null || !template.IsActive)
             {
                 throw new KeyNotFoundException("Evaluation template not found or inactive.");
             }
 
+            // Validate primary evaluator exists
             if (!await _employeeRepository.EmployeeExistsAsync(assignment.PrimaryEvaluatorId))
             {
                 throw new KeyNotFoundException("Primary evaluator not found.");
             }
 
+            // Validate secondary evaluator if provided
             if (assignment.SecondaryEvaluatorId.HasValue)
             {
                 if (!await _employeeRepository.EmployeeExistsAsync(assignment.SecondaryEvaluatorId.Value))
@@ -399,6 +441,7 @@ namespace HRManagement.Services
                 }
             }
 
+            // Check circular evaluation (employee cannot evaluate themselves)
             if (assignment.EmployeeId == assignment.PrimaryEvaluatorId ||
                 assignment.EmployeeId == assignment.SecondaryEvaluatorId)
             {
@@ -406,29 +449,14 @@ namespace HRManagement.Services
             }
         }
 
-        private async Task<List<Employee>> GetEmployeesInScopeAsync(string? applicableDepartments, int? specificDepartmentId)
+        private async Task<List<Employee>> GetEmployeesInScopeAsync()
         {
             var allEmployees = await _employeeRepository.GetAllEmployeesAsync();
-            var activeEmployees = allEmployees.Where(e => e.EmploymentStatus == "Active").ToList();
 
-            if (specificDepartmentId.HasValue)
-            {
-                return activeEmployees.Where(e => e.DepartmentId == specificDepartmentId.Value).ToList();
-            }
-
-            if (string.IsNullOrEmpty(applicableDepartments) || applicableDepartments == "All")
-            {
-                return activeEmployees;
-            }
-
-            var departmentIds = applicableDepartments
-                .Split(',')
-                .Select(d => d.Trim())
-                .Where(d => int.TryParse(d, out _))
-                .Select(int.Parse)
+            // Return ALL active employees
+            return allEmployees
+                .Where(e => e.EmploymentStatus == "Active")
                 .ToList();
-
-            return activeEmployees.Where(e => departmentIds.Contains(e.DepartmentId)).ToList();
         }
 
         private async Task<string> GetEmployeeNameAsync(int employeeId)
@@ -436,6 +464,10 @@ namespace HRManagement.Services
             var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
             return employee?.FullName ?? "Unknown";
         }
+
+        #endregion
+
+        #region Mapping
 
         private async Task<EvaluationResponseDto> MapToResponseDto(Evaluation evaluation)
         {
@@ -475,6 +507,6 @@ namespace HRManagement.Services
             };
         }
 
-
+        #endregion
     }
 }
