@@ -117,8 +117,31 @@ namespace HRManagement.Services
 
             await _employeeRepository.AddEmployeeAsync(employee);
 
-            return await GetEmployeeByIdAsync(employee.EmployeeId)
-                ?? throw new InvalidOperationException("Failed to retrieve the created employee.");
+            return new EmployeeResponseDetailDto
+            {
+                EmployeeId = employee.EmployeeId,
+                EmployeeCode = employee.EmployeeCode,
+                FirstName = employee.FirstName,
+                LastName = employee.LastName,
+                Email = employee.Email,
+                Phone = employee.Phone,
+                DateOfBirth = employee.DateOfBirth,
+                Gender = employee.Gender,
+                Address = employee.Address,
+                City = employee.City,
+                Country = employee.Country,
+                DepartmentId = employee.DepartmentId ?? null,
+                DepartmentName = employee.Department?.DepartmentName ?? "N/A",
+                PositionId = employee.PositionId ?? null,
+                PositionName = employee.Position?.PositionName ?? "N/A",
+                ManagerId = employee.ManagerId ?? null,
+                ManagerName = employee.Manager is null ? "N/A" : $"{employee.Manager.FirstName} {employee.Manager.LastName}",
+                JoinDate = employee.JoinDate,
+                ResignationDate = employee.ResignationDate,
+                EmploymentStatus = employee.EmploymentStatus,
+                EmploymentType = employee.EmploymentType,
+                BaseSalary = employee.BaseSalary,
+            };
         }
 
 
@@ -299,8 +322,31 @@ namespace HRManagement.Services
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
 
-            return await GetEmployeeByIdAsync(employee.EmployeeId)
-                ?? throw new InvalidOperationException("Failed to retrieve updated employee.");
+            return new EmployeeResponseDetailDto
+            {
+                EmployeeId = employee.EmployeeId,
+                EmployeeCode = employee.EmployeeCode,
+                FirstName = employee.FirstName,
+                LastName = employee.LastName,
+                Email = employee.Email,
+                Phone = employee.Phone,
+                DateOfBirth = employee.DateOfBirth,
+                Gender = employee.Gender,
+                Address = employee.Address,
+                City = employee.City,
+                Country = employee.Country,
+                DepartmentId = employee.DepartmentId ?? null,
+                DepartmentName = employee.Department?.DepartmentName ?? "N/A",
+                PositionId = employee.PositionId ?? null,
+                PositionName = employee.Position?.PositionName ?? "N/A",
+                ManagerId = employee.ManagerId ?? null,
+                ManagerName = employee.Manager is null ? "N/A" : $"{employee.Manager.FirstName} {employee.Manager.LastName}",
+                JoinDate = employee.JoinDate,
+                ResignationDate = employee.ResignationDate,
+                EmploymentStatus = employee.EmploymentStatus,
+                EmploymentType = employee.EmploymentType,
+                BaseSalary = employee.BaseSalary,
+            };
         }
         private int GetCurrentUserId(int? createdBy)
         {
