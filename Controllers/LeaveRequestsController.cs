@@ -1,6 +1,6 @@
 ﻿using System.Security.Claims;
 using HRManagement.DTOs.LeaveRequest;
-using HRManagement.Services;
+using HRManagement.Services.Leaves;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -1,7 +1,7 @@
 ﻿using HRManagement.DTOs;
 using HRManagement.DTOs.Auths;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Emails;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
