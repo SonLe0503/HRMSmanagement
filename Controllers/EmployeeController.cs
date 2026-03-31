@@ -1,5 +1,5 @@
 ﻿using HRManagement.DTOs;
-using HRManagement.Services.Employee;
+using HRManagement.Services.Employees;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRManagement.Controllers
