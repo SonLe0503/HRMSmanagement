@@ -1,9 +1,11 @@
 ﻿using HRManagement.DTOs;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Emails;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
 
 namespace HRManagement.Controllers
 {
@@ -64,16 +66,16 @@ namespace HRManagement.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateUser(CreateUserDTO dto)
         {
-            if (await _context.Users.AnyAsync(x =>
-                x.Username == dto.Username || x.Email == dto.Email))
-                return BadRequest("Username or Email already exists");
-            if (dto.EmployeeId == null)
+            if (dto.EmployeeId <= 0)
                 return BadRequest("EmployeeId is required");
 
-            var employeeExists = await _context.Employees
-                .AnyAsync(e => e.EmployeeId == dto.EmployeeId);
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required");
 
-            if (!employeeExists)
+            var employee = await _context.Employees
+                .FirstOrDefaultAsync(e => e.EmployeeId == dto.EmployeeId);
+
+            if (employee == null)
                 return BadRequest("Employee does not exist");
 
             var employeeAlreadyHasUser = await _context.Users
@@ -83,12 +85,33 @@ namespace HRManagement.Controllers
                 return BadRequest("This employee already has an account");
 
 
+            var email = dto.Email.Trim().ToLower();
+
+            if (await _context.Users.AnyAsync(x => x.Email == email))
+                return BadRequest("Email already exists");
+
+            // Sinh username từ employee name
+            var baseUsername = GenerateBaseUsername(employee.FirstName, employee.LastName);
+
+            // fallback nếu tên trống bất thường
+            if (string.IsNullOrWhiteSpace(baseUsername))
+                baseUsername = $"user{employee.EmployeeId}";
+
+            var username = baseUsername;
+            int suffix = 1;
+
+            while (await _context.Users.AnyAsync(x => x.Username == username))
+            {
+                username = $"{baseUsername}{suffix}";
+                suffix++;
+            }
+
             var tempPassword = Guid.NewGuid().ToString("N").Substring(0, 8);
 
             var user = new User
             {
-                Username = dto.Username,
-                Email = dto.Email,
+                Username = username,
+                Email = email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword),
                 EmployeeId = dto.EmployeeId,
                 IsActive = true,
@@ -98,34 +121,48 @@ namespace HRManagement.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            foreach (var roleId in dto.RoleIds)
+            // Validate roleIds nếu cần
+            if (dto.RoleIds != null && dto.RoleIds.Any())
             {
-                _context.UserRoles.Add(new UserRole
+                var validRoleIds = await _context.Roles
+                    .Where(r => dto.RoleIds.Contains(r.RoleId))
+                    .Select(r => r.RoleId)
+                    .ToListAsync();
+
+                foreach (var roleId in validRoleIds.Distinct())
                 {
-                    UserId = user.UserId,
-                    RoleId = roleId
-                });
+                    _context.UserRoles.Add(new UserRole
+                    {
+                        UserId = user.UserId,
+                        RoleId = roleId
+                    });
+                }
+
+                await _context.SaveChangesAsync();
             }
 
-            await _context.SaveChangesAsync();
             var body = $@"
-                <h3>Tài khoản HR System</h3>
-                <p>Xin chào,</p>
-                <p>Tài khoản của bạn đã được tạo thành công:</p>
-                <ul>
-                     <li><b>Username:</b> {dto.Username}</li>
-                     <li><b>Password tạm:</b> {tempPassword}</li>
-                </ul>
-                <p>Vui lòng đăng nhập và đổi mật khẩu ngay.</p>
-            ";
+        <h3>Tài khoản HR System</h3>
+        <p>Xin chào {employee.LastName} {employee.FirstName},</p>
+        <p>Tài khoản của bạn đã được tạo thành công:</p>
+        <ul>
+             <li><b>Username:</b> {username}</li>
+             <li><b>Password tạm:</b> {tempPassword}</li>
+        </ul>
+        <p>Vui lòng đăng nhập và đổi mật khẩu ngay.</p>
+    ";
 
             await _emailService.SendAsync(
-                dto.Email,
+                email,
                 "Thông tin tài khoản HR System",
                 body
             );
 
-            return Ok("User created successfully");
+            return Ok(new
+            {
+                message = "User created successfully",
+                username = username
+            });
         }
         [Authorize(Roles = "ADMIN")]
         [HttpPut("{id}")]
@@ -267,6 +304,39 @@ namespace HRManagement.Controllers
             );
 
             return Ok("User activated");
+        }
+
+        private static string RemoveDiacritics(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            text = text.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder();
+
+            foreach (var c in text)
+            {
+                var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+                {
+                    sb.Append(c);
+                }
+            }
+
+            return sb.ToString()
+                     .Normalize(NormalizationForm.FormC)
+                     .Replace('đ', 'd')
+                     .Replace('Đ', 'D');
+        }
+
+        private static string GenerateBaseUsername(string firstName, string lastName)
+        {
+            // Ví dụ: LastName + FirstName => "Lê" + "Văn Sơn" => "levanson"
+            var raw = $"{lastName}{firstName}";
+            raw = RemoveDiacritics(raw);
+            raw = raw.Replace(" ", "").ToLowerInvariant();
+
+            return raw;
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace HRManagement.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace HRManagement.Models
 {
     public partial class AttendanceLog
     {
@@ -31,5 +33,13 @@
         public virtual Employee Employee { get; set; } = null!;
 
         public virtual Shift? Shift { get; set; }
+
+        [MaxLength(20)]
+        public string? VerificationMethod { get; set; }
+
+        [MaxLength(20)]
+        public string? VerificationStatus { get; set; }
+
+        public int? FaceVerificationId { get; set; }
     }
 }
