@@ -1,5 +1,7 @@
 ﻿using HRManagement.DTOs;
 using HRManagement.Models;
+using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.Emails;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 
