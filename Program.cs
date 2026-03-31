@@ -31,6 +31,19 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
+builder.Services.AddScoped<IShiftService, ShiftService>();
+builder.Services.AddScoped<IShiftAssignmentService, ShiftAssignmentService>();
+builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
 builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
 builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
 builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
@@ -47,8 +60,8 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IAttendanceService, AttendanceService>();
-builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {

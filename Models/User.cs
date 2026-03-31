@@ -26,6 +26,8 @@ public partial class User
     public DateTime? ModifiedDate { get; set; }
 
     public int? ModifiedBy { get; set; }
+    public string? PasswordResetOtp { get; set; }
+    public DateTime? PasswordResetOtpExpiry { get; set; }
 
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 

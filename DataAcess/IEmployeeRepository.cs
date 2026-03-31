@@ -13,5 +13,6 @@ namespace HRManagement.DataAcess
         Task<bool> EmailExistsAsync(string email);
         Task<bool> EmployeeExistsAsync(int employeeId);
         Task<User?> GetUserByIdAsync(int userId);
+        Task<string?> GetLastEmployeeCodeAsync();
     }
 }
