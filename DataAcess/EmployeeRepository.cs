@@ -65,19 +65,17 @@ namespace HRManagement.DataAcess
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == userId);
         }
-<<<<<<< HEAD
 
         public async Task<bool> EmployeeExistsAsync(int employeeId)
         {
             return await _context.Employees.AnyAsync(e => e.EmployeeId == employeeId);
-=======
+        }
         public async Task<string?> GetLastEmployeeCodeAsync()
         {
             return await _context.Employees
                 .OrderByDescending(e => e.EmployeeId)
                 .Select(e => e.EmployeeCode)
                 .FirstOrDefaultAsync();
->>>>>>> main
         }
     }
 }
