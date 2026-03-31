@@ -1,0 +1,23 @@
+﻿namespace HRManagement.DTOs.OvertimeRequest
+{
+    public class MyOvertimeRequestDTO
+    {
+        public int OvertimeRequestId { get; set; }
+
+        public string RequestNumber { get; set; } = string.Empty;
+
+        public DateOnly OvertimeDate { get; set; }
+
+        public TimeOnly StartTime { get; set; }
+
+        public TimeOnly EndTime { get; set; }
+
+        public decimal TotalHours { get; set; }
+
+        public string? Reason { get; set; }
+
+        public string Status { get; set; } = string.Empty;
+
+        public DateTime SubmittedDate { get; set; }
+    }
+}

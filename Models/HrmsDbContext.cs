@@ -1,6 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
 
 namespace HRManagement.Models;
 
@@ -88,6 +89,9 @@ public partial class HrmsDbContext : DbContext
     public virtual DbSet<WorkflowStageApprover> WorkflowStageApprovers { get; set; }
 
     public virtual DbSet<AttendanceLog> AttendanceLogs { get; set; }
+
+    public virtual DbSet<FaceProfile> FaceProfiles { get; set; }
+    public virtual DbSet<FaceVerificationLog> FaceVerificationLogs { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 

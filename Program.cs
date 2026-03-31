@@ -1,9 +1,22 @@
 using HRManagement.Configuration;
-using HRManagement.DataAcess;
-﻿using HRManagement.Filters;
+using HRManagement.DataAcess.Implementations;
+using HRManagement.DataAcess.Interfaces;
+using HRManagement.Filters;
 using HRManagement.Mappers;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Attendances;
+using HRManagement.Services.Cloudinaries;
+using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.Departments;
+using HRManagement.Services.Emails;
+using HRManagement.Services.Employees;
+using HRManagement.Services.FaceVerifications;
+using HRManagement.Services.FileStorages;
+using HRManagement.Services.HRProceduces;
+using HRManagement.Services.Leaves;
+using HRManagement.Services.Overtimes;
+using HRManagement.Services.Positions;
+using HRManagement.Services.Shifts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -31,6 +44,19 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
+builder.Services.AddScoped<IShiftService, ShiftService>();
+builder.Services.AddScoped<IShiftAssignmentService, ShiftAssignmentService>();
+builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
+builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
 
 builder.Services.AddCors(options =>
 {
@@ -42,8 +68,8 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IAttendanceService, AttendanceService>();
-builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
 builder.Services.AddSwaggerGen(c =>
 {
