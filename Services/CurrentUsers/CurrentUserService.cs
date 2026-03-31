@@ -1,3 +1,4 @@
+
 ﻿using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -13,6 +14,22 @@ namespace HRManagement.Services.CurrentUsers
         {
             _httpContextAccessor = httpContextAccessor;
             _context = context;
+        }
+
+        public int GetUserId()
+        {
+            var value = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(value, out int userId) ? userId : 0;
+        }
+
+        public string GetRole()
+        {
+            return _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value ?? "Employee";
+        }
+
+        public string GetFullName()
+        {
+            return _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown User";
         }
 
         public int GetCurrentUserId()

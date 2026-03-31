@@ -4,6 +4,7 @@ using HRManagement.DataAcess.Interfaces;
 using HRManagement.Filters;
 using HRManagement.Mappers;
 using HRManagement.Models;
+using HRManagement.Services;
 using HRManagement.Services.Attendances;
 using HRManagement.Services.Cloudinaries;
 using HRManagement.Services.CurrentUsers;
@@ -66,7 +67,13 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials());
 });
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
