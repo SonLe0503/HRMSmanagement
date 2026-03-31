@@ -2,6 +2,7 @@
 using System.Text.Json;
 using HRManagement.DTOs.CompetencyReport;
 using HRManagement.Models;
+using HRManagement.Services.CurrentUsers;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRManagement.Services

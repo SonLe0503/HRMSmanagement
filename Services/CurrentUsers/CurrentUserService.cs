@@ -15,6 +15,35 @@ namespace HRManagement.Services.CurrentUsers
             _context = context;
         }
 
+        public int UserId => GetCurrentUserId();
+
+        public int? EmployeeId
+        {
+            get
+            {
+                var userId = GetCurrentUserId();
+
+                var user = _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefault(u => u.UserId == userId && u.IsActive);
+
+                return user?.EmployeeId;
+            }
+        }
+
+        public string? RoleName
+        {
+            get
+            {
+                var user = _httpContextAccessor.HttpContext?.User;
+
+                if (user?.Identity == null || !user.Identity.IsAuthenticated)
+                    return null;
+
+                return user.FindFirst(ClaimTypes.Role)?.Value
+                       ?? user.FindFirst("role")?.Value;
+            }
+        }
         public int GetCurrentUserId()
         {
             var user = _httpContextAccessor.HttpContext?.User;
