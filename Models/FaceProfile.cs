@@ -13,7 +13,7 @@ namespace HRManagement.Models
         [MaxLength(500)]
         public string? ReferenceImagePath { get; set; }
 
-        public string? FaceEmbedding { get; set; }
+        public byte[]? FaceEmbedding { get; set; }
 
         [Required]
         [MaxLength(20)]
