@@ -1,7 +1,7 @@
 ﻿using HRManagement.DTOs.LeaveRequest;
 using HRManagement.DTOs.OvertimeRequest;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Overtimes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;

@@ -1,6 +1,7 @@
 ﻿using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Attendances;
+using HRManagement.Services.CurrentUsers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

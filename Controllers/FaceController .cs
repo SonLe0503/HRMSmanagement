@@ -1,5 +1,6 @@
 ﻿using HRManagement.DTOs.Attendances;
-using HRManagement.Services;
+using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.FaceVerifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

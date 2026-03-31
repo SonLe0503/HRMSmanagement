@@ -1,6 +1,8 @@
 ﻿using HRManagement.DataAcess;
 using HRManagement.DTOs.Attendances;
-using HRManagement.Services;
+using HRManagement.Services.Attendances;
+using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.Shifts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
