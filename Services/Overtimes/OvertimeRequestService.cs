@@ -57,6 +57,45 @@ namespace HRManagement.Services.Overtimes
             {
                 return ServiceResult<string>.Fail("MSG-33", "Overtime hours exceed daily limit.");
             }
+            var shiftAssignment = await _context.ShiftAssignments
+                .Include(x => x.Shift)
+                .FirstOrDefaultAsync(x => 
+                x.EmployeeId == employee.EmployeeId && 
+                x.AssignmentDate == dto.OvertimeDate &&
+                x.Status == "Active");
+
+            if (shiftAssignment != null)
+            {
+                var baseDate = dto.OvertimeDate.ToDateTime(TimeOnly.MinValue);
+
+                var shift = shiftAssignment.Shift;
+
+                DateTime shiftStartDt = baseDate.Add(shift.StartTime.ToTimeSpan());
+                DateTime shiftEndDt = baseDate.Add(shift.EndTime.ToTimeSpan());
+
+                DateTime otStartDt = baseDate.Add(dto.StartTime.ToTimeSpan());
+                DateTime otEndDt = baseDate.Add(dto.EndTime.ToTimeSpan());
+
+                if (shift.IsOvernight == true)
+                {
+                    shiftEndDt = shiftEndDt.AddDays(1);
+
+                    if (otEndDt <= otStartDt)
+                    {
+                        otEndDt = otEndDt.AddDays(1);
+                    }
+                }
+
+                bool isOverlap = otStartDt < shiftEndDt && otEndDt > shiftStartDt;
+
+                if (isOverlap)
+                {
+                    return ServiceResult<string>.Fail(
+                        "MSG-OT-01",
+                        "Overtime must be outside working hours."
+                    );
+                }
+            }
 
             string requestNumber = $"OT-{DateTime.Now:yyyyMMddHHmmss}";
 
