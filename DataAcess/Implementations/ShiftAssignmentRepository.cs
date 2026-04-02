@@ -62,5 +62,53 @@ namespace HRManagement.DataAcess.Implementations
                 .OrderBy(x => x.StartDate)
                 .ToListAsync();
         }
+
+        public async Task<ShiftAssignment?> GetShiftAssignmentByEmployeeAndDateAsync(int employeeId, DateOnly date)
+        {
+            return await _context.ShiftAssignments
+                .Include(x => x.Employee)
+                .Include(x => x.Shift)
+                .FirstOrDefaultAsync(x =>
+                    x.EmployeeId == employeeId &&
+                    x.AssignmentDate == date);
+        }
+
+        public async System.Threading.Tasks.Task AddShiftAssignmentAsync(ShiftAssignment assignment)
+        {
+            await _context.ShiftAssignments.AddAsync(assignment);
+        }
+
+        public System.Threading.Tasks.Task UpdateShiftAssignmentAsync(ShiftAssignment assignment)
+        {
+            var entry = _context.Entry(assignment);
+            if (entry.State == EntityState.Detached)
+            {
+                _context.ShiftAssignments.Attach(assignment);
+            }
+            entry.State = EntityState.Modified;
+
+            if (assignment.Employee != null)
+            {
+                _context.Entry(assignment.Employee).State = EntityState.Unchanged;
+            }
+
+            if (assignment.Shift != null)
+            {
+                _context.Entry(assignment.Shift).State = EntityState.Unchanged;
+            }
+
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public System.Threading.Tasks.Task DeleteShiftAssignmentAsync(ShiftAssignment assignment)
+        {
+            _context.ShiftAssignments.Remove(assignment);
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public async System.Threading.Tasks.Task SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 }

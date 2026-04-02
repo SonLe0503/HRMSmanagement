@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.Attendances
+﻿namespace HRManagement.DTOs.ShiftAssignments
 {
     public class AssignShiftDto
     {

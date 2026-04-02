@@ -62,15 +62,25 @@ namespace HRManagement.Controllers
                 data = result
             });
         }
-
-        [HttpPatch("{id}/toggle-active")]
-        public async Task<IActionResult> ToggleShiftActive(int id)
+        [HttpPatch("{id}/deactivate")]
+        public async Task<IActionResult> DeactivateShift(int id)
         {
-            await _shiftService.ToggleShiftActiveAsync(id);
+            await _shiftService.DeactivateShiftAsync(id);
 
             return Ok(new
             {
-                message = "Cập nhật trạng thái ca làm việc thành công."
+                message = "Ngừng sử dụng ca làm việc thành công."
+            });
+        }
+
+        [HttpPatch("{id}/activate")]
+        public async Task<IActionResult> ActivateShift(int id)
+        {
+            await _shiftService.ActivateShiftAsync(id);
+
+            return Ok(new
+            {
+                message = "Kích hoạt lại ca làm việc thành công."
             });
         }
     }
