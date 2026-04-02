@@ -49,5 +49,18 @@ namespace HRManagement.DataAcess.Implementations
         {
             await _context.SaveChangesAsync();
         }
+        public async Task<bool> HasActiveOrFutureAssignmentsAsync(int shiftId)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+
+            return await _context.ShiftAssignments.AnyAsync(x =>
+                x.ShiftId == shiftId &&
+                x.Status == "Active" && // nếu status bạn dùng khác thì đổi lại
+                (
+                    x.AssignmentDate >= today ||   // phân ca theo ngày
+                    x.StartDate >= today ||        // bắt đầu từ hôm nay / tương lai
+                    (x.StartDate <= today && (x.EndDate == null || x.EndDate >= today)) // đang còn hiệu lực
+                ));
+        }
     }
 }
