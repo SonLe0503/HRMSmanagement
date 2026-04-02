@@ -90,11 +90,6 @@ namespace HRManagement.Controllers
             if (await _context.Users.AnyAsync(x => x.Email == email))
                 return BadRequest("Email already exists");
 
-            if (employee.ManagerId == null)
-            {
-                return BadRequest("Employee must be assigned to a manager before creating account");
-            }
-
             // Sinh username từ employee name
             var baseUsername = GenerateBaseUsername(employee.FirstName, employee.LastName);
 
