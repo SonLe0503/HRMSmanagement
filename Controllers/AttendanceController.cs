@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Controllers
 {
@@ -59,6 +60,35 @@ namespace HRManagement.Controllers
                     verifyResult.ThresholdUsed,
                     verifyResult.FailureReason
                 });
+            }
+
+            // Verify Location if configured in SystemSettings
+            var officeLatSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLatitude");
+            var officeLngSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLongitude");
+            var radiusSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "AttendanceAllowedRadius");
+
+            if (officeLatSetting != null && officeLngSetting != null && radiusSetting != null && 
+                !string.IsNullOrEmpty(officeLatSetting.SettingValue) && !string.IsNullOrEmpty(officeLngSetting.SettingValue))
+            {
+                if (double.TryParse(officeLatSetting.SettingValue, out var officeLat) && 
+                    double.TryParse(officeLngSetting.SettingValue, out var officeLng) && 
+                    double.TryParse(radiusSetting.SettingValue, out var radius))
+                {
+                    if (request.Latitude.HasValue && request.Longitude.HasValue)
+                    {
+                        var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
+                        if (distance > radius)
+                        {
+                            return BadRequest(new { 
+                                message = $"Vĩ trí check-in của bạn ({distance:F1}m) nằm ngoài phạm vi văn phòng cho phép ({radius}m). Chi tiết: Tọa độ của bạn: {request.Latitude},{request.Longitude}. Tọa độ văn phòng: {officeLat},{officeLng}" 
+                            });
+                        }
+                    }
+                    else
+                    {
+                        return BadRequest(new { message = "Hệ thống yêu cầu quyền truy cập vị trí GPS để thực hiện check-in." });
+                    }
+                }
             }
 
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -196,6 +226,35 @@ namespace HRManagement.Controllers
                     verifyResult.ThresholdUsed,
                     verifyResult.FailureReason
                 });
+            }
+
+            // Verify Location if configured in SystemSettings
+            var officeLatSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLatitude");
+            var officeLngSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLongitude");
+            var radiusSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "AttendanceAllowedRadius");
+
+            if (officeLatSetting != null && officeLngSetting != null && radiusSetting != null && 
+                !string.IsNullOrEmpty(officeLatSetting.SettingValue) && !string.IsNullOrEmpty(officeLngSetting.SettingValue))
+            {
+                if (double.TryParse(officeLatSetting.SettingValue, out var officeLat) && 
+                    double.TryParse(officeLngSetting.SettingValue, out var officeLng) && 
+                    double.TryParse(radiusSetting.SettingValue, out var radius))
+                {
+                    if (request.Latitude.HasValue && request.Longitude.HasValue)
+                    {
+                        var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
+                        if (distance > radius)
+                        {
+                            return BadRequest(new { 
+                                message = $"Vị trí check-out của bạn ({distance:F1}m) nằm ngoài phạm vi văn phòng cho phép ({radius}m). Chi tiết: Tọa độ của bạn: {request.Latitude},{request.Longitude}. Tọa độ văn phòng: {officeLat},{officeLng}" 
+                            });
+                        }
+                    }
+                    else
+                    {
+                        return BadRequest(new { message = "Hệ thống yêu cầu quyền truy cập vị trí GPS để thực hiện check-out." });
+                    }
+                }
             }
 
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -577,6 +636,22 @@ namespace HRManagement.Controllers
             {
                 return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
             }
+        }
+
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            var R = 6371e3; // metres
+            var phi1 = lat1 * Math.PI / 180;
+            var phi2 = lat2 * Math.PI / 180;
+            var deltaPhi = (lat2 - lat1) * Math.PI / 180;
+            var deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+            var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
+                    Math.Cos(phi1) * Math.Cos(phi2) *
+                    Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return R * c; // in metres
         }
     }
 }

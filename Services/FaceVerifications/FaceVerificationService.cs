@@ -2,6 +2,7 @@ using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.FileStorages;
 using HRManagement.DataAcess.Interfaces;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services.FaceVerifications
 {
