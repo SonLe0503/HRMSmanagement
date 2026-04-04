@@ -28,3 +28,4 @@ Thumbs.db
 # ASP.NET Core
 appsettings.Development.json
 wwwroot/lib/
+wwwroot/uploads/

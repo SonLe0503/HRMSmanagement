@@ -57,6 +57,7 @@ builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+builder.Services.AddScoped<FaceEmbeddingService>();
 
 builder.Services.AddCors(options =>
 {
