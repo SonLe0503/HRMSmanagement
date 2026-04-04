@@ -8,6 +8,7 @@ namespace HRManagement.Services.Shifts
         Task<List<ShiftResponseDto>> GetAllShiftsAsync(bool? isActive);
         Task<ShiftResponseDto?> GetShiftByIdAsync(int shiftId);
         Task<ShiftResponseDto> UpdateShiftAsync(int shiftId, UpdateShiftDto dto);
-        Task ToggleShiftActiveAsync(int shiftId);
+        Task DeactivateShiftAsync(int shiftId);
+        Task ActivateShiftAsync(int shiftId);
     }
 }
