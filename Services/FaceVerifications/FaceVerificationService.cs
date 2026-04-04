@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.FileStorages;
 using HRManagement.DataAcess.Interfaces;
@@ -10,17 +10,20 @@ namespace HRManagement.Services.FaceVerifications
         private readonly IAttendanceRepository _attendanceRepository;
         private readonly IFileStorageService _fileStorageService;
         private readonly FaceEmbeddingService _faceEmbeddingService;
+        private readonly IWebHostEnvironment _env;
 
         private const decimal MATCH_THRESHOLD = 0.363m;
 
         public FaceVerificationService(
             IAttendanceRepository attendanceRepository,
             IFileStorageService fileStorageService,
-            FaceEmbeddingService faceEmbeddingService)
+            FaceEmbeddingService faceEmbeddingService,
+            IWebHostEnvironment env)
         {
             _attendanceRepository = attendanceRepository;
             _fileStorageService = fileStorageService;
             _faceEmbeddingService = faceEmbeddingService;
+            _env = env;
         }
 
         public async Task<string> RegisterFaceAsync(int employeeId, string referenceImageBase64)
@@ -34,8 +37,12 @@ namespace HRManagement.Services.FaceVerifications
                 $"emp_{employeeId}"
             );
 
-            var embedding = _faceEmbeddingService.ExtractEmbedding(imagePath);
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var absolutePath = Path.Combine(webRootPath, imagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            var embedding = _faceEmbeddingService.ExtractEmbedding(absolutePath);
             var embeddingBytes = FloatArrayToBytes(embedding);
+            var embeddingString = Convert.ToBase64String(embeddingBytes);
 
             var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
 
@@ -45,7 +52,7 @@ namespace HRManagement.Services.FaceVerifications
                 {
                     EmployeeId = employeeId,
                     ReferenceImagePath = imagePath,
-                    FaceEmbedding = embeddingBytes,
+                    FaceEmbedding = embeddingString,
                     Status = "Active",
                     CreatedDate = DateTime.Now,
                     CreatedBy = employeeId
@@ -56,7 +63,7 @@ namespace HRManagement.Services.FaceVerifications
             else
             {
                 existing.ReferenceImagePath = imagePath;
-                existing.FaceEmbedding = embeddingBytes;
+                existing.FaceEmbedding = embeddingString;
                 existing.Status = "Active";
                 existing.ModifiedDate = DateTime.Now;
                 existing.ModifiedBy = employeeId;
@@ -66,6 +73,12 @@ namespace HRManagement.Services.FaceVerifications
 
             await _attendanceRepository.SaveChangesAsync();
             return imagePath;
+        }
+
+        public async Task<bool> IsFaceRegisteredAsync(int employeeId)
+        {
+            var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
+            return existing != null && !string.IsNullOrWhiteSpace(existing.FaceEmbedding);
         }
 
         public async Task<FaceVerificationResultDto> VerifyAsync(
@@ -81,7 +94,7 @@ namespace HRManagement.Services.FaceVerifications
 
             var faceProfile = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
 
-            if (faceProfile == null || faceProfile.FaceEmbedding == null || faceProfile.FaceEmbedding.Length == 0)
+            if (faceProfile == null || string.IsNullOrWhiteSpace(faceProfile.FaceEmbedding))
             {
                 var noProfileResult = new FaceVerificationResultDto
                 {
@@ -110,10 +123,13 @@ namespace HRManagement.Services.FaceVerifications
                 $"{verificationType.ToLower()}_{employeeId}"
             );
 
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var absoluteCapturedPath = Path.Combine(webRootPath, capturedImagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
             try
             {
-                var capturedEmbedding = _faceEmbeddingService.ExtractEmbedding(capturedImagePath);
-                var referenceEmbedding = BytesToFloatArray(faceProfile.FaceEmbedding);
+                var capturedEmbedding = _faceEmbeddingService.ExtractEmbedding(absoluteCapturedPath);
+                var referenceEmbedding = BytesToFloatArray(Convert.FromBase64String(faceProfile.FaceEmbedding));
 
                 var similarity = _faceEmbeddingService.CosineSimilarity(referenceEmbedding, capturedEmbedding);
                 var isMatch = similarity >= (float)MATCH_THRESHOLD;

@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.Attendances;
 using HRManagement.Services.CurrentUsers;
@@ -62,16 +62,60 @@ namespace HRManagement.Controllers
             }
 
             var today = DateOnly.FromDateTime(DateTime.Now);
+            var nowTimeSpan = DateTime.Now.TimeOfDay;
+
+            var shiftAssignment = await _context.ShiftAssignments
+                .Include(sa => sa.Shift)
+                .FirstOrDefaultAsync(sa => sa.EmployeeId == employeeId && sa.AssignmentDate == today && sa.Status == "Active");
+
+            if (shiftAssignment != null && shiftAssignment.Shift != null)
+            {
+                var shift = shiftAssignment.Shift;
+                var startTimeSpan = shift.StartTime.ToTimeSpan();
+                
+                var allowedCheckInStart = startTimeSpan.Add(TimeSpan.FromMinutes(-(shift.EarlyCheckInMinutes ?? 0)));
+                var allowedCheckInEnd = startTimeSpan.Add(TimeSpan.FromMinutes(shift.LatestCheckInMinutes ?? 0));
+
+                if (nowTimeSpan < allowedCheckInStart)
+                {
+                    return BadRequest(new { message = $"Chưa đến giờ check-in. Giờ check-in sớm nhất là {allowedCheckInStart:hh\\:mm}." });
+                }
+                if (nowTimeSpan > allowedCheckInEnd)
+                {
+                    return BadRequest(new { message = $"Đã quá giờ check-in cho phép ({allowedCheckInEnd:hh\\:mm})." });
+                }
+            }
 
             var attendance = await _context.AttendanceRecords
                 .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
 
             if (attendance != null && attendance.CheckInTime != null)
             {
-                return BadRequest(new
+                return Ok(new
                 {
-                    message = "Bạn đã check-in hôm nay rồi."
+                    message = "Bạn đã check-in trước đó. Hệ thống giữ nguyên thời gian đầu tiên.",
+                    attendance.AttendanceId,
+                    attendance.EmployeeId,
+                    attendance.AttendanceDate,
+                    attendance.CheckInTime,
+                    verifyResult.ConfidenceScore,
+                    verifyResult.ThresholdUsed
                 });
+            }
+
+            int lateMinutes = 0;
+            string status = "Present";
+            if (shiftAssignment != null && shiftAssignment.Shift != null)
+            {
+                var shift = shiftAssignment.Shift;
+                var startTimeSpan = shift.StartTime.ToTimeSpan();
+                var lateTimeSpan = nowTimeSpan - startTimeSpan;
+                
+                if (lateTimeSpan.TotalMinutes > (shift.LateGraceMinutes ?? 0))
+                {
+                    lateMinutes = (int)Math.Floor(lateTimeSpan.TotalMinutes);
+                    status = "Late";
+                }
             }
 
             if (attendance == null)
@@ -81,7 +125,9 @@ namespace HRManagement.Controllers
                     EmployeeId = employeeId,
                     AttendanceDate = today,
                     CheckInTime = DateTime.Now,
-                    Status = "Present",
+                    Status = status,
+                    LateMinutes = lateMinutes,
+                    ShiftId = shiftAssignment?.ShiftId,
                     CheckInVerificationMethod = "FACE_AI",
                     CheckInVerified = true,
                     Location = request.Location,
@@ -90,13 +136,14 @@ namespace HRManagement.Controllers
                         : request.Remarks,
                     CreatedDate = DateTime.Now
                 };
-
                 _context.AttendanceRecords.Add(attendance);
             }
             else
             {
                 attendance.CheckInTime = DateTime.Now;
-                attendance.Status = "Present";
+                attendance.Status = status;
+                attendance.LateMinutes = lateMinutes;
+                attendance.ShiftId = shiftAssignment?.ShiftId;
                 attendance.CheckInVerificationMethod = "FACE_AI";
                 attendance.CheckInVerified = true;
                 attendance.Location = request.Location;
@@ -152,6 +199,7 @@ namespace HRManagement.Controllers
             }
 
             var today = DateOnly.FromDateTime(DateTime.Now);
+            var nowTimeSpan = DateTime.Now.TimeOfDay;
 
             var attendance = await _context.AttendanceRecords
                 .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
@@ -164,20 +212,42 @@ namespace HRManagement.Controllers
                 });
             }
 
-            if (attendance.CheckOutTime != null)
+            var shiftAssignment = await _context.ShiftAssignments
+                .Include(sa => sa.Shift)
+                .FirstOrDefaultAsync(sa => sa.EmployeeId == employeeId && sa.AssignmentDate == today && sa.Status == "Active");
+
+            int earlyLeaveMinutes = 0;
+            if (shiftAssignment != null && shiftAssignment.Shift != null)
             {
-                return BadRequest(new
+                var shift = shiftAssignment.Shift;
+                var endTimeSpan = shift.EndTime.ToTimeSpan();
+                
+                var allowedCheckOutStart = endTimeSpan.Add(TimeSpan.FromMinutes(-(shift.EarliestCheckOutMinutes ?? 0)));
+                var allowedCheckOutEnd = endTimeSpan.Add(TimeSpan.FromMinutes(shift.LatestCheckOutMinutes ?? 0));
+
+                if (nowTimeSpan < allowedCheckOutStart)
                 {
-                    message = "Bạn đã check-out hôm nay rồi."
-                });
+                    return BadRequest(new { message = $"Chưa tới giờ được phép check-out. Sớm nhất là {allowedCheckOutStart:hh\\:mm}." });
+                }
+                if (nowTimeSpan > allowedCheckOutEnd)
+                {
+                    return BadRequest(new { message = $"Đã quá giờ check-out ({allowedCheckOutEnd:hh\\:mm})." });
+                }
+                
+                var earlyTimeSpan = endTimeSpan - nowTimeSpan;
+                if (earlyTimeSpan.TotalMinutes > 0)
+                {
+                    earlyLeaveMinutes = (int)Math.Floor(earlyTimeSpan.TotalMinutes);
+                }
             }
 
             attendance.CheckOutTime = DateTime.Now;
+            attendance.EarlyLeaveMinutes = earlyLeaveMinutes;
             attendance.CheckOutVerificationMethod = "FACE_AI";
             attendance.CheckOutVerified = true;
             attendance.Location = request.Location;
             attendance.Remarks = string.IsNullOrWhiteSpace(request.Remarks)
-                ? attendance.Remarks
+                ? (string.IsNullOrWhiteSpace(attendance.Remarks) ? "Check-out bằng nhận diện khuôn mặt" : attendance.Remarks)
                 : request.Remarks;
             attendance.ModifiedDate = DateTime.Now;
 

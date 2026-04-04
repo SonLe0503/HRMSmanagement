@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Services.CurrentUsers;
 using HRManagement.Services.FaceVerifications;
 using Microsoft.AspNetCore.Authorization;
@@ -53,6 +53,21 @@ namespace HRManagement.Controllers
                     message = ex.Message
                 });
             }
+        }
+
+        [HttpGet("check-registration")]
+        public async Task<IActionResult> CheckRegistrationStatus()
+        {
+            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+            if (employeeId <= 0)
+                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
+
+            var isRegistered = await _faceVerificationService.IsFaceRegisteredAsync(employeeId);
+            return Ok(new
+            {
+                isRegistered
+            });
         }
 
         [HttpPost("verify")]
