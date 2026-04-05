@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -790,6 +790,7 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Level).HasDefaultValue(1);
+            entity.Property(e => e.IsTopLevel).HasDefaultValue(false);
             entity.Property(e => e.PositionCode).HasMaxLength(20);
             entity.Property(e => e.PositionName).HasMaxLength(100);
         });
