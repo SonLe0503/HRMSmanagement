@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.LeaveRequest
+namespace HRManagement.DTOs.LeaveRequest
 {
     public class TeamLeaveCalendarDTO
     {
@@ -11,5 +11,6 @@
         public DateOnly EndDate { get; set; }
         public decimal NumberOfDays { get; set; }
         public string Status { get; set; } = string.Empty;
+        public bool IsTopLevel { get; set; }
     }
 }

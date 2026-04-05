@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using HRManagement.DTOs.LeaveRequest;
 using HRManagement.Models;
 using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.Approvals;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRManagement.Services.Leaves
@@ -10,11 +11,19 @@ namespace HRManagement.Services.Leaves
     {
         private readonly HrmsDbContext _context;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IApprovalRouteService _approvalRouteService;
+        private readonly ITopLevelResolver _topLevelResolver;
 
-        public LeaveRequestService(HrmsDbContext context, ICurrentUserService currentUserService)
+        public LeaveRequestService(
+            HrmsDbContext context, 
+            ICurrentUserService currentUserService,
+            IApprovalRouteService approvalRouteService,
+            ITopLevelResolver topLevelResolver)
         {
             _context = context;
             _currentUserService = currentUserService;
+            _approvalRouteService = approvalRouteService;
+            _topLevelResolver = topLevelResolver;
         }
         public async Task<ServiceResult<LeaveRequestResponseDTO>> CreateLeaveRequestAsync(int userId, CreateLeaveRequestDTO dto)
         {
@@ -99,11 +108,14 @@ namespace HRManagement.Services.Leaves
                         });
                 }
 
-                var approverId = await GetApproverIdAsync(employee.EmployeeId);
-                if (approverId == null)
+                var authResult = await _approvalRouteService.CanSubmitRequestAsync(employee.EmployeeId);
+                if (!authResult.IsAuthorized)
                 {
-                    return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-41", "Manager has no approval authority.");
+                    return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-41", authResult.Message ?? "Invalid approval route.");
                 }
+
+                var approverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+                string initialStatus = approverId.HasValue ? "Pending" : "Approved";
 
                 var leaveRequest = new LeaveRequest
                 {
@@ -114,31 +126,39 @@ namespace HRManagement.Services.Leaves
                     EndDate = dto.EndDate,
                     NumberOfDays = dto.NumberOfDays,
                     Reason = dto.Reason,
-                    Status = "Pending",
+                    Status = initialStatus,
                     SubmittedDate = DateTime.Now,
-                    ReviewedDate = null,
-                    ReviewedBy = null,
-                    ReviewerComments = null,
-                    ApprovedDate = null,
-                    ApprovedBy = null,
-                    RejectionReason = null
+                    ReviewedDate = initialStatus == "Approved" ? DateTime.Now : null,
+                    ReviewedBy = initialStatus == "Approved" ? null : null, // System approved
+                    ReviewerComments = initialStatus == "Approved" ? "Auto-approved by system (Top-level no fallback)" : null,
+                    ApprovedDate = initialStatus == "Approved" ? DateTime.Now : null,
+                    ApprovedBy = null // System
                 };
 
                 _context.LeaveRequests.Add(leaveRequest);
 
-                var notification = new Notification
+                if (approverId.HasValue)
                 {
-                    RecipientUserId = approverId.Value,
-                    NotificationType = "Leave",
-                    Title = "New Leave Request Submitted",
-                    Message = $"A new leave request {leaveRequest.RequestNumber} is waiting for approval.",
-                    RelatedEntity = "LeaveRequest",
-                    RelatedEntityId = leaveRequest.LeaveRequestId,
-                    IsRead = false,
-                    SentDate = DateTime.Now
-                };
+                    var notification = new Notification
+                    {
+                        RecipientUserId = approverId.Value,
+                        NotificationType = "Leave",
+                        Title = "New Leave Request Submitted",
+                        Message = $"A new leave request {leaveRequest.RequestNumber} is waiting for approval.",
+                        RelatedEntity = "LeaveRequest",
+                        RelatedEntityId = leaveRequest.LeaveRequestId,
+                        IsRead = false,
+                        SentDate = DateTime.Now
+                    };
+                    _context.Notifications.Add(notification);
+                }
 
-                _context.Notifications.Add(notification);
+                // If approved by system, we must deduct balance immediately
+                if (initialStatus == "Approved")
+                {
+                    leaveBalance.UsedDays += dto.NumberOfDays;
+                    leaveBalance.LastUpdated = DateTime.Now;
+                }
 
                 await _context.SaveChangesAsync();
 
@@ -192,21 +212,6 @@ namespace HRManagement.Services.Leaves
                 return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-500", $"An error occurred: {ex.Message}");
             }
         }
-        private async Task<int?> GetApproverIdAsync(int employeeId)
-        {
-            var employee = await _context.Employees
-                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId);
-
-            if (employee == null || !employee.ManagerId.HasValue)
-            {
-                return null;
-            }
-
-            var managerUser = await _context.Users
-                .FirstOrDefaultAsync(x => x.EmployeeId == employee.ManagerId.Value && x.IsActive);
-
-            return managerUser?.UserId;
-        }
 
         private async Task<string> GenerateRequestNumberAsync()
         {
@@ -226,7 +231,7 @@ namespace HRManagement.Services.Leaves
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-                if (managerUser == null || managerUser.EmployeeId == null)
+                if (managerUser == null)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -252,8 +257,9 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-45", "Employee not found.");
                 }
 
-                // BR-27: manager must be the approver of this employee
-                if (employee.ManagerId != managerUser.EmployeeId)
+                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
+                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+                if (expectedApproverId == null || expectedApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -363,7 +369,7 @@ namespace HRManagement.Services.Leaves
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-                if (managerUser == null || managerUser.EmployeeId == null)
+                if (managerUser == null)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -394,8 +400,9 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-46", "Employee not found.");
                 }
 
-                // BR-27: manager must be the approver of this employee
-                if (employee.ManagerId != managerUser.EmployeeId)
+                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
+                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+                if (expectedApproverId == null || expectedApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -578,13 +585,16 @@ namespace HRManagement.Services.Leaves
                 }
 
                 var managerEmployeeId = managerUser.EmployeeId.Value;
+                var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
 
                 var approvedLeaves = await _context.LeaveRequests
                     .Include(x => x.Employee)
                     .Include(x => x.LeaveType)
                     .Where(x =>
                         x.Status == "Approved" &&
-                        x.Employee.ManagerId == managerEmployeeId)
+                        ((x.Employee.ManagerId == managerEmployeeId) ||
+                         (x.Employee.ManagerId == null && x.Employee.Position.IsTopLevel && fallbackUserId == managerUserId))
+                    )
                     .OrderBy(x => x.StartDate)
                     .Select(x => new TeamLeaveCalendarDTO
                     {
@@ -596,7 +606,8 @@ namespace HRManagement.Services.Leaves
                         StartDate = x.StartDate,
                         EndDate = x.EndDate,
                         NumberOfDays = x.NumberOfDays,
-                        Status = x.Status
+                        Status = x.Status,
+                        IsTopLevel = x.Employee.Position.IsTopLevel
                     })
                     .ToListAsync();
 
@@ -625,40 +636,38 @@ namespace HRManagement.Services.Leaves
             var managerUser = await _context.Users
                 .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-            if (managerUser == null || managerUser.EmployeeId == null)
+            if (managerUser == null)
             {
                 return ServiceResult<List<PendingLeaveRequestDTO>>.Fail("MSG-106", "Access Denied.");
             }
 
+            var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+
             var pendingRequests = await _context.LeaveRequests
                 .Where(lr => lr.Status == "Pending")
-                .Join(
-                    _context.Employees,
-                    lr => lr.EmployeeId,
-                    e => e.EmployeeId,
-                    (lr, e) => new { lr, e }
+                .Include(lr => lr.Employee)
+                    .ThenInclude(e => e.Position)
+                .Include(lr => lr.LeaveType)
+                .Where(lr =>
+                    (managerUser.EmployeeId.HasValue && lr.Employee.ManagerId == managerUser.EmployeeId) ||
+                    (lr.Employee.ManagerId == null && lr.Employee.Position.IsTopLevel && fallbackUserId == managerUserId)
                 )
-                .Where(x => x.e.ManagerId == managerUser.EmployeeId)
-                .Join(
-                    _context.LeaveTypes,
-                    x => x.lr.LeaveTypeId,
-                    lt => lt.LeaveTypeId,
-                    (x, lt) => new PendingLeaveRequestDTO
-                    {
-                        LeaveRequestId = x.lr.LeaveRequestId,
-                        RequestNumber = x.lr.RequestNumber,
-                        EmployeeId = x.e.EmployeeId,
-                        EmployeeName = x.e.FullName,
-                        LeaveTypeId = lt.LeaveTypeId,
-                        LeaveTypeName = lt.LeaveTypeName,
-                        StartDate = x.lr.StartDate,
-                        EndDate = x.lr.EndDate,
-                        NumberOfDays = x.lr.NumberOfDays,
-                        Reason = x.lr.Reason,
-                        Status = x.lr.Status,
-                        SubmittedDate = x.lr.SubmittedDate
-                    }
-                )
+                .Select(x => new PendingLeaveRequestDTO
+                {
+                    LeaveRequestId = x.LeaveRequestId,
+                    RequestNumber = x.RequestNumber,
+                    EmployeeId = x.EmployeeId,
+                    EmployeeName = x.Employee.FullName,
+                    LeaveTypeId = x.LeaveTypeId,
+                    LeaveTypeName = x.LeaveType.LeaveTypeName,
+                    StartDate = x.StartDate,
+                    EndDate = x.EndDate,
+                    NumberOfDays = x.NumberOfDays,
+                    Reason = x.Reason,
+                    Status = x.Status,
+                    SubmittedDate = x.SubmittedDate,
+                    IsTopLevel = x.Employee.Position.IsTopLevel
+                })
                 .OrderByDescending(x => x.SubmittedDate)
                 .ToListAsync();
 

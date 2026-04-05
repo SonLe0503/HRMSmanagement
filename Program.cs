@@ -63,6 +63,7 @@ builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 builder.Services.AddScoped<IUserAccountValidationService, UserAccountValidationService>();
 builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
+builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 
 
 builder.Services.AddCors(options =>

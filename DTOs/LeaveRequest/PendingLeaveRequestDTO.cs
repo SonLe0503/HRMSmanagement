@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.LeaveRequest
+namespace HRManagement.DTOs.LeaveRequest
 {
     public class PendingLeaveRequestDTO
     {
@@ -14,5 +14,6 @@
         public string? Reason { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime SubmittedDate { get; set; }
+        public bool IsTopLevel { get; set; }
     }
 }
