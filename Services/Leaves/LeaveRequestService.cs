@@ -71,41 +71,48 @@ namespace HRManagement.Services.Leaves
                         "Selected dates overlap with an existing pending or approved leave request.");
                 }
 
-                var leaveBalance = await _context.LeaveBalances
-                    .FirstOrDefaultAsync(x =>
-                        x.EmployeeId == employee.EmployeeId &&
-                        x.LeaveTypeId == dto.LeaveTypeID &&
-                        x.Year == dto.StartDate.Year);
+                decimal currentBalance = 0;
+                decimal remainingAfterRequest = 0;
+                LeaveBalance leaveBalance = null;
 
-                if (leaveBalance == null)
+                if (leaveType.AnnualEntitlement > 0)
                 {
-                    return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-104", "Leave balance not found.");
-                }
+                    leaveBalance = await _context.LeaveBalances
+                        .FirstOrDefaultAsync(x =>
+                            x.EmployeeId == employee.EmployeeId &&
+                            x.LeaveTypeId == dto.LeaveTypeID &&
+                            x.Year == dto.StartDate.Year);
 
-                decimal currentBalance = leaveBalance.RemainingDays
-                    ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
+                    if (leaveBalance == null)
+                    {
+                        return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-104", "Leave balance not found.");
+                    }
 
-                decimal remainingAfterRequest = currentBalance - dto.NumberOfDays;
+                    currentBalance = leaveBalance.RemainingDays
+                        ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
 
-                if (currentBalance < dto.NumberOfDays && !dto.SubmitAnyway)
-                {
-                    return ServiceResult<LeaveRequestResponseDTO>.Fail(
-                        "MSG-27",
-                        "Insufficient leave balance.",
-                        new LeaveRequestResponseDTO
-                        {
-                            EmployeeID = employee.EmployeeId,
-                            LeaveTypeID = dto.LeaveTypeID,
-                            LeaveTypeName = leaveType.LeaveTypeName,
-                            StartDate = dto.StartDate,
-                            EndDate = dto.EndDate,
-                            NumberOfDays = dto.NumberOfDays,
-                            Reason = dto.Reason,
-                            CurrentBalance = currentBalance,
-                            RemainingAfterRequest = remainingAfterRequest,
-                            MessageCode = "MSG-27",
-                            Message = "Insufficient leave balance."
-                        });
+                    remainingAfterRequest = currentBalance - dto.NumberOfDays;
+
+                    if (currentBalance < dto.NumberOfDays && !dto.SubmitAnyway)
+                    {
+                        return ServiceResult<LeaveRequestResponseDTO>.Fail(
+                            "MSG-27",
+                            "Insufficient leave balance.",
+                            new LeaveRequestResponseDTO
+                            {
+                                EmployeeID = employee.EmployeeId,
+                                LeaveTypeID = dto.LeaveTypeID,
+                                LeaveTypeName = leaveType.LeaveTypeName,
+                                StartDate = dto.StartDate,
+                                EndDate = dto.EndDate,
+                                NumberOfDays = dto.NumberOfDays,
+                                Reason = dto.Reason,
+                                CurrentBalance = currentBalance,
+                                RemainingAfterRequest = remainingAfterRequest,
+                                MessageCode = "MSG-27",
+                                Message = "Insufficient leave balance."
+                            });
+                    }
                 }
 
                 var authResult = await _approvalRouteService.CanSubmitRequestAsync(employee.EmployeeId);
@@ -154,7 +161,7 @@ namespace HRManagement.Services.Leaves
                 }
 
                 // If approved by system, we must deduct balance immediately
-                if (initialStatus == "Approved")
+                if (initialStatus == "Approved" && leaveBalance != null)
                 {
                     leaveBalance.UsedDays += dto.NumberOfDays;
                     leaveBalance.LastUpdated = DateTime.Now;
@@ -271,30 +278,37 @@ namespace HRManagement.Services.Leaves
                 {
                     return ServiceResult<string>.Fail("MSG-08", "Invalid leave type.");
                 }
+                LeaveBalance leaveBalance = null;
 
-                int targetYear = leaveRequest.StartDate.Year;
-
-                var leaveBalance = await _context.LeaveBalances
-                    .FirstOrDefaultAsync(x =>
-                        x.EmployeeId == leaveRequest.EmployeeId &&
-                        x.LeaveTypeId == leaveRequest.LeaveTypeId &&
-                        x.Year == targetYear);
-
-                if (leaveBalance == null)
+                if (leaveType.AnnualEntitlement > 0)
                 {
-                    return ServiceResult<string>.Fail("MSG-46", "Unable to retrieve leave balance information.");
-                }
+                    int targetYear = leaveRequest.StartDate.Year;
 
-                decimal currentBalance = leaveBalance.RemainingDays
-                    ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
+                    leaveBalance = await _context.LeaveBalances
+                        .FirstOrDefaultAsync(x =>
+                            x.EmployeeId == leaveRequest.EmployeeId &&
+                            x.LeaveTypeId == leaveRequest.LeaveTypeId &&
+                            x.Year == targetYear);
 
-                decimal newBalance = currentBalance - leaveRequest.NumberOfDays;
+                    if (leaveBalance == null)
+                    {
+                        return ServiceResult<string>.Fail("MSG-46", "Unable to retrieve leave balance information.");
+                    }
 
-                if (newBalance < 0)
-                {
-                    return ServiceResult<string>.Fail(
-                        "MSG-43",
-                        "Warning: Approving this leave request will result in negative leave balance for the employee.");
+                    decimal currentBalance = leaveBalance.RemainingDays
+                        ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
+
+                    decimal newBalance = currentBalance - leaveRequest.NumberOfDays;
+
+                    if (newBalance < 0)
+                    {
+                        return ServiceResult<string>.Fail(
+                            "MSG-43",
+                            "Warning: Approving this leave request will result in negative leave balance for the employee.");
+                    }
+
+                    leaveBalance.UsedDays += leaveRequest.NumberOfDays;
+                    leaveBalance.LastUpdated = DateTime.Now;
                 }
 
                 leaveRequest.Status = "Approved";
@@ -304,9 +318,6 @@ namespace HRManagement.Services.Leaves
                 leaveRequest.ReviewedBy = managerUserId;
                 leaveRequest.ReviewerComments = dto.Comments;
                 leaveRequest.RejectionReason = null;
-
-                leaveBalance.UsedDays += leaveRequest.NumberOfDays;
-                leaveBalance.LastUpdated = DateTime.Now;
 
                 var employeeUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.EmployeeId == leaveRequest.EmployeeId && x.IsActive);
@@ -343,7 +354,7 @@ namespace HRManagement.Services.Leaves
                         leaveRequest.ReviewedDate,
                         leaveRequest.ReviewedBy,
                         leaveRequest.ReviewerComments,
-                        UpdatedLeaveBalanceUsedDays = leaveBalance.UsedDays
+                        UpdatedLeaveBalanceUsedDays = leaveBalance?.UsedDays
                     }),
                     ActionDate = DateTime.Now
                 };

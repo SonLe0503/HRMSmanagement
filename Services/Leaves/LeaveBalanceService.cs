@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.LeaveBalance;
+using HRManagement.DTOs.LeaveBalance;
 using HRManagement.DTOs.LeaveRequest;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -233,5 +233,96 @@ namespace HRManagement.Services.Leaves
 
             return ServiceResult<string>.Ok("MSG-47", "Leave balance updated successfully.", null);
         }
+
+        public async Task<ServiceResult<GenerateBalanceResultDTO>> GenerateBalancesForYearAsync(int hrUserId, int year, bool carryForward)
+        {
+            if (year < 2000 || year > DateTime.Now.Year + 5)
+                return ServiceResult<GenerateBalanceResultDTO>.Fail("MSG-04", "Invalid year.");
+
+            var activeEmployees = await _context.Employees
+                .Where(e => e.EmploymentStatus == "Active")
+                .ToListAsync();
+
+            var activeLeaveTypes = await _context.LeaveTypes
+                .Where(lt => lt.IsActive && lt.AnnualEntitlement > 0)
+                .ToListAsync();
+
+            if (!activeLeaveTypes.Any())
+                return ServiceResult<GenerateBalanceResultDTO>.Fail("MSG-03", "No active leave types found.");
+
+            int created = 0;
+            int skipped = 0;
+            int carriedForwardCount = 0;
+
+            foreach (var employee in activeEmployees)
+            {
+                foreach (var leaveType in activeLeaveTypes)
+                {
+                    // Skip if balance already exists for this year
+                    var alreadyExists = await _context.LeaveBalances.AnyAsync(x =>
+                        x.EmployeeId == employee.EmployeeId &&
+                        x.LeaveTypeId == leaveType.LeaveTypeId &&
+                        x.Year == year);
+
+                    if (alreadyExists)
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    decimal carried = 0;
+
+                    // Carry forward unused days from previous year
+                    if (carryForward && leaveType.IsCarryForward)
+                    {
+                        var prevBalance = await _context.LeaveBalances.FirstOrDefaultAsync(x =>
+                            x.EmployeeId == employee.EmployeeId &&
+                            x.LeaveTypeId == leaveType.LeaveTypeId &&
+                            x.Year == year - 1);
+
+                        if (prevBalance != null)
+                        {
+                            var unused = prevBalance.RemainingDays ?? 0;
+                            var maxCarry = leaveType.MaxCarryForwardDays ?? 0;
+                            carried = Math.Min(unused, maxCarry);
+                            carriedForwardCount++;
+                        }
+                    }
+
+                    var totalEntitlement = leaveType.AnnualEntitlement + carried;
+
+                    var newBalance = new LeaveBalance
+                    {
+                        EmployeeId = employee.EmployeeId,
+                        LeaveTypeId = leaveType.LeaveTypeId,
+                        Year = year,
+                        TotalEntitlement = totalEntitlement,
+                        UsedDays = 0,
+                        CarriedForward = carried,
+                        RemainingDays = totalEntitlement,
+                        LastUpdated = DateTime.Now
+                    };
+
+                    _context.LeaveBalances.Add(newBalance);
+                    created++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            var result = new GenerateBalanceResultDTO
+            {
+                Year = year,
+                TotalEmployees = activeEmployees.Count,
+                TotalLeaveTypes = activeLeaveTypes.Count,
+                Created = created,
+                Skipped = skipped,
+                CarriedForward = carriedForwardCount
+            };
+
+            return ServiceResult<GenerateBalanceResultDTO>.Ok("MSG-GEN-01",
+                $"Generated {created} leave balance records for year {year}. {skipped} skipped (already exist).",
+                result);
+        }
     }
-}
+}
