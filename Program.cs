@@ -1,4 +1,4 @@
-using HRManagement.Configuration;
+﻿using HRManagement.Configuration;
 using HRManagement.DataAcess.Implementations;
 using HRManagement.DataAcess.Interfaces;
 using HRManagement.Filters;
@@ -17,6 +17,7 @@ using HRManagement.Services.Leaves;
 using HRManagement.Services.Overtimes;
 using HRManagement.Services.Positions;
 using HRManagement.Services.Shifts;
+using HRManagement.Services.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -58,6 +59,7 @@ builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
+builder.Services.AddScoped<IUserAccountValidationService, UserAccountValidationService>();
 
 builder.Services.AddCors(options =>
 {
@@ -80,7 +82,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API Authentication with JWT for HR Management "
     });
 
-    // Thêm cấu hình bảo mật cho JWT
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -91,7 +92,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Nhập token ở dạng: Bearer {token}"
     });
 
-    // Áp dụng yêu cầu bảo mật cho tất cả endpoint có [Authorize]
     c.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -141,3 +141,5 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.MapControllers();
 app.Run();
+
+

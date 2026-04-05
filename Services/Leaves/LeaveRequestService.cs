@@ -16,30 +16,6 @@ namespace HRManagement.Services.Leaves
             _context = context;
             _currentUserService = currentUserService;
         }
-        //public async Task<IEnumerable<LeaveBalanceDTO>> GetMyLeaveBalanceAsync()
-        //{
-        //    var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-        //    var currentYear = DateTime.Now.Year;
-
-        //    var balances = await _context.LeaveBalances
-        //        .Include(lb => lb.LeaveType)
-        //        .Where(lb => lb.EmployeeId == employeeId && lb.Year == currentYear)
-        //        .Select(lb => new LeaveBalanceDTO
-        //        {
-        //            LeaveTypeId = lb.LeaveTypeId,
-        //            LeaveTypeName = lb.LeaveType.LeaveTypeName,
-        //            Year = lb.Year,
-        //            TotalEntitlement = lb.TotalEntitlement,
-        //            UsedDays = lb.UsedDays,
-        //            CarriedForward = lb.CarriedForward,
-
-        //            RemainingDays = lb.RemainingDays
-        //                ?? (lb.TotalEntitlement - lb.UsedDays + lb.CarriedForward)
-        //        })
-        //        .ToListAsync();
-
-        //    return balances;
-        //}
         public async Task<ServiceResult<LeaveRequestResponseDTO>> CreateLeaveRequestAsync(int userId, CreateLeaveRequestDTO dto)
         {
             try
