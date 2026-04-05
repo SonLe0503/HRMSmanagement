@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HRManagement.DataAcess
 {
-    public class EvaluationRepository
+    public class EvaluationRepository : IEvaluationRepository
     {
         private readonly HrmsDbContext _context;
 

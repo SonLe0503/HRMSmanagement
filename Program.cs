@@ -37,6 +37,8 @@ builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository
 builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
 builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
+builder.Services.AddScoped<IEvaluationRepository, EvaluationRepository>();
+builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 
 builder.Services.AddCors(options =>
 {
