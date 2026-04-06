@@ -50,6 +50,31 @@ namespace HRManagement.Controllers
             return Ok(new { message = "Cập nhật cấu hình vị trí điểm danh thành công." });
         }
 
+        [HttpGet("approval")]
+        [Authorize]
+        public async Task<IActionResult> GetApprovalSettings()
+        {
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.SettingKey == "Approval.TopLevelFallbackUserId");
+
+            var dto = new ApprovalSettingsDto();
+            if (setting != null && int.TryParse(setting.SettingValue, out var userId))
+            {
+                dto.TopLevelFallbackUserId = userId;
+            }
+
+            return Ok(dto);
+        }
+
+        [HttpPut("approval")]
+        [Authorize(Roles = "ADMIN,MANAGE")]
+        public async Task<IActionResult> UpdateApprovalSettings([FromBody] ApprovalSettingsDto dto)
+        {
+            await UpdateOrInsertSetting("Approval.TopLevelFallbackUserId", dto.TopLevelFallbackUserId.ToString(), "Approval");
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cập nhật cấu hình phê duyệt thành công." });
+        }
+
         private async Task UpdateOrInsertSetting(string key, string value, string category)
         {
             var exists = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == key);
