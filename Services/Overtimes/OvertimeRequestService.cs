@@ -330,7 +330,11 @@ namespace HRManagement.Services.Overtimes
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
 
             if (user == null || user.EmployeeId == null)
-                return ServiceResult<List<MyOvertimeRequestDTO>>.Fail("MSG-106", "Access denied.");
+                return ServiceResult<List<MyOvertimeRequestDTO>>.Ok(
+                    "MSG-00", 
+                    "User has no employee profile, so they have no personal overtime requests.", 
+                    new List<MyOvertimeRequestDTO>()
+                );
 
             var requests = await _context.OvertimeRequests
                 .Where(x => x.EmployeeId == user.EmployeeId)

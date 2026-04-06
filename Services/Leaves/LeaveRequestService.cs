@@ -553,7 +553,11 @@ namespace HRManagement.Services.Leaves
 
             if (user == null || user.EmployeeId == null)
             {
-                return ServiceResult<List<MyLeaveRequestItemDTO>>.Fail("MSG-106", "Access Denied.");
+                return ServiceResult<List<MyLeaveRequestItemDTO>>.Ok(
+                    "MSG-00", 
+                    "User has no employee profile, so they have no personal leave requests.", 
+                    new List<MyLeaveRequestItemDTO>()
+                );
             }
 
             var requests = await _context.LeaveRequests
@@ -588,11 +592,17 @@ namespace HRManagement.Services.Leaves
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-                if (managerUser == null || managerUser.EmployeeId == null)
+                if (managerUser == null)
                 {
-                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail(
-                        "MSG-106",
-                        "Access Denied.");
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail("MSG-106", "Access Denied.");
+                }
+                
+                if (managerUser.EmployeeId == null)
+                {
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Ok(
+                        "MSG-00",
+                        "User has no employee profile, so no team calendar is available.",
+                        new List<TeamLeaveCalendarDTO>());
                 }
 
                 var managerEmployeeId = managerUser.EmployeeId.Value;
