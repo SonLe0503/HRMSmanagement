@@ -1,7 +1,8 @@
-﻿using HRManagement.DTOs.LeaveRequest;
+using HRManagement.DTOs.LeaveRequest;
 using HRManagement.DTOs.OvertimeRequest;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
+using HRManagement.Services.Approvals;
 using System.Text.Json;
 
 namespace HRManagement.Services.Overtimes
@@ -9,10 +10,17 @@ namespace HRManagement.Services.Overtimes
     public class OvertimeRequestService : IOvertimeRequestService
     {
         private readonly HrmsDbContext _context;
+        private readonly IApprovalRouteService _approvalRouteService;
+        private readonly ITopLevelResolver _topLevelResolver;
 
-        public OvertimeRequestService(HrmsDbContext context)
+        public OvertimeRequestService(
+            HrmsDbContext context, 
+            IApprovalRouteService approvalRouteService,
+            ITopLevelResolver topLevelResolver)
         {
             _context = context;
+            _approvalRouteService = approvalRouteService;
+            _topLevelResolver = topLevelResolver;
         }
 
         public async Task<ServiceResult<string>> CreateOvertimeRequestAsync(int userId, CreateOvertimeRequestDTO dto)
@@ -57,6 +65,54 @@ namespace HRManagement.Services.Overtimes
             {
                 return ServiceResult<string>.Fail("MSG-33", "Overtime hours exceed daily limit.");
             }
+            var shiftAssignment = await _context.ShiftAssignments
+                .Include(x => x.Shift)
+                .FirstOrDefaultAsync(x => 
+                x.EmployeeId == employee.EmployeeId && 
+                x.AssignmentDate == dto.OvertimeDate &&
+                x.Status == "Active");
+
+            if (shiftAssignment != null)
+            {
+                var baseDate = dto.OvertimeDate.ToDateTime(TimeOnly.MinValue);
+
+                var shift = shiftAssignment.Shift;
+
+                DateTime shiftStartDt = baseDate.Add(shift.StartTime.ToTimeSpan());
+                DateTime shiftEndDt = baseDate.Add(shift.EndTime.ToTimeSpan());
+
+                DateTime otStartDt = baseDate.Add(dto.StartTime.ToTimeSpan());
+                DateTime otEndDt = baseDate.Add(dto.EndTime.ToTimeSpan());
+
+                if (shift.IsOvernight == true)
+                {
+                    shiftEndDt = shiftEndDt.AddDays(1);
+
+                    if (otEndDt <= otStartDt)
+                    {
+                        otEndDt = otEndDt.AddDays(1);
+                    }
+                }
+
+                bool isOverlap = otStartDt < shiftEndDt && otEndDt > shiftStartDt;
+
+                if (isOverlap)
+                {
+                    return ServiceResult<string>.Fail(
+                        "MSG-OT-01",
+                        "Overtime must be outside working hours."
+                    );
+                }
+            }
+
+            var authResult = await _approvalRouteService.CanSubmitRequestAsync(employee.EmployeeId);
+            if (!authResult.IsAuthorized)
+            {
+                return ServiceResult<string>.Fail("MSG-41", authResult.Message ?? "Invalid approval route.");
+            }
+
+            var approverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+            string initialStatus = approverId.HasValue ? "Pending" : "Approved";
 
             string requestNumber = $"OT-{DateTime.Now:yyyyMMddHHmmss}";
 
@@ -70,11 +126,31 @@ namespace HRManagement.Services.Overtimes
                 TotalHours = totalHours,
                 Reason = dto.Reason,
                 TaskDescription = dto.TaskDescription,
-                Status = "Pending",
-                SubmittedDate = DateTime.Now
+                Status = initialStatus,
+                SubmittedDate = DateTime.Now,
+                ReviewedDate = initialStatus == "Approved" ? DateTime.Now : null,
+                ReviewedBy = null,
+                ApprovedDate = initialStatus == "Approved" ? DateTime.Now : null,
+                ApprovedBy = null // System
             };
 
             _context.OvertimeRequests.Add(overtimeRequest);
+
+            if (approverId.HasValue)
+            {
+                var notification = new Notification
+                {
+                    RecipientUserId = approverId.Value,
+                    NotificationType = "Overtime",
+                    Title = "New Overtime Request",
+                    Message = $"A new overtime request {requestNumber} is waiting for approval.",
+                    RelatedEntity = "OvertimeRequest",
+                    RelatedEntityId = overtimeRequest.OvertimeRequestId,
+                    IsRead = false,
+                    SentDate = DateTime.Now
+                };
+                _context.Notifications.Add(notification);
+            }
 
             var auditLog = new AuditLog
             {
@@ -106,20 +182,24 @@ namespace HRManagement.Services.Overtimes
             var manager = await _context.Users
                 .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-            if (manager == null || manager.EmployeeId == null)
-                return ServiceResult<string>.Fail("MSG-41", "Manager has no approval authority.");
+                if (manager == null)
+                    return ServiceResult<string>.Fail("MSG-41", "Manager has no approval authority.");
 
-            var request = await _context.OvertimeRequests
-                .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
+                var request = await _context.OvertimeRequests
+                    .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
 
-            if (request == null || request.Status != "Pending")
-                return ServiceResult<string>.Fail("MSG-42", "Request already processed.");
+                if (request == null || request.Status != "Pending")
+                    return ServiceResult<string>.Fail("MSG-42", "Request already processed.");
 
-            var employee = await _context.Employees
-                .FirstOrDefaultAsync(x => x.EmployeeId == request.EmployeeId);
+                var employee = await _context.Employees
+                    .FirstOrDefaultAsync(x => x.EmployeeId == request.EmployeeId);
 
-            if (employee == null || employee.ManagerId != manager.EmployeeId)
-                return ServiceResult<string>.Fail("MSG-41", "Manager has no approval authority.");
+                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
+                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                {
+                    return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
+                }
 
             request.Status = "Approved";
             request.ReviewedDate = DateTime.Now;
@@ -155,14 +235,24 @@ namespace HRManagement.Services.Overtimes
             var manager = await _context.Users
                 .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-            if (manager == null || manager.EmployeeId == null)
-                return ServiceResult<string>.Fail("MSG-41", "Manager has no approval authority.");
+                if (manager == null)
+                    return ServiceResult<string>.Fail("MSG-41", "Manager has no approval authority.");
 
-            var request = await _context.OvertimeRequests
-                .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
+                var request = await _context.OvertimeRequests
+                    .FirstOrDefaultAsync(x => x.OvertimeRequestId == requestId);
 
-            if (request == null || request.Status != "Pending")
-                return ServiceResult<string>.Fail("MSG-42", "Request already processed.");
+                if (request == null || request.Status != "Pending")
+                    return ServiceResult<string>.Fail("MSG-42", "Request already processed.");
+
+                var employee = await _context.Employees
+                    .FirstOrDefaultAsync(x => x.EmployeeId == request.EmployeeId);
+
+                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
+                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
+                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                {
+                    return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
+                }
 
             request.Status = "Rejected";
             request.ReviewedDate = DateTime.Now;
@@ -266,34 +356,36 @@ namespace HRManagement.Services.Overtimes
             var managerUser = await _context.Users
                 .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-            if (managerUser == null || managerUser.EmployeeId == null)
+            if (managerUser == null)
             {
                 return ServiceResult<List<PendingOvertimeRequestDTO>>.Fail("MSG-106", "Access Denied.");
             }
 
+            var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+
             var pendingRequests = await _context.OvertimeRequests
                 .Where(or => or.Status == "Pending")
-                .Join(
-                    _context.Employees,
-                    or => or.EmployeeId,
-                    e => e.EmployeeId,
-                    (or, e) => new { or, e }
+                .Include(or => or.Employee)
+                    .ThenInclude(e => e.Position)
+                .Where(or =>
+                    (managerUser.EmployeeId.HasValue && or.Employee.ManagerId == managerUser.EmployeeId) ||
+                    (or.Employee.ManagerId == null && or.Employee.Position.IsTopLevel && fallbackUserId == managerUserId)
                 )
-                .Where(x => x.e.ManagerId == managerUser.EmployeeId)
                 .Select(x => new PendingOvertimeRequestDTO
                 {
-                    OvertimeRequestId = x.or.OvertimeRequestId,
-                    RequestNumber = x.or.RequestNumber,
-                    EmployeeId = x.e.EmployeeId,
-                    EmployeeName = x.e.FullName,
-                    OvertimeDate = x.or.OvertimeDate,
-                    StartTime = x.or.StartTime,
-                    EndTime = x.or.EndTime,
-                    TotalHours = x.or.TotalHours,
-                    Reason = x.or.Reason,
-                    TaskDescription = x.or.TaskDescription,
-                    Status = x.or.Status,
-                    SubmittedDate = x.or.SubmittedDate
+                    OvertimeRequestId = x.OvertimeRequestId,
+                    RequestNumber = x.RequestNumber,
+                    EmployeeId = x.EmployeeId,
+                    EmployeeName = x.Employee.FullName,
+                    OvertimeDate = x.OvertimeDate,
+                    StartTime = x.StartTime,
+                    EndTime = x.EndTime,
+                    TotalHours = x.TotalHours,
+                    Reason = x.Reason,
+                    TaskDescription = x.TaskDescription,
+                    Status = x.Status,
+                    SubmittedDate = x.SubmittedDate,
+                    IsTopLevel = x.Employee.Position.IsTopLevel
                 })
                 .OrderByDescending(x => x.SubmittedDate)
                 .ToListAsync();

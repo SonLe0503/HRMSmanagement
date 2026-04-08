@@ -1,7 +1,8 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.FileStorages;
 using HRManagement.DataAcess.Interfaces;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services.FaceVerifications
 {
@@ -9,15 +10,40 @@ namespace HRManagement.Services.FaceVerifications
     {
         private readonly IAttendanceRepository _attendanceRepository;
         private readonly IFileStorageService _fileStorageService;
+        private readonly FaceEmbeddingService _faceEmbeddingService;
+        private readonly IWebHostEnvironment _env;
 
-        public FaceVerificationService(IAttendanceRepository attendanceRepository, IFileStorageService fileStorageService)
+        private const decimal MATCH_THRESHOLD = 0.363m;
+
+        public FaceVerificationService(
+            IAttendanceRepository attendanceRepository,
+            IFileStorageService fileStorageService,
+            FaceEmbeddingService faceEmbeddingService,
+            IWebHostEnvironment env)
         {
             _attendanceRepository = attendanceRepository;
             _fileStorageService = fileStorageService;
+            _faceEmbeddingService = faceEmbeddingService;
+            _env = env;
         }
+
         public async Task<string> RegisterFaceAsync(int employeeId, string referenceImageBase64)
         {
-            var imagePath = await _fileStorageService.SaveBase64ImageAsync(referenceImageBase64, "face-profiles", $"emp_{employeeId}");
+            if (string.IsNullOrWhiteSpace(referenceImageBase64))
+                throw new Exception("Reference image is required.");
+
+            var imagePath = await _fileStorageService.SaveBase64ImageAsync(
+                referenceImageBase64,
+                "face-profiles",
+                $"emp_{employeeId}"
+            );
+
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var absolutePath = Path.Combine(webRootPath, imagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            var embedding = _faceEmbeddingService.ExtractEmbedding(absolutePath);
+            var embeddingBytes = FloatArrayToBytes(embedding);
+            var embeddingString = Convert.ToBase64String(embeddingBytes);
 
             var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
 
@@ -27,7 +53,7 @@ namespace HRManagement.Services.FaceVerifications
                 {
                     EmployeeId = employeeId,
                     ReferenceImagePath = imagePath,
-                    FaceEmbedding = null,
+                    FaceEmbedding = embeddingString,
                     Status = "Active",
                     CreatedDate = DateTime.Now,
                     CreatedBy = employeeId
@@ -38,6 +64,8 @@ namespace HRManagement.Services.FaceVerifications
             else
             {
                 existing.ReferenceImagePath = imagePath;
+                existing.FaceEmbedding = embeddingString;
+                existing.Status = "Active";
                 existing.ModifiedDate = DateTime.Now;
                 existing.ModifiedBy = employeeId;
 
@@ -48,6 +76,12 @@ namespace HRManagement.Services.FaceVerifications
             return imagePath;
         }
 
+        public async Task<bool> IsFaceRegisteredAsync(int employeeId)
+        {
+            var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
+            return existing != null && !string.IsNullOrWhiteSpace(existing.FaceEmbedding);
+        }
+
         public async Task<FaceVerificationResultDto> VerifyAsync(
             int employeeId,
             string faceImageBase64,
@@ -56,40 +90,97 @@ namespace HRManagement.Services.FaceVerifications
             string? ipAddress,
             string? location)
         {
+            if (string.IsNullOrWhiteSpace(faceImageBase64))
+                throw new Exception("Face image is required.");
+
             var faceProfile = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
 
-            if (faceProfile == null)
+            if (faceProfile == null || string.IsNullOrWhiteSpace(faceProfile.FaceEmbedding))
             {
                 var noProfileResult = new FaceVerificationResultDto
                 {
                     IsMatch = false,
                     ConfidenceScore = 0,
-                    ThresholdUsed = 80,
+                    ThresholdUsed = MATCH_THRESHOLD,
+                    LivenessPassed = null,
                     FailureReason = "NoFaceProfile"
                 };
 
-                await SaveVerificationLogAsync(employeeId, verificationType, faceImageBase64, noProfileResult, deviceInfo, ipAddress, location);
+                await SaveVerificationLogAsync(
+                    employeeId,
+                    verificationType,
+                    faceImageBase64,
+                    noProfileResult,
+                    deviceInfo,
+                    ipAddress,
+                    location);
+
                 return noProfileResult;
             }
 
-            var capturedImagePath = await _fileStorageService.SaveBase64ImageAsync(faceImageBase64, "face-captures", $"{verificationType.ToLower()}_{employeeId}");
+            var capturedImagePath = await _fileStorageService.SaveBase64ImageAsync(
+                faceImageBase64,
+                "face-captures",
+                $"{verificationType.ToLower()}_{employeeId}"
+            );
 
-            // MVP giả lập:
-            // Tạm thời: nếu đã có face profile thì cho pass để test luồng.
-            // Sau này thay bằng gọi Python service / AI thật.
-            var result = new FaceVerificationResultDto
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var absoluteCapturedPath = Path.Combine(webRootPath, capturedImagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            try
             {
-                IsMatch = true,
-                ConfidenceScore = 95,
-                ThresholdUsed = 80,
-                LivenessPassed = true,
-                FailureReason = null,
-                CapturedImagePath = capturedImagePath
-            };
+                var capturedEmbedding = _faceEmbeddingService.ExtractEmbedding(absoluteCapturedPath);
+                var referenceEmbedding = BytesToFloatArray(Convert.FromBase64String(faceProfile.FaceEmbedding));
 
-            await SaveVerificationLogAsync(employeeId, verificationType, null, result, deviceInfo, ipAddress, location, capturedImagePath);
+                var similarity = _faceEmbeddingService.CosineSimilarity(referenceEmbedding, capturedEmbedding);
+                var isMatch = similarity >= (float)MATCH_THRESHOLD;
 
-            return result;
+                var result = new FaceVerificationResultDto
+                {
+                    IsMatch = isMatch,
+                    ConfidenceScore = (decimal)similarity,
+                    ThresholdUsed = MATCH_THRESHOLD,
+                    LivenessPassed = null,
+                    FailureReason = isMatch ? null : "FaceNotMatched",
+                    CapturedImagePath = capturedImagePath
+                };
+
+                await SaveVerificationLogAsync(
+                    employeeId,
+                    verificationType,
+                    null,
+                    result,
+                    deviceInfo,
+                    ipAddress,
+                    location,
+                    capturedImagePath);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                var failedResult = new FaceVerificationResultDto
+                {
+                    IsMatch = false,
+                    ConfidenceScore = 0m,
+                    ThresholdUsed = MATCH_THRESHOLD,
+                    LivenessPassed = null,
+                    FailureReason = ex.Message,
+                    CapturedImagePath = capturedImagePath
+                };
+
+                await SaveVerificationLogAsync(
+                    employeeId,
+                    verificationType,
+                    null,
+                    failedResult,
+                    deviceInfo,
+                    ipAddress,
+                    location,
+                    capturedImagePath);
+
+                return failedResult;
+            }
         }
 
         private async System.Threading.Tasks.Task SaveVerificationLogAsync(
@@ -104,7 +195,11 @@ namespace HRManagement.Services.FaceVerifications
         {
             if (capturedImagePath == null && !string.IsNullOrWhiteSpace(faceImageBase64))
             {
-                capturedImagePath = await _fileStorageService.SaveBase64ImageAsync(faceImageBase64, "face-captures", $"{verificationType.ToLower()}_{employeeId}");
+                capturedImagePath = await _fileStorageService.SaveBase64ImageAsync(
+                    faceImageBase64,
+                    "face-captures",
+                    $"{verificationType.ToLower()}_{employeeId}"
+                );
             }
 
             var log = new FaceVerificationLog
@@ -127,6 +222,20 @@ namespace HRManagement.Services.FaceVerifications
 
             await _attendanceRepository.AddFaceVerificationLogAsync(log);
             await _attendanceRepository.SaveChangesAsync();
+        }
+
+        private byte[] FloatArrayToBytes(float[] values)
+        {
+            var bytes = new byte[values.Length * sizeof(float)];
+            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+            return bytes;
+        }
+
+        private float[] BytesToFloatArray(byte[] bytes)
+        {
+            var values = new float[bytes.Length / sizeof(float)];
+            Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
+            return values;
         }
     }
 }
