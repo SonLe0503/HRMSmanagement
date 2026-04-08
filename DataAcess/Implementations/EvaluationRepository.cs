@@ -1,9 +1,10 @@
-﻿using HRManagement.Models;
+using HRManagement.DataAcess.Interfaces;
+using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace HRManagement.DataAcess
+namespace HRManagement.DataAcess.Implementations
 {
-    public class EvaluationRepository
+    public class EvaluationRepository : IEvaluationRepository
     {
         private readonly HrmsDbContext _context;
 

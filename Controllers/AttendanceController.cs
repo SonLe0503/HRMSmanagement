@@ -79,14 +79,12 @@ namespace HRManagement.Controllers
                         var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
                         if (distance > radius)
                         {
-                            return BadRequest(new { 
-                                message = $"Vĩ trí check-in của bạn ({distance:F1}m) nằm ngoài phạm vi văn phòng cho phép ({radius}m). Chi tiết: Tọa độ của bạn: {request.Latitude},{request.Longitude}. Tọa độ văn phòng: {officeLat},{officeLng}" 
-                            });
+                            request.Location = "[INVALID] " + request.Location;
                         }
                     }
                     else
                     {
-                        return BadRequest(new { message = "Hệ thống yêu cầu quyền truy cập vị trí GPS để thực hiện check-in." });
+                        request.Location = "[INVALID] Không có dữ liệu GPS";
                     }
                 }
             }
@@ -176,10 +174,26 @@ namespace HRManagement.Controllers
                 attendance.ShiftId = shiftAssignment?.ShiftId;
                 attendance.CheckInVerificationMethod = "FACE_AI";
                 attendance.CheckInVerified = true;
-                attendance.Location = request.Location;
-                attendance.Remarks = string.IsNullOrWhiteSpace(request.Remarks)
-                    ? "Check-in bằng nhận diện khuôn mặt"
-                    : request.Remarks;
+                if (!string.IsNullOrEmpty(attendance.Location) && attendance.Location.Contains("[INVALID]") && !request.Location.Contains("[INVALID]"))
+                {
+                    attendance.Location = "[INVALID] " + request.Location;
+                }
+                else
+                {
+                    attendance.Location = request.Location;
+                }
+                string newCheckInRemarks = string.IsNullOrWhiteSpace(request.Remarks) ? "Check-in bằng nhận diện khuôn mặt" : request.Remarks;
+                if (!string.IsNullOrWhiteSpace(attendance.Remarks))
+                {
+                    if (!attendance.Remarks.Contains(newCheckInRemarks))
+                    {
+                        attendance.Remarks += "\n" + newCheckInRemarks;
+                    }
+                }
+                else
+                {
+                    attendance.Remarks = newCheckInRemarks;
+                }
                 attendance.ModifiedDate = DateTime.Now;
             }
 
@@ -245,14 +259,12 @@ namespace HRManagement.Controllers
                         var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
                         if (distance > radius)
                         {
-                            return BadRequest(new { 
-                                message = $"Vị trí check-out của bạn ({distance:F1}m) nằm ngoài phạm vi văn phòng cho phép ({radius}m). Chi tiết: Tọa độ của bạn: {request.Latitude},{request.Longitude}. Tọa độ văn phòng: {officeLat},{officeLng}" 
-                            });
+                            request.Location = "[INVALID] " + request.Location;
                         }
                     }
                     else
                     {
-                        return BadRequest(new { message = "Hệ thống yêu cầu quyền truy cập vị trí GPS để thực hiện check-out." });
+                        request.Location = "[INVALID] Không có dữ liệu GPS";
                     }
                 }
             }
@@ -304,10 +316,27 @@ namespace HRManagement.Controllers
             attendance.EarlyLeaveMinutes = earlyLeaveMinutes;
             attendance.CheckOutVerificationMethod = "FACE_AI";
             attendance.CheckOutVerified = true;
-            attendance.Location = request.Location;
-            attendance.Remarks = string.IsNullOrWhiteSpace(request.Remarks)
-                ? (string.IsNullOrWhiteSpace(attendance.Remarks) ? "Check-out bằng nhận diện khuôn mặt" : attendance.Remarks)
-                : request.Remarks;
+            if (!string.IsNullOrEmpty(attendance.Location) && attendance.Location.Contains("[INVALID]") && !request.Location.Contains("[INVALID]"))
+            {
+                attendance.Location = "[INVALID] " + request.Location;
+            }
+            else
+            {
+                attendance.Location = request.Location;
+            }
+
+            string newRemarks = string.IsNullOrWhiteSpace(request.Remarks) ? "Check-out bằng nhận diện khuôn mặt" : request.Remarks;
+            if (!string.IsNullOrWhiteSpace(attendance.Remarks))
+            {
+                if (!attendance.Remarks.Contains(newRemarks))
+                {
+                    attendance.Remarks += "\n" + newRemarks;
+                }
+            }
+            else
+            {
+                attendance.Remarks = newRemarks;
+            }
             attendance.ModifiedDate = DateTime.Now;
 
             if (attendance.CheckInTime.HasValue)
@@ -631,6 +660,52 @@ namespace HRManagement.Controllers
             catch (ArgumentException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        public class LocationReasonDto
+        {
+            public string Reason { get; set; } = string.Empty;
+        }
+
+        [HttpPut("{attendanceId:int}/location-reason")]
+        [Authorize]
+        public async Task<IActionResult> AddLocationReason(int attendanceId, [FromBody] LocationReasonDto dto)
+        {
+            try
+            {
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                var attendance = await _context.AttendanceRecords.FirstOrDefaultAsync(x => x.AttendanceId == attendanceId);
+                
+                if (attendance == null)
+                    return NotFound(new { message = "Không tìm thấy chấm công." });
+
+                if (attendance.EmployeeId != employeeId)
+                    return Unauthorized(new { message = "Bạn không có quyền thực hiện thao tác này." });
+
+                if (string.IsNullOrWhiteSpace(attendance.Remarks))
+                {
+                    attendance.Remarks = $"Lý do sai vị trí: {dto.Reason}";
+                }
+                else
+                {
+                    var remarks = attendance.Remarks;
+                    if (remarks.Contains("Lý do sai vị trí:")) {
+                         remarks = System.Text.RegularExpressions.Regex.Replace(remarks, @"Lý do sai vị trí:.*", $"Lý do sai vị trí: {dto.Reason}");
+                         attendance.Remarks = remarks;
+                    } else {
+                        attendance.Remarks += $"\nLý do sai vị trí: {dto.Reason}";
+                    }
+                }
+
+                attendance.ModifiedDate = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã cập nhật lý do sai vị trí thành công." });
             }
             catch (Exception ex)
             {

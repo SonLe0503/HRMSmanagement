@@ -1,8 +1,9 @@
-﻿using HRManagement.Models;
+using HRManagement.DataAcess.Interfaces;
+using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 
-namespace HRManagement.DataAcess
+namespace HRManagement.DataAcess.Implementations
 {
     public class EvaluationCycleRepository : IEvaluationCycleRepository
     {

@@ -58,17 +58,20 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-08", "Invalid leave type.");
                 }
 
-                var hasOverlap = await _context.LeaveRequests.AnyAsync(x =>
-                    x.EmployeeId == employee.EmployeeId &&
-                    (x.Status == "Pending" || x.Status == "Approved") &&
-                    dto.StartDate <= x.EndDate &&
-                    dto.EndDate >= x.StartDate);
+                var overlappingRequest = await _context.LeaveRequests
+                    .Where(x =>
+                        x.EmployeeId == employee.EmployeeId &&
+                        (x.Status == "Pending" || x.Status == "Approved") &&
+                        dto.StartDate <= x.EndDate &&
+                        dto.EndDate >= x.StartDate)
+                    .Select(x => new { x.StartDate, x.EndDate })
+                    .FirstOrDefaultAsync();
 
-                if (hasOverlap)
+                if (overlappingRequest != null)
                 {
                     return ServiceResult<LeaveRequestResponseDTO>.Fail(
                         "MSG-09",
-                        "Selected dates overlap with an existing pending or approved leave request.");
+                        $"Selected dates overlap with an existing {overlappingRequest.StartDate:dd/MM/yyyy} to {overlappingRequest.EndDate:dd/MM/yyyy} leave request.");
                 }
 
                 decimal currentBalance = 0;
@@ -164,6 +167,7 @@ namespace HRManagement.Services.Leaves
                 if (initialStatus == "Approved" && leaveBalance != null)
                 {
                     leaveBalance.UsedDays += dto.NumberOfDays;
+                    leaveBalance.RemainingDays = (leaveBalance.TotalEntitlement + leaveBalance.CarriedForward) - leaveBalance.UsedDays;
                     leaveBalance.LastUpdated = DateTime.Now;
                 }
 
@@ -308,6 +312,7 @@ namespace HRManagement.Services.Leaves
                     }
 
                     leaveBalance.UsedDays += leaveRequest.NumberOfDays;
+                    leaveBalance.RemainingDays = (leaveBalance.TotalEntitlement + leaveBalance.CarriedForward) - leaveBalance.UsedDays;
                     leaveBalance.LastUpdated = DateTime.Now;
                 }
 
@@ -553,7 +558,11 @@ namespace HRManagement.Services.Leaves
 
             if (user == null || user.EmployeeId == null)
             {
-                return ServiceResult<List<MyLeaveRequestItemDTO>>.Fail("MSG-106", "Access Denied.");
+                return ServiceResult<List<MyLeaveRequestItemDTO>>.Ok(
+                    "MSG-00", 
+                    "User has no employee profile, so they have no personal leave requests.", 
+                    new List<MyLeaveRequestItemDTO>()
+                );
             }
 
             var requests = await _context.LeaveRequests
@@ -588,11 +597,17 @@ namespace HRManagement.Services.Leaves
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-                if (managerUser == null || managerUser.EmployeeId == null)
+                if (managerUser == null)
                 {
-                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail(
-                        "MSG-106",
-                        "Access Denied.");
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail("MSG-106", "Access Denied.");
+                }
+                
+                if (managerUser.EmployeeId == null)
+                {
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Ok(
+                        "MSG-00",
+                        "User has no employee profile, so no team calendar is available.",
+                        new List<TeamLeaveCalendarDTO>());
                 }
 
                 var managerEmployeeId = managerUser.EmployeeId.Value;
