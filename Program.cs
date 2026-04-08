@@ -1,4 +1,5 @@
 using HRManagement.Configuration;
+using HRManagement.DataAcess;
 using HRManagement.DataAcess.Implementations;
 using HRManagement.DataAcess.Interfaces;
 using HRManagement.Filters;
@@ -19,6 +20,10 @@ using HRManagement.Services.Positions;
 using HRManagement.Services.Shifts;
 using HRManagement.Services.Users;
 using HRManagement.Services.Approvals;
+using HRManagement.Services.Evaluations;
+using HRManagement.Services.Analytics;
+using HRManagement.Services.Audits;
+using HRManagement.Services.Exports;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +65,12 @@ builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
+builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
+builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
+builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
+builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
+builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 builder.Services.AddScoped<IUserAccountValidationService, UserAccountValidationService>();
 builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
@@ -74,7 +85,13 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials());
 });
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
@@ -137,7 +154,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 app.UseCors("AllowAll");
 app.UseAuthentication();

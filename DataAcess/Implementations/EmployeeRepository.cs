@@ -66,6 +66,11 @@ namespace HRManagement.DataAcess.Implementations
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == userId);
         }
+
+        public async Task<bool> EmployeeExistsAsync(int employeeId)
+        {
+            return await _context.Employees.AnyAsync(e => e.EmployeeId == employeeId);
+        }
         public async Task<string?> GetLastEmployeeCodeAsync()
         {
             return await _context.Employees
