@@ -1,5 +1,5 @@
-﻿using HRManagement.DTOs;
-using HRManagement.Services;
+using HRManagement.DTOs;
+using HRManagement.Services.Exports;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -30,7 +30,7 @@ namespace HRManagement.Controllers
                 });
             }
 
-            // nếu gửi email thì không download
+            // n?u g?i email th� kh�ng download
             if (request.SendToEmail)
             {
                 return Ok(new

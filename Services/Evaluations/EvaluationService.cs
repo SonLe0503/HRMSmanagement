@@ -8,7 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Task = System.Threading.Tasks.Task;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public class EvaluationService : IEvaluationService
     {

@@ -1,11 +1,12 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 using HRManagement.Services.CurrentUsers;
 using HRManagement.Services.Emails;
+using HRManagement.Services.Audits;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Exports
 {
     public class ExportService : IExportService
     {

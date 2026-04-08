@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public interface IEvaluationCriteriaService
     {
@@ -12,3 +12,4 @@ namespace HRManagement.Services
         Task<bool> DeleteAsync(int criteriaId);
     }
 }
+

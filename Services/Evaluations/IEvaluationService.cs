@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public interface IEvaluationService
     {
@@ -15,3 +15,4 @@ namespace HRManagement.Services
         Task<EvaluationResponseDto> ChangeEvaluatorAsync(int evaluationId, ChangeEvaluatorDto dto);
     }
 }
+

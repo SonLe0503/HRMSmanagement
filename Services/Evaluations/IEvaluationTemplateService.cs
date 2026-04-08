@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public interface IEvaluationTemplateService
     {
@@ -17,3 +17,4 @@ namespace HRManagement.Services
         Task<bool> ActivateAsync(int templateId);
     }
 }
+

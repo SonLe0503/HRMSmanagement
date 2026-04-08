@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public interface IEvaluationCycleService
     {
@@ -14,3 +14,4 @@ namespace HRManagement.Services
         Task<bool> CloseCycleAsync(int cycleId, CloseCycleDto closeDto);
     }
 }
+

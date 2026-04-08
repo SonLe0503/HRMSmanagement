@@ -1,5 +1,5 @@
-﻿using HRManagement.DTOs.WorkforceAnalytics;
-using HRManagement.Services;
+using HRManagement.DTOs.WorkforceAnalytics;
+using HRManagement.Services.Analytics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -1,10 +1,11 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using HRManagement.DTOs.WorkforceAnalytics;
 using HRManagement.Models;
 using HRManagement.Services.CurrentUsers;
 using Microsoft.EntityFrameworkCore;
+using HRManagement.Services.Audits;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Analytics
 {
     public class WorkforceAnalyticsService : IWorkforceAnalyticsService
     {

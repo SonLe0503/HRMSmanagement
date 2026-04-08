@@ -3,7 +3,7 @@ using HRManagement.DataAcess;
 using HRManagement.DTOs;
 using HRManagement.Models;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public class EvaluationCycleService : IEvaluationCycleService
     {
@@ -447,3 +447,4 @@ namespace HRManagement.Services
         #endregion
     }
 }
+

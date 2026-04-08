@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs.WorkforceAnalytics;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Analytics
 {
     public interface IWorkforceAnalyticsService
     {
@@ -10,3 +10,4 @@ namespace HRManagement.Services
         Task<AIInsightsResponseDTO> GetAIInsightsAsync(WorkforceAnalyticsRequestDTO request);
     }
 }
+

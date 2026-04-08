@@ -1,6 +1,6 @@
 ﻿using HRManagement.DTOs.CompetencyReport;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Analytics
 {
     public interface ICompetencyReportService
     {
@@ -9,3 +9,4 @@ namespace HRManagement.Services
         Task<(byte[] FileContent, string FileName, string ContentType)> ExportReportAsync(ExportCompetencyReportRequestDTO request);
     }
 }
+

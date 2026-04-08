@@ -1,5 +1,5 @@
-﻿using HRManagement.DTOs.CompetencyReport;
-using HRManagement.Services;
+using HRManagement.DTOs.CompetencyReport;
+using HRManagement.Services.Analytics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

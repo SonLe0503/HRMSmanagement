@@ -1,6 +1,6 @@
 ﻿using HRManagement.Models;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Audits
 {
     public class AuditService : IAuditService
     {
@@ -28,3 +28,4 @@ namespace HRManagement.Services
         }
     }
 }
+

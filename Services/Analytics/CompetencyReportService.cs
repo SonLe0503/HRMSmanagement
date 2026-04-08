@@ -5,7 +5,7 @@ using HRManagement.Models;
 using HRManagement.Services.CurrentUsers;
 using Microsoft.EntityFrameworkCore;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Analytics
 {
     public class CompetencyReportService : ICompetencyReportService
     {

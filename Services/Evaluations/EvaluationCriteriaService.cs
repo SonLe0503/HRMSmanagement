@@ -2,7 +2,7 @@
 using HRManagement.DTOs;
 using HRManagement.Models;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public class EvaluationCriteriaService : IEvaluationCriteriaService
     {
@@ -214,3 +214,4 @@ namespace HRManagement.Services
         }
     }
 }
+
