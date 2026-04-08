@@ -2,9 +2,10 @@
 {
     public interface ICurrentUserService
     {
-        int GetUserId();
-        string GetRole();
-        string GetFullName();
+        int UserId { get; }
+        int? EmployeeId { get; }
+        string? RoleName { get; }
+
         int GetCurrentUserId();
         Task<int> GetCurrentEmployeeIdAsync();
     }

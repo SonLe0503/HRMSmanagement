@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Services.CurrentUsers;
 using HRManagement.Services.FaceVerifications;
 using Microsoft.AspNetCore.Authorization;
@@ -7,45 +7,107 @@ using Microsoft.AspNetCore.Mvc;
 namespace HRManagement.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
-    public class FaceController : Controller
+    [Route("api/face")]
+    [Authorize]
+    public class FaceController : ControllerBase
     {
         private readonly IFaceVerificationService _faceVerificationService;
         private readonly ICurrentUserService _currentUserService;
 
-        public FaceController(IFaceVerificationService faceVerificationService, ICurrentUserService currentUserService)
+        public FaceController(
+            IFaceVerificationService faceVerificationService,
+            ICurrentUserService currentUserService)
         {
             _faceVerificationService = faceVerificationService;
             _currentUserService = currentUserService;
         }
 
         [HttpPost("register")]
-        [Authorize]
-        public async Task<IActionResult> RegisterFace([FromBody] FaceRegisterRequestDto dto)
+        public async Task<IActionResult> RegisterFace([FromBody] FaceRegisterRequestDto request)
         {
+            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+            if (employeeId <= 0)
+                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
+
+            if (request == null || string.IsNullOrWhiteSpace(request.ReferenceImageBase64))
+                return BadRequest(new { message = "Ảnh khuôn mặt là bắt buộc." });
+
             try
             {
-                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-
-                if (string.IsNullOrWhiteSpace(dto.ReferenceImageBase64))
-                    return BadRequest(new { message = "Ảnh khuôn mặt không được để trống." });
-
-                var imagePath = await _faceVerificationService.RegisterFaceAsync(employeeId, dto.ReferenceImageBase64);
+                var imagePath = await _faceVerificationService.RegisterFaceAsync(
+                    employeeId,
+                    request.ReferenceImageBase64
+                );
 
                 return Ok(new
                 {
                     message = "Đăng ký khuôn mặt thành công.",
-                    imagePath
+                    referenceImagePath = imagePath
                 });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
+        }
+
+        [HttpGet("check-registration")]
+        public async Task<IActionResult> CheckRegistrationStatus()
+        {
+            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+            if (employeeId <= 0)
+                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
+
+            var isRegistered = await _faceVerificationService.IsFaceRegisteredAsync(employeeId);
+            return Ok(new
+            {
+                isRegistered
+            });
+        }
+
+        [HttpPost("verify")]
+        public async Task<IActionResult> VerifyFace([FromBody] CheckInRequestDto request)
+        {
+            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+            if (employeeId <= 0)
+                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
+
+            if (request == null || string.IsNullOrWhiteSpace(request.FaceImageBase64))
+                return BadRequest(new { message = "Ảnh xác thực là bắt buộc." });
+
+            var result = await _faceVerificationService.VerifyAsync(
+                employeeId,
+                request.FaceImageBase64,
+                "CheckIn",
+                request.DeviceInfo,
+                request.IpAddress,
+                request.Location
+            );
+
+            if (!result.IsMatch)
+            {
+                return Unauthorized(new
+                {
+                    message = "Xác thực khuôn mặt thất bại.",
+                    result.ConfidenceScore,
+                    result.ThresholdUsed,
+                    result.FailureReason
+                });
+            }
+
+            return Ok(new
+            {
+                message = "Xác thực khuôn mặt thành công.",
+                result.ConfidenceScore,
+                result.ThresholdUsed,
+                result.CapturedImagePath
+            });
         }
     }
 }

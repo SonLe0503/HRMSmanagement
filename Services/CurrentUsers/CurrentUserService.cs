@@ -8,12 +8,10 @@ namespace HRManagement.Services.CurrentUsers
     public class CurrentUserService : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly HrmsDbContext _context;
 
-        public CurrentUserService(IHttpContextAccessor httpContextAccessor, HrmsDbContext context)
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
-            _context = context;
         }
 
         public int GetUserId()
@@ -31,7 +29,45 @@ namespace HRManagement.Services.CurrentUsers
         {
             return _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown User";
         }
+    }
+}
+        private readonly HrmsDbContext _context;
 
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor, HrmsDbContext context)
+        {
+            _httpContextAccessor = httpContextAccessor;
+            _context = context;
+        }
+
+        public int UserId => GetCurrentUserId();
+
+        public int? EmployeeId
+        {
+            get
+            {
+                var userId = GetCurrentUserId();
+
+                var user = _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefault(u => u.UserId == userId && u.IsActive);
+
+                return user?.EmployeeId;
+            }
+        }
+
+        public string? RoleName
+        {
+            get
+            {
+                var user = _httpContextAccessor.HttpContext?.User;
+
+                if (user?.Identity == null || !user.Identity.IsAuthenticated)
+                    return null;
+
+                return user.FindFirst(ClaimTypes.Role)?.Value
+                       ?? user.FindFirst("role")?.Value;
+            }
+        }
         public int GetCurrentUserId()
         {
             var user = _httpContextAccessor.HttpContext?.User;

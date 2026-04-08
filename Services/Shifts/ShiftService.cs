@@ -88,13 +88,37 @@ namespace HRManagement.Services.Shifts
             return MapToDto(shift);
         }
 
-        public async System.Threading.Tasks.Task ToggleShiftActiveAsync(int shiftId)
+        public async System.Threading.Tasks.Task DeactivateShiftAsync(int shiftId)
         {
             var shift = await _shiftRepository.GetShiftByIdAsync(shiftId);
             if (shift == null)
                 throw new KeyNotFoundException("Không tìm thấy ca làm việc.");
 
-            shift.IsActive = !shift.IsActive;
+            if (!shift.IsActive)
+                return;
+
+            var hasActiveOrFutureAssignments = await _shiftRepository.HasActiveOrFutureAssignmentsAsync(shiftId);
+
+            if (hasActiveOrFutureAssignments)
+                throw new InvalidOperationException("Không thể ngừng sử dụng ca làm việc vì vẫn đang có nhân viên được phân ca này ở hiện tại hoặc tương lai.");
+
+            shift.IsActive = false;
+
+            await _shiftRepository.UpdateShiftAsync(shift);
+            await _shiftRepository.SaveChangesAsync();
+        }
+
+
+        public async System.Threading.Tasks.Task ActivateShiftAsync(int shiftId)
+        {
+            var shift = await _shiftRepository.GetShiftByIdAsync(shiftId);
+            if (shift == null)
+                throw new KeyNotFoundException("Không tìm thấy ca làm việc.");
+
+            if (shift.IsActive)
+                return;
+
+            shift.IsActive = true;
 
             await _shiftRepository.UpdateShiftAsync(shift);
             await _shiftRepository.SaveChangesAsync();

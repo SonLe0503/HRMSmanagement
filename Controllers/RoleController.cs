@@ -1,8 +1,9 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Controllers
 {

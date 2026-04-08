@@ -15,7 +15,7 @@ namespace HRManagement.Services
         {
             var log = new AuditLog
             {
-                TableName = "System",
+                TableName = "Export",
                 Action = action,
                 RecordId = 0,
                 UserId = userId,

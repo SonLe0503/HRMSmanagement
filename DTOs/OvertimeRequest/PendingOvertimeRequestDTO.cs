@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.OvertimeRequest
+namespace HRManagement.DTOs.OvertimeRequest
 {
     public class PendingOvertimeRequestDTO
     {
@@ -14,5 +14,6 @@
         public string? TaskDescription { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime SubmittedDate { get; set; }
+        public bool IsTopLevel { get; set; }
     }
 }

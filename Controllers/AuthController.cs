@@ -1,10 +1,11 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.DTOs.Auths;
 using HRManagement.Models;
 using HRManagement.Services.Emails;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Task = System.Threading.Tasks.Task;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -55,6 +56,7 @@ namespace HRManagement.Controllers
             {
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
+                  new Claim("EmployeeID", user.EmployeeId?.ToString() ?? "")
 
             };
 
