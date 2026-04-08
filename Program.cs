@@ -145,7 +145,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 app.UseCors("AllowAll");
 app.UseAuthentication();
