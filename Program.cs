@@ -82,6 +82,7 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials());
 });
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
