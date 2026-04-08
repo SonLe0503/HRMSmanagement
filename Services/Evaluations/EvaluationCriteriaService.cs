@@ -1,6 +1,7 @@
-﻿using HRManagement.DataAcess;
+using HRManagement.DataAcess;
 using HRManagement.DTOs;
 using HRManagement.Models;
+using HRManagement.DataAcess.Interfaces;
 
 namespace HRManagement.Services.Evaluations
 {
