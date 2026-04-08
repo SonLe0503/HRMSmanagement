@@ -2,6 +2,6 @@
 {
     public class FaceRegisterRequestDto
     {
-        public string ReferenceImageBase64 { get; set; } = null!;
+        public string ReferenceImageBase64 { get; set; } = string.Empty!;
     }
 }

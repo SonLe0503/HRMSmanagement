@@ -1,9 +1,11 @@
 using HRManagement.Configuration;
+using HRManagement.DataAcess;
 using HRManagement.DataAcess.Implementations;
 using HRManagement.DataAcess.Interfaces;
 using HRManagement.Filters;
 using HRManagement.Mappers;
 using HRManagement.Models;
+using HRManagement.Services;
 using HRManagement.Services.Attendances;
 using HRManagement.Services.Cloudinaries;
 using HRManagement.Services.CurrentUsers;
@@ -17,6 +19,9 @@ using HRManagement.Services.Leaves;
 using HRManagement.Services.Overtimes;
 using HRManagement.Services.Positions;
 using HRManagement.Services.Shifts;
+using HRManagement.Services.Users;
+using HRManagement.Services.Approvals;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -57,6 +62,17 @@ builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IFaceVerificationService, FaceVerificationService>();
 builder.Services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
+builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
+builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
+builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
+builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
+builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
+builder.Services.AddScoped<FaceEmbeddingService>();
+builder.Services.AddScoped<IUserAccountValidationService, UserAccountValidationService>();
+builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
+builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
+
 
 builder.Services.AddCors(options =>
 {
@@ -80,7 +96,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API Authentication with JWT for HR Management "
     });
 
-    // Thêm cấu hình bảo mật cho JWT
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -91,7 +106,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Nhập token ở dạng: Bearer {token}"
     });
 
-    // Áp dụng yêu cầu bảo mật cho tất cả endpoint có [Authorize]
     c.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -132,7 +146,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 app.UseCors("AllowAll");
 app.UseAuthentication();
@@ -141,3 +155,5 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.MapControllers();
 app.Run();
+
+

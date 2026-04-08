@@ -10,5 +10,6 @@ namespace HRManagement.DataAcess.Interfaces
         System.Threading.Tasks.Task AddShiftAsync(Shift shift);
         System.Threading.Tasks.Task UpdateShiftAsync(Shift shift);
         System.Threading.Tasks.Task SaveChangesAsync();
+        Task<bool> HasActiveOrFutureAssignmentsAsync(int shiftId);
     }
 }

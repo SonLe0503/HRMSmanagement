@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.LeaveBalance;
+using HRManagement.DTOs.LeaveBalance;
 using HRManagement.Services.Leaves;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -143,5 +143,36 @@ namespace HRManagement.Controllers
                 Message = result.Message
             });
         }
+
+        /// <summary>
+        /// Auto-generate leave balances for ALL active employees based on each LeaveType's AnnualEntitlement.
+        /// Safe to re-run: existing balances are skipped.
+        /// </summary>
+        [HttpPost("generate")]
+        public async Task<IActionResult> GenerateBalancesForYear([FromQuery] int? year, [FromQuery] bool carryForward = true)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new { MessageCode = "MSG-106", Message = "Access Denied." });
+            }
+
+            int targetYear = year ?? DateTime.Now.Year;
+
+            var result = await _leaveBalanceService.GenerateBalancesForYearAsync(userId, targetYear, carryForward);
+
+            if (!result.Success)
+            {
+                return BadRequest(new { result.MessageCode, result.Message });
+            }
+
+            return Ok(new
+            {
+                result.MessageCode,
+                result.Message,
+                result.Data
+            });
+        }
     }
-}
+}

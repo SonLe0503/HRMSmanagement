@@ -11,17 +11,6 @@ namespace HRManagement.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "ModifiedBy",
-                table: "Positions",
-                type: "int",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ModifiedDate",
-                table: "Positions",
-                type: "datetime2",
-                nullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Departments_ManagerID",

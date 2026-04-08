@@ -21,6 +21,5 @@ namespace HRManagement.Services.Attendances
         Task UnlockAttendanceAsync(int attendanceId, int userId);
 
         Task<List<AttendanceLogResponseDto>> GetLogsAsync(int employeeId, DateOnly date);
-        Task AssignShiftAsync(int managerId, AssignShiftDto dto);
     }
 }
