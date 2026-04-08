@@ -1,4 +1,7 @@
-﻿using System.Security.Claims;
+
+﻿using HRManagement.Models;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HRManagement.Services.CurrentUsers
 {

@@ -84,6 +84,11 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddAutoMapper(typeof(TaskProfile).Assembly);
