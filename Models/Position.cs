@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HRManagement.Models;
@@ -14,12 +14,14 @@ public partial class Position
     public string? Description { get; set; }
 
     public int Level { get; set; }
+    public bool IsTopLevel { get; set; }
 
     public bool IsActive { get; set; }
 
     public DateTime CreatedDate { get; set; }
-
     public int? CreatedBy { get; set; }
+    public DateTime? ModifiedDate { get; set; }
+    public int? ModifiedBy { get; set; }
 
     public virtual ICollection<Employee> Employees { get; set; } = new List<Employee>();
 

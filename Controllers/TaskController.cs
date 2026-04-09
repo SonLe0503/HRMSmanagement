@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +22,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async System.Threading.Tasks.Task<IActionResult> GetAll()
         {
             var tasks = await _context.Tasks
                 .Include(t => t.AssignedToNavigation)
@@ -32,7 +32,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async System.Threading.Tasks.Task<IActionResult> GetById(int id)
         {
             var task = await _context.Tasks
                 .Include(t => t.AssignedToNavigation)
@@ -43,7 +43,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create(CreateTaskDTO dto)
+        public async System.Threading.Tasks.Task<IActionResult> Create(CreateTaskDTO dto)
         {
             var userId = GetCurrentUserId();
             var userExists = await _context.Users
@@ -65,7 +65,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UpdateTaskDTO dto)
+        public async System.Threading.Tasks.Task<IActionResult> Update(int id, UpdateTaskDTO dto)
         {
             var task = await _context.Tasks.FindAsync(id);
 
@@ -90,7 +90,7 @@ namespace HRManagement.Controllers
             return Ok("Task updated successfully");
         }
         [HttpPatch("{id}/approve")]
-        public async Task<IActionResult> Approve(int id, ApproveTaskDTO dto)
+        public async System.Threading.Tasks.Task<IActionResult> Approve(int id, ApproveTaskDTO dto)
         {
             var userId = GetCurrentUserId(); // bạn lấy từ JWT
 
@@ -121,7 +121,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPatch("{id}/reject")]
-        public async Task<IActionResult> Reject(int id, RejectTaskDTO dto)
+        public async System.Threading.Tasks.Task<IActionResult> Reject(int id, RejectTaskDTO dto)
         {
             var userId = GetCurrentUserId();
 
@@ -149,7 +149,7 @@ namespace HRManagement.Controllers
             return Ok("Task rejected successfully");
         }
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Cancel(int id)
+        public async System.Threading.Tasks.Task<IActionResult> Cancel(int id)
         {
             var userId = GetCurrentUserId();
 

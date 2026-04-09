@@ -19,6 +19,23 @@ public partial class Shift
 
     public string ShiftType { get; set; } = null!;
 
+    // NEW
+    public int? LateGraceMinutes { get; set; }
+
+    // NEW
+    public int? EarlyCheckInMinutes { get; set; }
+
+    // NEW
+    public int? LatestCheckInMinutes { get; set; }
+
+    public int? EarliestCheckOutMinutes { get; set; }
+
+    // NEW
+    public int? LatestCheckOutMinutes { get; set; }
+
+    // NEW
+    public bool? IsOvernight { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTime CreatedDate { get; set; }

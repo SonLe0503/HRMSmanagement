@@ -34,4 +34,5 @@ public partial class Department
     public virtual ICollection<Department> InverseParentDepartment { get; set; } = new List<Department>();
 
     public virtual Department? ParentDepartment { get; set; }
+    public virtual Employee? Manager { get; set; }
 }

@@ -1,6 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
 
 namespace HRManagement.Models;
 
@@ -86,6 +87,11 @@ public partial class HrmsDbContext : DbContext
     public virtual DbSet<WorkflowStage> WorkflowStages { get; set; }
 
     public virtual DbSet<WorkflowStageApprover> WorkflowStageApprovers { get; set; }
+
+    public virtual DbSet<AttendanceLog> AttendanceLogs { get; set; }
+
+    public virtual DbSet<FaceProfile> FaceProfiles { get; set; }
+    public virtual DbSet<FaceVerificationLog> FaceVerificationLogs { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
@@ -180,7 +186,14 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ParentDepartment).WithMany(p => p.InverseParentDepartment)
                 .HasForeignKey(d => d.ParentDepartmentId)
                 .HasConstraintName("FK_Departments_Parent");
-        });
+
+            entity
+        .HasOne(d => d.Manager)
+        .WithMany()  
+        .HasForeignKey(d => d.ManagerId)
+        .OnDelete(DeleteBehavior.Restrict);
+        }
+        );
 
         modelBuilder.Entity<Employee>(entity =>
         {
@@ -777,6 +790,7 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Level).HasDefaultValue(1);
+            entity.Property(e => e.IsTopLevel).HasDefaultValue(false);
             entity.Property(e => e.PositionCode).HasMaxLength(20);
             entity.Property(e => e.PositionName).HasMaxLength(100);
         });
@@ -1028,6 +1042,38 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.WorkflowStageApprovers)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_StageApprovers_Users");
+        });
+
+        modelBuilder.Entity<AttendanceLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId).HasName("PK__Attendan__5E5499A8");
+
+            entity.Property(e => e.LogId).HasColumnName("LogID");
+            entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
+            entity.Property(e => e.ShiftId).HasColumnName("ShiftID");
+            entity.Property(e => e.LogTime).HasColumnType("datetime");
+            entity.Property(e => e.LogType).HasMaxLength(20);
+            entity.Property(e => e.Source)
+                .HasMaxLength(20)
+                .HasDefaultValue("Web");
+            entity.Property(e => e.DeviceInfo).HasMaxLength(255);
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.Location).HasMaxLength(100);
+            entity.Property(e => e.Remarks).HasMaxLength(500);
+            entity.Property(e => e.IsValid).HasDefaultValue(true);
+            entity.Property(e => e.CreatedDate)
+                .HasColumnType("datetime")
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+
+            entity.HasOne(d => d.Employee).WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AttendanceLogs_Employees");
+
+            entity.HasOne(d => d.Shift).WithMany()
+                .HasForeignKey(d => d.ShiftId)
+                .HasConstraintName("FK_AttendanceLogs_Shifts");
         });
 
         OnModelCreatingPartial(modelBuilder);
