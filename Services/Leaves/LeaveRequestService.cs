@@ -88,13 +88,17 @@ namespace HRManagement.Services.Leaves
 
                     if (leaveBalance == null)
                     {
-                        return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-104", "Leave balance not found.");
+                        // Instead of failing, we'll assume 0 balance and let the user "Submit anyway" if they want
+                        currentBalance = 0;
+                        remainingAfterRequest = -dto.NumberOfDays;
                     }
+                    else
+                    {
+                        currentBalance = leaveBalance.RemainingDays
+                            ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
 
-                    currentBalance = leaveBalance.RemainingDays
-                        ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
-
-                    remainingAfterRequest = currentBalance - dto.NumberOfDays;
+                        remainingAfterRequest = currentBalance - dto.NumberOfDays;
+                    }
 
                     if (currentBalance < dto.NumberOfDays && !dto.SubmitAnyway)
                     {
@@ -296,7 +300,19 @@ namespace HRManagement.Services.Leaves
 
                     if (leaveBalance == null)
                     {
-                        return ServiceResult<string>.Fail("MSG-46", "Unable to retrieve leave balance information.");
+                        // Create a default balance if it doesn't exist to track the usage
+                        leaveBalance = new LeaveBalance
+                        {
+                            EmployeeId = leaveRequest.EmployeeId,
+                            LeaveTypeId = leaveRequest.LeaveTypeId,
+                            Year = targetYear,
+                            TotalEntitlement = leaveType.AnnualEntitlement,
+                            UsedDays = 0,
+                            CarriedForward = 0,
+                            RemainingDays = leaveType.AnnualEntitlement,
+                            LastUpdated = DateTime.Now
+                        };
+                        _context.LeaveBalances.Add(leaveBalance);
                     }
 
                     decimal currentBalance = leaveBalance.RemainingDays
@@ -304,13 +320,7 @@ namespace HRManagement.Services.Leaves
 
                     decimal newBalance = currentBalance - leaveRequest.NumberOfDays;
 
-                    if (newBalance < 0)
-                    {
-                        return ServiceResult<string>.Fail(
-                            "MSG-43",
-                            "Warning: Approving this leave request will result in negative leave balance for the employee.");
-                    }
-
+                    // Allow negative balance, but log it or handle it in Salary calculation later
                     leaveBalance.UsedDays += leaveRequest.NumberOfDays;
                     leaveBalance.RemainingDays = (leaveBalance.TotalEntitlement + leaveBalance.CarriedForward) - leaveBalance.UsedDays;
                     leaveBalance.LastUpdated = DateTime.Now;
