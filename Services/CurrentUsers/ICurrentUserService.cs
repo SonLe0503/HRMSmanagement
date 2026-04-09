@@ -1,4 +1,6 @@
-﻿namespace HRManagement.Services.CurrentUsers
+using System.Threading.Tasks;
+
+namespace HRManagement.Services.CurrentUsers
 {
     public interface ICurrentUserService
     {
@@ -6,6 +8,9 @@
         int? EmployeeId { get; }
         string? RoleName { get; }
 
+        int GetUserId();
+        string GetRole();
+        string GetFullName();
         int GetCurrentUserId();
         Task<int> GetCurrentEmployeeIdAsync();
     }

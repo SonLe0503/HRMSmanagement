@@ -5,6 +5,7 @@ using HRManagement.DataAcess.Interfaces;
 using HRManagement.Filters;
 using HRManagement.Mappers;
 using HRManagement.Models;
+using HRManagement.Services;
 using HRManagement.Services.Attendances;
 using HRManagement.Services.Cloudinaries;
 using HRManagement.Services.CurrentUsers;
@@ -87,7 +88,6 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IPayrollService, PayrollService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();

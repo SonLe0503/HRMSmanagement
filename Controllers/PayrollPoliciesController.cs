@@ -1,7 +1,8 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using HRManagement.Services;
+using HRManagement.Services.CurrentUsers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
