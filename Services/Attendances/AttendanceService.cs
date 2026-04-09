@@ -1,7 +1,8 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.FaceVerifications;
+using Microsoft.EntityFrameworkCore;
 
 namespace HRManagement.Services.Attendances
 {
@@ -9,10 +10,13 @@ namespace HRManagement.Services.Attendances
     {
         private readonly IAttendanceRepository _attendanceRepository;
         private readonly IFaceVerificationService _faceVerificationService;
-        public AttendanceService(IAttendanceRepository attendanceRepository, IFaceVerificationService faceVerificationService)
+        private readonly HrmsDbContext _context;
+
+        public AttendanceService(IAttendanceRepository attendanceRepository, IFaceVerificationService faceVerificationService, HrmsDbContext context)
         {
             _attendanceRepository = attendanceRepository;
             _faceVerificationService = faceVerificationService;
+            _context = context;
         }
         public async Task<AttendanceResponseDto> CheckInAsync(int employeeId, CheckInRequestDto dto)
         {
@@ -321,20 +325,108 @@ namespace HRManagement.Services.Attendances
 
         public async Task<List<AttendanceResponseDto>> GetMyHistoryAsync(int employeeId, DateOnly? fromDate, DateOnly? toDate)
         {
-            var records = await _attendanceRepository.SearchAttendanceAsync(fromDate, toDate, employeeId, null);
-            return records.Select(MapAttendance).ToList();
+            return await SearchAttendanceWithLeavesAsync(fromDate, toDate, employeeId, null);
         }
 
         public async Task<List<AttendanceResponseDto>> GetAttendanceByDateAsync(DateOnly date)
         {
-            var records = await _attendanceRepository.GetAttendanceByDateAsync(date);
-            return records.Select(MapAttendance).ToList();
+            // Chuyển về gọi hàm search để dùng chung logic map nghỉ phép
+            return await SearchAttendanceWithLeavesAsync(date, date, null, null);
         }
 
         public async Task<List<AttendanceResponseDto>> SearchAttendanceAsync(DateOnly? fromDate, DateOnly? toDate, int? employeeId, string? status)
         {
+            return await SearchAttendanceWithLeavesAsync(fromDate, toDate, employeeId, status);
+        }
+
+        private async Task<List<AttendanceResponseDto>> SearchAttendanceWithLeavesAsync(DateOnly? fromDate, DateOnly? toDate, int? employeeId, string? status)
+        {
+            // Default range nếu thiếu
+            var finalFrom = fromDate ?? DateOnly.FromDateTime(DateTime.Now).AddDays(-30);
+            var finalTo = toDate ?? DateOnly.FromDateTime(DateTime.Now);
+
             var records = await _attendanceRepository.SearchAttendanceAsync(fromDate, toDate, employeeId, status);
-            return records.Select(MapAttendance).ToList();
+            var result = records.Select(MapAttendance).ToList();
+
+            // Nếu lọc theo status cụ thể mà không phải nghỉ phép thì không cần map thêm
+            if (!string.IsNullOrEmpty(status) && status != "PaidLeave" && status != "UnpaidLeave")
+                return result;
+
+            // Xây dựng query cho LeaveRequests (Lấy cả Approved và Pending để debug nếu cần, nhưng hiển thị thì lọc lại)
+            var leaves = await _context.LeaveRequests
+                .Include(lr => lr.LeaveType)
+                .Include(lr => lr.Employee)
+                .Where(lr => lr.EmployeeId == (employeeId ?? lr.EmployeeId) &&
+                             lr.Status == "Approved" &&
+                             lr.StartDate <= finalTo &&
+                             lr.EndDate >= finalFrom)
+                .ToListAsync();
+
+            if (leaves.Any())
+            {
+                // Lấy phân ca 
+                var assignments = await _context.ShiftAssignments
+                    .Include(sa => sa.Shift)
+                    .Where(sa => sa.EmployeeId == (employeeId ?? sa.EmployeeId) &&
+                                 sa.Status == "Active" &&
+                                 sa.AssignmentDate >= finalFrom &&
+                                 sa.AssignmentDate <= finalTo)
+                    .ToListAsync();
+
+                var attendanceMap = result
+                    .GroupBy(r => (EmployeeId: r.EmployeeId, Date: r.AttendanceDate))
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                foreach (var leave in leaves)
+                {
+                    var start = leave.StartDate < finalFrom ? finalFrom : leave.StartDate;
+                    var end = leave.EndDate > finalTo ? finalTo : leave.EndDate;
+
+                    for (var date = start; date <= end; date = date.AddDays(1))
+                    {
+                        var key = (EmployeeId: leave.EmployeeId, Date: date);
+                        
+                        if (!attendanceMap.ContainsKey(key) || 
+                            attendanceMap[key].Status == "Absent" || 
+                            attendanceMap[key].Status == "Vắng mặt")
+                        {
+                            var assignment = assignments.FirstOrDefault(a => a.EmployeeId == leave.EmployeeId && a.AssignmentDate == date);
+                            
+                            var leaveRecord = new AttendanceResponseDto
+                            {
+                                AttendanceId = 0,
+                                EmployeeId = leave.EmployeeId,
+                                EmployeeName = leave.Employee?.FullName ?? (attendanceMap.ContainsKey(key) ? attendanceMap[key].EmployeeName : "Unknown"),
+                                AttendanceDate = date,
+                                ShiftId = assignment?.ShiftId,
+                                ShiftName = assignment?.Shift?.ShiftName ?? "No Shift",
+                                CheckInTime = null,
+                                CheckOutTime = null,
+                                WorkingHours = leave.LeaveType.IsPaid ? (assignment?.Shift?.WorkingHours ?? 8) : 0,
+                                OvertimeHours = 0,
+                                LateMinutes = 0,
+                                EarlyLeaveMinutes = 0,
+                                Status = leave.LeaveType.IsPaid ? "PaidLeave" : "UnpaidLeave",
+                                Source = "LeaveRequest",
+                                Remarks = leave.LeaveType.LeaveTypeName + (assignment == null ? " (Mất phân ca)" : "") + ": " + leave.Reason
+                            };
+
+                            if (attendanceMap.ContainsKey(key))
+                            {
+                                var oldIndex = result.IndexOf(attendanceMap[key]);
+                                if (oldIndex != -1) result[oldIndex] = leaveRecord;
+                            }
+                            else
+                            {
+                                result.Add(leaveRecord);
+                            }
+                            attendanceMap[key] = leaveRecord;
+                        }
+                    }
+                }
+            }
+
+            return result.OrderByDescending(r => r.AttendanceDate).ThenBy(r => r.EmployeeName).ToList();
         }
 
         public async Task<AttendanceDetailResponseDto?> GetAttendanceDetailAsync(int employeeId, DateOnly date)
