@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.Attendances
+namespace HRManagement.DTOs.Attendances
 {
     public class AttendanceResponseDto
     {
@@ -14,6 +14,9 @@
 
         public decimal? WorkingHours { get; set; }
         public decimal? OvertimeHours { get; set; }
+        public decimal? ActualOvertimeHours { get; set; }
+        public decimal? ApprovedOvertimeHours { get; set; }
+        public decimal? PayrollOvertimeHours { get; set; }
         public int? LateMinutes { get; set; }
         public int? EarlyLeaveMinutes { get; set; }
 
