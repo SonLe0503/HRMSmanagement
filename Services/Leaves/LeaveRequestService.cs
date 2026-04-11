@@ -620,16 +620,19 @@ namespace HRManagement.Services.Leaves
                         new List<TeamLeaveCalendarDTO>());
                 }
 
-                var managerEmployeeId = managerUser.EmployeeId.Value;
-                var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                var managerEmployeeId = managerUser.EmployeeId;
+                var topLevelFallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                var defaultFallbackUserId = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
 
                 var approvedLeaves = await _context.LeaveRequests
                     .Include(x => x.Employee)
+                        .ThenInclude(e => e.Position)
                     .Include(x => x.LeaveType)
                     .Where(x =>
                         x.Status == "Approved" &&
-                        ((x.Employee.ManagerId == managerEmployeeId) ||
-                         (x.Employee.ManagerId == null && x.Employee.Position.IsTopLevel && fallbackUserId == managerUserId))
+                        ((managerEmployeeId.HasValue && x.Employee.ManagerId == managerEmployeeId) ||
+                         (x.Employee.ManagerId == null && x.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
+                         (x.Employee.ManagerId == null && !x.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId))
                     )
                     .OrderBy(x => x.StartDate)
                     .Select(x => new TeamLeaveCalendarDTO
@@ -677,7 +680,8 @@ namespace HRManagement.Services.Leaves
                 return ServiceResult<List<PendingLeaveRequestDTO>>.Fail("MSG-106", "Access Denied.");
             }
 
-            var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var topLevelFallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var defaultFallbackUserId = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
 
             var pendingRequests = await _context.LeaveRequests
                 .Where(lr => lr.Status == "Pending")
@@ -686,7 +690,8 @@ namespace HRManagement.Services.Leaves
                 .Include(lr => lr.LeaveType)
                 .Where(lr =>
                     (managerUser.EmployeeId.HasValue && lr.Employee.ManagerId == managerUser.EmployeeId) ||
-                    (lr.Employee.ManagerId == null && lr.Employee.Position.IsTopLevel && fallbackUserId == managerUserId)
+                    (lr.Employee.ManagerId == null && lr.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
+                    (lr.Employee.ManagerId == null && !lr.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId)
                 )
                 .Select(x => new PendingLeaveRequestDTO
                 {

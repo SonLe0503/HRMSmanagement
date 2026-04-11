@@ -54,13 +54,17 @@ namespace HRManagement.Controllers
         [Authorize]
         public async Task<IActionResult> GetApprovalSettings()
         {
-            var setting = await _context.SystemSettings
-                .FirstOrDefaultAsync(s => s.SettingKey == "Approval.TopLevelFallbackUserId");
+            var settings = await _context.SystemSettings
+                .Where(s => s.SettingKey == "Approval.TopLevelFallbackUserId" || s.SettingKey == "Approval.DefaultFallbackUserId")
+                .ToListAsync();
 
             var dto = new ApprovalSettingsDto();
-            if (setting != null && int.TryParse(setting.SettingValue, out var userId))
+            foreach (var s in settings)
             {
-                dto.TopLevelFallbackUserId = userId;
+                if (s.SettingKey == "Approval.TopLevelFallbackUserId" && int.TryParse(s.SettingValue, out var topId))
+                    dto.TopLevelFallbackUserId = topId;
+                if (s.SettingKey == "Approval.DefaultFallbackUserId" && int.TryParse(s.SettingValue, out var defId))
+                    dto.DefaultFallbackUserId = defId;
             }
 
             return Ok(dto);
@@ -70,7 +74,8 @@ namespace HRManagement.Controllers
         [Authorize(Roles = "ADMIN,MANAGE")]
         public async Task<IActionResult> UpdateApprovalSettings([FromBody] ApprovalSettingsDto dto)
         {
-            await UpdateOrInsertSetting("Approval.TopLevelFallbackUserId", dto.TopLevelFallbackUserId.ToString(), "Approval");
+            await UpdateOrInsertSetting("Approval.TopLevelFallbackUserId", dto.TopLevelFallbackUserId?.ToString() ?? "", "Workflow");
+            await UpdateOrInsertSetting("Approval.DefaultFallbackUserId", dto.DefaultFallbackUserId?.ToString() ?? "", "Workflow");
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật cấu hình phê duyệt thành công." });
         }

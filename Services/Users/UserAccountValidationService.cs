@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -9,10 +9,12 @@ namespace HRManagement.Services.Users
     public class UserAccountValidationService : IUserAccountValidationService
     {
         private readonly HrmsDbContext _context;
+        private readonly Approvals.IApprovalRouteService _approvalRouteService;
 
-        public UserAccountValidationService(HrmsDbContext context)
+        public UserAccountValidationService(HrmsDbContext context, Approvals.IApprovalRouteService approvalRouteService)
         {
             _context = context;
+            _approvalRouteService = approvalRouteService;
         }
 
         public async Task<RoleValidationResult> ValidateRoleSelectionAsync(IEnumerable<int>? roleIds)
@@ -54,18 +56,19 @@ namespace HRManagement.Services.Users
             };
         }
 
-        public string? ValidateDirectManagerRequirement(Employee employee, IEnumerable<string> roleNames)
+        public async Task<string?> ValidateApprovalRouteAsync(Employee employee, IEnumerable<string> roleNames)
         {
-            var requiresDirectManager = roleNames.Any(roleName =>
+            var requiresApprovalRoute = roleNames.Any(roleName =>
                 string.Equals(roleName, "EMPLOYEE", StringComparison.OrdinalIgnoreCase));
 
-            if (!requiresDirectManager)
+            if (!requiresApprovalRoute)
                 return null;
 
-            if (employee.ManagerId.HasValue)
+            var result = await _approvalRouteService.CanSubmitRequestAsync(employee.EmployeeId);
+            if (result.IsAuthorized)
                 return null;
 
-            return "Employee role requires a direct manager. Please assign ManagerId before creating or activating this account.";
+            return "Employee has no direct manager and no fallback approver configured. Please assign a manager or update approval settings.";
         }
 
         public string GenerateBaseUsername(string firstName, string lastName)

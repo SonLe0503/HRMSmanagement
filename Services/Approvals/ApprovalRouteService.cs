@@ -27,34 +27,41 @@ namespace HRManagement.Services.Approvals
             {
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(u => u.EmployeeId == employee.ManagerId.Value && u.IsActive);
-                return managerUser?.UserId;
+                if (managerUser != null) return managerUser.UserId;
             }
 
-            // Rule 2: Employee has NO ManagerId
+            // Rule 2: Top-level Fallback
             var isTopLevel = await _topLevelResolver.IsTopLevelEmployeeAsync(employeeId);
             if (isTopLevel)
             {
-                // Fallback from system settings
-                return await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                var topFallback = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                if (topFallback.HasValue) return topFallback;
             }
 
-            // Not top-level and no manager = no approver
-            return null;
+            // Rule 3: Default Fallback (configured in system settings)
+            var defaultFallback = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
+            if (defaultFallback.HasValue) return defaultFallback;
+
+            // Rule 4: System Ultimate Fallback (Find first active Admin as last resort)
+            var adminUser = await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.IsActive && 
+                    (u.Username == "admin" || u.UserRoles.Any(ur => ur.Role.RoleName == "ADMIN")));
+            
+            return adminUser?.UserId;
         }
 
         public async Task<(bool IsAuthorized, string? Message)> CanSubmitRequestAsync(int employeeId)
         {
-            var employee = await _context.Employees
-                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId);
+            var approverId = await GetApproverIdAsync(employeeId);
+            
+            if (approverId.HasValue)
+            {
+                return (true, null);
+            }
 
-            if (employee == null) return (false, "Employee profile not found.");
-
-            if (employee.ManagerId.HasValue) return (true, null);
-
-            var isTopLevel = await _topLevelResolver.IsTopLevelEmployeeAsync(employeeId);
-            if (isTopLevel) return (true, null);
-
-            return (false, "You do not have a valid approval route. Please contact HR/Admin to update your reporting line.");
+            return (false, "You do not have a valid approval route. This may be because you have no manager and no fallback approver is configured in system settings. Please contact HR/Admin.");
         }
     }
 }

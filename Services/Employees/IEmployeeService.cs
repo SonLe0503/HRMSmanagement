@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 
 namespace HRManagement.Services.Employees
@@ -10,5 +10,6 @@ namespace HRManagement.Services.Employees
         Task<EmployeeResponseDetailDto> AddEmployeeAsync(CreateEmployeeDto dto);
         Task<EmployeeResponseDetailDto> UpdateEmployeeAsync(int employeeId, UpdateEmployeeDto dto);
         Task<bool> UpdateStatusAsync(int id, string status, int? modifiedBy = null);
+        Task<IEnumerable<EmployeeApprovalAnalysisDto>> GetApprovalAnalysisAsync();
     }
 }

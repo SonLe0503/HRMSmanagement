@@ -39,5 +39,18 @@ namespace HRManagement.Services.Approvals
 
             return null;
         }
+
+        public async Task<int?> GetDefaultFallbackUserIdAsync()
+        {
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.SettingKey == "Approval.DefaultFallbackUserId");
+
+            if (setting != null && int.TryParse(setting.SettingValue, out var userId))
+            {
+                return userId;
+            }
+
+            return null;
+        }
     }
 }
