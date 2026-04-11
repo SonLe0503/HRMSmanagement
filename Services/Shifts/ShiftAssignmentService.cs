@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Implementations;
+using HRManagement.DataAcess.Implementations;
 using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs.ShiftAssignments;
 using HRManagement.Models;
@@ -239,7 +239,9 @@ namespace HRManagement.Services.Shifts
                 RecurrencePattern = x.RecurrencePattern,
                 Status = x.Status,
                 CreatedDate = x.CreatedDate,
-                CreatedBy = x.CreatedBy
+                CreatedBy = x.CreatedBy,
+                StartTime = x.Shift?.StartTime,
+                EndTime = x.Shift?.EndTime
             };
         }
     }
