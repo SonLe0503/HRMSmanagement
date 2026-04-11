@@ -46,10 +46,10 @@ namespace HRManagement.Controllers
                 return Ok(new
                 {
                     message = "Check-in thành công.",
-                    result.attendanceId,
-                    result.employeeId,
-                    result.attendanceDate,
-                    result.checkInTime,
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
                     // Note: Face verification results are handled inside Service
                 });
             }
@@ -106,7 +106,11 @@ namespace HRManagement.Controllers
                     {
                         request.Location = "[INVALID] Không có dữ liệu GPS";
                     }
-              [HttpPost("checkout")]
+                }
+            }
+        }
+
+        [HttpPost("checkout")]
         public async Task<IActionResult> FaceCheckOut([FromBody] CheckOutRequestDto request)
         {
             try
@@ -128,12 +132,12 @@ namespace HRManagement.Controllers
                 return Ok(new
                 {
                     message = "Check-out thành công.",
-                    result.attendanceId,
-                    result.employeeId,
-                    result.attendanceDate,
-                    result.checkInTime,
-                    result.checkOutTime,
-                    result.workingHours
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
+                    result.CheckOutTime,
+                    result.WorkingHours
                 });
             }
             catch (InvalidOperationException ex)
