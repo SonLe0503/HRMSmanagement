@@ -54,25 +54,6 @@ namespace HRManagement.Controllers
             }
         }
 
-        [HttpPost("bulk-assign-department")]
-        public async Task<ActionResult<AssignmentResultDto>> BulkAssignByDepartment([FromBody] BulkAssignByDepartmentDto dto)
-        {
-            try
-            {
-                var result = await _evaluationService.BulkAssignByDepartmentAsync(dto);
-                return Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-
-        }
-
         [HttpGet("cycle/{cycleId}/preview")]
         public async Task<ActionResult<List<AssignmentPreviewDto>>> GetAssignmentPreview(int cycleId)
         {

@@ -39,6 +39,11 @@ builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepo
 builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
 builder.Services.AddScoped<IEvaluationRepository, EvaluationRepository>();
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
+builder.Services.AddScoped<ISubmitEvaluationService, SubmitEvaluationService>();
+builder.Services.AddScoped<IViewEvaluationResultService, ViewEvaluationResultService>();
+builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
+
+
 
 builder.Services.AddCors(options =>
 {
