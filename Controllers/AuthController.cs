@@ -143,13 +143,14 @@ namespace HRManagement.Controllers
                 .FirstOrDefaultAsync(u =>
                     u.Email.ToLower() == input || u.Username.ToLower() == input);
 
-            // Vì lý do bảo mật: không nói rõ user có tồn tại hay không
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
-                return Ok(new
-                {
-                    message = "Nếu tài khoản tồn tại, mã OTP đặt lại mật khẩu đã được gửi qua email."
-                });
+                return BadRequest(new { message = "Email hoặc Username không tồn tại trong hệ thống." });
+            }
+
+            if (!user.IsActive)
+            {
+                return BadRequest(new { message = "Tài khoản của bạn hiện đang bị vô hiệu hóa." });
             }
 
             var otp = GenerateOtp();

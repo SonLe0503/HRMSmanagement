@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -35,19 +35,12 @@ namespace HRManagement.Services.Employees
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-            //if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
-            //    throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
-
             if (await _employeeRepository.EmailExistsAsync(dto.Email))
                 throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
 
 
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
-
-
-            if (dto.JoinDate > today)
-                throw new ArgumentException("Join date cannot be in the future.");
 
 
             if (dto.DateOfBirth is DateOnly dob)
@@ -252,8 +245,6 @@ namespace HRManagement.Services.Employees
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
 
-            if (dto.JoinDate > today)
-                throw new ArgumentException("Join date cannot be in the future.");
 
             if (dto.ResignationDate.HasValue && dto.ResignationDate.Value < dto.JoinDate)
                 throw new ArgumentException("Resignation date cannot be before join date.");
