@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.LeaveTypes;
+using HRManagement.DTOs.LeaveTypes;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -71,12 +71,19 @@ namespace HRManagement.Services.Leaves
 
         public async Task<LeaveTypeDTO> CreateLeaveTypeAsync(CreateLeaveTypeDTO dto)
         {
-            // Check duplicate code
-            bool codeExists = await _context.LeaveTypes
-                .AnyAsync(x => x.LeaveTypeCode.ToLower() == dto.LeaveTypeCode.ToLower());
+            // Auto-generate code if empty or provided
+            string finalCode = string.IsNullOrWhiteSpace(dto.LeaveTypeCode) 
+                ? await GenerateUniqueCodeAsync(dto.LeaveTypeName)
+                : dto.LeaveTypeCode.Trim().ToUpper();
 
-            if (codeExists)
-                throw new Exception("LeaveTypeCode already exists.");
+            // Check duplicate code for provided code
+            if (!string.IsNullOrWhiteSpace(dto.LeaveTypeCode))
+            {
+                bool codeExists = await _context.LeaveTypes
+                    .AnyAsync(x => x.LeaveTypeCode.ToLower() == finalCode.ToLower());
+                if (codeExists)
+                    finalCode = await GenerateUniqueCodeAsync(dto.LeaveTypeName); // Fallback to auto-gen if provided exists
+            }
 
             // Nếu IsCarryForward = false thì MaxCarryForwardDays nên = null
             if (!dto.IsCarryForward)
@@ -86,7 +93,7 @@ namespace HRManagement.Services.Leaves
 
             var leaveType = new LeaveType
             {
-                LeaveTypeCode = dto.LeaveTypeCode.Trim(),
+                LeaveTypeCode = finalCode,
                 LeaveTypeName = dto.LeaveTypeName.Trim(),
                 AnnualEntitlement = dto.AnnualEntitlement,
                 IsPaid = dto.IsPaid,
@@ -95,12 +102,11 @@ namespace HRManagement.Services.Leaves
                 MaxCarryForwardDays = dto.MaxCarryForwardDays,
                 IsActive = dto.IsActive,
                 CreatedDate = DateTime.UtcNow,
-                CreatedBy = null // nếu có lấy user từ token thì gán sau
+                CreatedBy = null
             };
 
             _context.LeaveTypes.Add(leaveType);
             await _context.SaveChangesAsync();
-
             return new LeaveTypeDTO
             {
                 LeaveTypeId = leaveType.LeaveTypeId,
@@ -113,6 +119,28 @@ namespace HRManagement.Services.Leaves
                 MaxCarryForwardDays = leaveType.MaxCarryForwardDays,
                 IsActive = leaveType.IsActive
             };
+        }
+
+        private async Task<string> GenerateUniqueCodeAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "LT";
+
+            // Lấy các chữ cái đầu của mỗi từ, ví dụ: "Sick Leave" -> "SL"
+            var words = name.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+            var baseCode = string.Join("", words.Select(w => char.ToUpper(w[0])));
+
+            if (baseCode.Length < 2 && name.Length >= 2) 
+                baseCode = name.Substring(0, 2).ToUpper();
+
+            string code = baseCode;
+            int counter = 1;
+
+            while (await _context.LeaveTypes.AnyAsync(x => x.LeaveTypeCode == code))
+            {
+                code = $"{baseCode}{counter++}";
+            }
+
+            return code;
         }
 
         public async Task<LeaveTypeDTO?> UpdateLeaveTypeAsync(int id, UpdateLeaveTypeDTO dto)

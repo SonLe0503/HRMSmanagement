@@ -34,35 +34,55 @@ namespace HRManagement.Controllers
         [HttpPost("checkin")]
         public async Task<IActionResult> FaceCheckIn([FromBody] CheckInRequestDto request)
         {
-            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-
-            if (employeeId <= 0)
-                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
-
-            if (request == null || string.IsNullOrWhiteSpace(request.FaceImageBase64))
-                return BadRequest(new { message = "Ảnh check-in là bắt buộc." });
-
-            var verifyResult = await _faceVerificationService.VerifyAsync(
-                employeeId,
-                request.FaceImageBase64,
-                "CheckIn",
-                request.DeviceInfo,
-                request.IpAddress,
-                request.Location
-            );
-
-            if (!verifyResult.IsMatch)
+            try
             {
-                return Unauthorized(new
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                
+                // Add GPS validation logic here or move to service
+                // For now, keep the location validation in controller as it uses SystemSettings
+                await ValidateLocationAsync(request);
+
+                var result = await _attendanceService.CheckInAsync(employeeId, request);
+                return Ok(new
                 {
-                    message = "Check-in thất bại do khuôn mặt không khớp.",
-                    verifyResult.ConfidenceScore,
-                    verifyResult.ThresholdUsed,
-                    verifyResult.FailureReason
+                    message = "Check-in thành công.",
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
+                    // Note: Face verification results are handled inside Service
                 });
             }
+            catch (InvalidOperationException ex)
+            {
+                // Handle "Already checked in" gracefully
+                if (ex.Message.Contains("đã check-in hôm nay rồi"))
+                {
+                    var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                    var today = DateOnly.FromDateTime(DateTime.Now);
+                    var attendance = await _context.AttendanceRecords
+                        .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
+                    
+                    return Ok(new
+                    {
+                        message = "Bạn đã check-in trước đó. Hệ thống giữ nguyên thời gian đầu tiên.",
+                        attendance?.AttendanceId,
+                        attendance?.EmployeeId,
+                        attendance?.AttendanceDate,
+                        attendance?.CheckInTime
+                    });
+                }
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-in.", detail = ex.Message });
+            }
+        }
 
-            // Verify Location if configured in SystemSettings
+        private async Task ValidateLocationAsync(CheckInRequestDto request)
+        {
+             // Verify Location if configured in SystemSettings
             var officeLatSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLatitude");
             var officeLngSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLongitude");
             var radiusSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "AttendanceAllowedRadius");
@@ -88,276 +108,46 @@ namespace HRManagement.Controllers
                     }
                 }
             }
-
-            var today = DateOnly.FromDateTime(DateTime.Now);
-            var nowTimeSpan = DateTime.Now.TimeOfDay;
-
-            var shiftAssignment = await _context.ShiftAssignments
-                .Include(sa => sa.Shift)
-                .FirstOrDefaultAsync(sa => sa.EmployeeId == employeeId && sa.AssignmentDate == today && sa.Status == "Active");
-
-            if (shiftAssignment != null && shiftAssignment.Shift != null)
-            {
-                var shift = shiftAssignment.Shift;
-                var startTimeSpan = shift.StartTime.ToTimeSpan();
-                
-                var allowedCheckInStart = startTimeSpan.Add(TimeSpan.FromMinutes(-(shift.EarlyCheckInMinutes ?? 0)));
-                var allowedCheckInEnd = startTimeSpan.Add(TimeSpan.FromMinutes(shift.LatestCheckInMinutes ?? 0));
-
-                if (nowTimeSpan < allowedCheckInStart)
-                {
-                    return BadRequest(new { message = $"Chưa đến giờ check-in. Giờ check-in sớm nhất là {allowedCheckInStart:hh\\:mm}." });
-                }
-                if (nowTimeSpan > allowedCheckInEnd)
-                {
-                    return BadRequest(new { message = $"Đã quá giờ check-in cho phép ({allowedCheckInEnd:hh\\:mm})." });
-                }
-            }
-
-            var attendance = await _context.AttendanceRecords
-                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
-
-            if (attendance != null && attendance.CheckInTime != null)
-            {
-                return Ok(new
-                {
-                    message = "Bạn đã check-in trước đó. Hệ thống giữ nguyên thời gian đầu tiên.",
-                    attendance.AttendanceId,
-                    attendance.EmployeeId,
-                    attendance.AttendanceDate,
-                    attendance.CheckInTime,
-                    verifyResult.ConfidenceScore,
-                    verifyResult.ThresholdUsed
-                });
-            }
-
-            int lateMinutes = 0;
-            string status = "Present";
-            if (shiftAssignment != null && shiftAssignment.Shift != null)
-            {
-                var shift = shiftAssignment.Shift;
-                var startTimeSpan = shift.StartTime.ToTimeSpan();
-                var lateTimeSpan = nowTimeSpan - startTimeSpan;
-                
-                if (lateTimeSpan.TotalMinutes > (shift.LateGraceMinutes ?? 0))
-                {
-                    lateMinutes = (int)Math.Floor(lateTimeSpan.TotalMinutes);
-                    status = "Late";
-                }
-            }
-
-            if (attendance == null)
-            {
-                attendance = new AttendanceRecord
-                {
-                    EmployeeId = employeeId,
-                    AttendanceDate = today,
-                    CheckInTime = DateTime.Now,
-                    Status = status,
-                    LateMinutes = lateMinutes,
-                    ShiftId = shiftAssignment?.ShiftId,
-                    CheckInVerificationMethod = "FACE_AI",
-                    CheckInVerified = true,
-                    Location = request.Location,
-                    Remarks = string.IsNullOrWhiteSpace(request.Remarks)
-                        ? "Check-in bằng nhận diện khuôn mặt"
-                        : request.Remarks,
-                    CreatedDate = DateTime.Now
-                };
-                _context.AttendanceRecords.Add(attendance);
-            }
-            else
-            {
-                attendance.CheckInTime = DateTime.Now;
-                attendance.Status = status;
-                attendance.LateMinutes = lateMinutes;
-                attendance.ShiftId = shiftAssignment?.ShiftId;
-                attendance.CheckInVerificationMethod = "FACE_AI";
-                attendance.CheckInVerified = true;
-                if (!string.IsNullOrEmpty(attendance.Location) && attendance.Location.Contains("[INVALID]") && !request.Location.Contains("[INVALID]"))
-                {
-                    attendance.Location = "[INVALID] " + request.Location;
-                }
-                else
-                {
-                    attendance.Location = request.Location;
-                }
-                string newCheckInRemarks = string.IsNullOrWhiteSpace(request.Remarks) ? "Check-in bằng nhận diện khuôn mặt" : request.Remarks;
-                if (!string.IsNullOrWhiteSpace(attendance.Remarks))
-                {
-                    if (!attendance.Remarks.Contains(newCheckInRemarks))
-                    {
-                        attendance.Remarks += "\n" + newCheckInRemarks;
-                    }
-                }
-                else
-                {
-                    attendance.Remarks = newCheckInRemarks;
-                }
-                attendance.ModifiedDate = DateTime.Now;
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Check-in thành công.",
-                attendance.AttendanceId,
-                attendance.EmployeeId,
-                attendance.AttendanceDate,
-                attendance.CheckInTime,
-                verifyResult.ConfidenceScore,
-                verifyResult.ThresholdUsed
-            });
         }
 
         [HttpPost("checkout")]
-        public async Task<IActionResult> FaceCheckOut([FromBody] CheckInRequestDto request)
+        public async Task<IActionResult> FaceCheckOut([FromBody] CheckOutRequestDto request)
         {
-            var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-
-            if (employeeId <= 0)
-                return Unauthorized(new { message = "Không xác định được nhân viên hiện tại." });
-
-            if (request == null || string.IsNullOrWhiteSpace(request.FaceImageBase64))
-                return BadRequest(new { message = "Ảnh check-out là bắt buộc." });
-
-            var verifyResult = await _faceVerificationService.VerifyAsync(
-                employeeId,
-                request.FaceImageBase64,
-                "CheckOut",
-                request.DeviceInfo,
-                request.IpAddress,
-                request.Location
-            );
-
-            if (!verifyResult.IsMatch)
+            try
             {
-                return Unauthorized(new
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+                // Validation GPS using common helper
+                var checkInRequest = new CheckInRequestDto 
+                { 
+                    Latitude = request.Latitude, 
+                    Longitude = request.Longitude, 
+                    Location = request.Location 
+                };
+                await ValidateLocationAsync(checkInRequest);
+                request.Location = checkInRequest.Location;
+
+                var result = await _attendanceService.CheckOutAsync(employeeId, request);
+
+                return Ok(new
                 {
-                    message = "Check-out thất bại do khuôn mặt không khớp.",
-                    verifyResult.ConfidenceScore,
-                    verifyResult.ThresholdUsed,
-                    verifyResult.FailureReason
+                    message = "Check-out thành công.",
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
+                    result.CheckOutTime,
+                    result.WorkingHours
                 });
             }
-
-            // Verify Location if configured in SystemSettings
-            var officeLatSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLatitude");
-            var officeLngSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLongitude");
-            var radiusSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "AttendanceAllowedRadius");
-
-            if (officeLatSetting != null && officeLngSetting != null && radiusSetting != null && 
-                !string.IsNullOrEmpty(officeLatSetting.SettingValue) && !string.IsNullOrEmpty(officeLngSetting.SettingValue))
+            catch (InvalidOperationException ex)
             {
-                if (double.TryParse(officeLatSetting.SettingValue, out var officeLat) && 
-                    double.TryParse(officeLngSetting.SettingValue, out var officeLng) && 
-                    double.TryParse(radiusSetting.SettingValue, out var radius))
-                {
-                    if (request.Latitude.HasValue && request.Longitude.HasValue)
-                    {
-                        var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
-                        if (distance > radius)
-                        {
-                            request.Location = "[INVALID] " + request.Location;
-                        }
-                    }
-                    else
-                    {
-                        request.Location = "[INVALID] Không có dữ liệu GPS";
-                    }
-                }
+                return BadRequest(new { message = ex.Message });
             }
-
-            var today = DateOnly.FromDateTime(DateTime.Now);
-            var nowTimeSpan = DateTime.Now.TimeOfDay;
-
-            var attendance = await _context.AttendanceRecords
-                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
-
-            if (attendance == null || attendance.CheckInTime == null)
+            catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = "Bạn chưa check-in hôm nay."
-                });
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-out.", detail = ex.Message });
             }
-
-            var shiftAssignment = await _context.ShiftAssignments
-                .Include(sa => sa.Shift)
-                .FirstOrDefaultAsync(sa => sa.EmployeeId == employeeId && sa.AssignmentDate == today && sa.Status == "Active");
-
-            int earlyLeaveMinutes = 0;
-            if (shiftAssignment != null && shiftAssignment.Shift != null)
-            {
-                var shift = shiftAssignment.Shift;
-                var endTimeSpan = shift.EndTime.ToTimeSpan();
-                
-                var allowedCheckOutStart = endTimeSpan.Add(TimeSpan.FromMinutes(-(shift.EarliestCheckOutMinutes ?? 0)));
-                var allowedCheckOutEnd = endTimeSpan.Add(TimeSpan.FromMinutes(shift.LatestCheckOutMinutes ?? 0));
-
-                if (nowTimeSpan < allowedCheckOutStart)
-                {
-                    return BadRequest(new { message = $"Chưa tới giờ được phép check-out. Sớm nhất là {allowedCheckOutStart:hh\\:mm}." });
-                }
-                if (nowTimeSpan > allowedCheckOutEnd)
-                {
-                    return BadRequest(new { message = $"Đã quá giờ check-out ({allowedCheckOutEnd:hh\\:mm})." });
-                }
-                
-                var earlyTimeSpan = endTimeSpan - nowTimeSpan;
-                if (earlyTimeSpan.TotalMinutes > 0)
-                {
-                    earlyLeaveMinutes = (int)Math.Floor(earlyTimeSpan.TotalMinutes);
-                }
-            }
-
-            attendance.CheckOutTime = DateTime.Now;
-            attendance.EarlyLeaveMinutes = earlyLeaveMinutes;
-            attendance.CheckOutVerificationMethod = "FACE_AI";
-            attendance.CheckOutVerified = true;
-            if (!string.IsNullOrEmpty(attendance.Location) && attendance.Location.Contains("[INVALID]") && !request.Location.Contains("[INVALID]"))
-            {
-                attendance.Location = "[INVALID] " + request.Location;
-            }
-            else
-            {
-                attendance.Location = request.Location;
-            }
-
-            string newRemarks = string.IsNullOrWhiteSpace(request.Remarks) ? "Check-out bằng nhận diện khuôn mặt" : request.Remarks;
-            if (!string.IsNullOrWhiteSpace(attendance.Remarks))
-            {
-                if (!attendance.Remarks.Contains(newRemarks))
-                {
-                    attendance.Remarks += "\n" + newRemarks;
-                }
-            }
-            else
-            {
-                attendance.Remarks = newRemarks;
-            }
-            attendance.ModifiedDate = DateTime.Now;
-
-            if (attendance.CheckInTime.HasValue)
-            {
-                attendance.WorkingHours = (decimal)(attendance.CheckOutTime.Value - attendance.CheckInTime.Value).TotalHours;
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Check-out thành công.",
-                attendance.AttendanceId,
-                attendance.EmployeeId,
-                attendance.AttendanceDate,
-                attendance.CheckInTime,
-                attendance.CheckOutTime,
-                attendance.WorkingHours,
-                verifyResult.ConfidenceScore,
-                verifyResult.ThresholdUsed
-            });
         }
 
         [HttpGet("my-today")]
