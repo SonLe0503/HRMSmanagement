@@ -194,6 +194,7 @@ namespace HRManagement.Services.Overtimes
                 Reason = dto.Reason,
                 TaskDescription = dto.TaskDescription,
                 Status = initialStatus,
+                TargetApproverId = approverId,
                 SubmittedDate = DateTime.Now,
                 ReviewedDate = initialStatus == "Approved" ? DateTime.Now : null,
                 ReviewedBy = null,
@@ -259,9 +260,8 @@ namespace HRManagement.Services.Overtimes
             if (request == null || request.Status != "Pending")
                 return ServiceResult<string>.Fail("MSG-42", "Request already processed or not found.");
 
-            // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-            var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(request.EmployeeId);
-            if (expectedApproverId == null || expectedApproverId != managerUserId)
+            // Validation using frozen TargetApproverId
+            if (request.TargetApproverId == null || request.TargetApproverId != managerUserId)
             {
                 return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
             }
@@ -326,9 +326,8 @@ namespace HRManagement.Services.Overtimes
             if (request == null || request.Status != "Pending")
                 return ServiceResult<string>.Fail("MSG-42", "Request already processed or not found.");
 
-            // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-            var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(request.EmployeeId);
-            if (expectedApproverId == null || expectedApproverId != managerUserId)
+            // Validation using frozen TargetApproverId
+            if (request.TargetApproverId == null || request.TargetApproverId != managerUserId)
             {
                 return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
             }
@@ -489,9 +488,7 @@ namespace HRManagement.Services.Overtimes
                 .Include(or => or.Employee)
                     .ThenInclude(e => e.Position)
                 .Where(or =>
-                    (managerUser.EmployeeId.HasValue && or.Employee.ManagerId == managerUser.EmployeeId) ||
-                    (or.Employee.ManagerId == null && or.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
-                    (or.Employee.ManagerId == null && !or.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId)
+                    or.TargetApproverId == managerUserId
                 )
                 .OrderByDescending(x => x.SubmittedDate)
                 .ToListAsync();

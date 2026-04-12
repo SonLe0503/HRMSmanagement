@@ -4,6 +4,7 @@ using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRManagement.Migrations
 {
     [DbContext(typeof(HrmsDbContext))]
-    partial class HrmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260412091127_AddHRProcedureFields_TransferPhase1")]
+    partial class AddHRProcedureFields_TransferPhase1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1179,9 +1182,6 @@ namespace HRManagement.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
-                    b.Property<int?>("TargetApproverId")
-                        .HasColumnType("int");
-
                     b.HasKey("LeaveRequestId")
                         .HasName("PK__LeaveReq__6094218E199159EC");
 
@@ -1190,8 +1190,6 @@ namespace HRManagement.Migrations
                     b.HasIndex("LeaveTypeId");
 
                     b.HasIndex("ReviewedBy");
-
-                    b.HasIndex("TargetApproverId");
 
                     b.HasIndex(new[] { "StartDate", "EndDate" }, "IX_LeaveRequests_Dates");
 
@@ -1382,9 +1380,6 @@ namespace HRManagement.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
-                    b.Property<int?>("TargetApproverId")
-                        .HasColumnType("int");
-
                     b.Property<string>("TaskDescription")
                         .HasColumnType("nvarchar(max)");
 
@@ -1397,8 +1392,6 @@ namespace HRManagement.Migrations
                     b.HasIndex("ApprovedBy");
 
                     b.HasIndex("ReviewedBy");
-
-                    b.HasIndex("TargetApproverId");
 
                     b.HasIndex(new[] { "EmployeeId" }, "IX_OvertimeRequests_EmployeeID");
 
@@ -2712,11 +2705,6 @@ namespace HRManagement.Migrations
                         .HasForeignKey("ReviewedBy")
                         .HasConstraintName("FK_LeaveRequests_ReviewedBy");
 
-                    b.HasOne("HRManagement.Models.User", "TargetApprover")
-                        .WithMany()
-                        .HasForeignKey("TargetApproverId")
-                        .HasConstraintName("FK_LeaveRequests_TargetApprover");
-
                     b.Navigation("ApprovedByNavigation");
 
                     b.Navigation("Employee");
@@ -2724,8 +2712,6 @@ namespace HRManagement.Migrations
                     b.Navigation("LeaveType");
 
                     b.Navigation("ReviewedByNavigation");
-
-                    b.Navigation("TargetApprover");
                 });
 
             modelBuilder.Entity("HRManagement.Models.Notification", b =>
@@ -2757,18 +2743,11 @@ namespace HRManagement.Migrations
                         .HasForeignKey("ReviewedBy")
                         .HasConstraintName("FK_OvertimeRequests_ReviewedBy");
 
-                    b.HasOne("HRManagement.Models.User", "TargetApprover")
-                        .WithMany()
-                        .HasForeignKey("TargetApproverId")
-                        .HasConstraintName("FK_OvertimeRequests_TargetApprover");
-
                     b.Navigation("ApprovedByNavigation");
 
                     b.Navigation("Employee");
 
                     b.Navigation("ReviewedByNavigation");
-
-                    b.Navigation("TargetApprover");
                 });
 
             modelBuilder.Entity("HRManagement.Models.PayrollAllowance", b =>

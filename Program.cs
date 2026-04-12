@@ -24,6 +24,7 @@ using HRManagement.Services.Evaluations;
 using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
+using HRManagement.Services.Backgrounds;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -90,6 +91,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddHostedService<HRProcedureBackgroundService>();
 
 // CORS
 builder.Services.AddCors(options =>

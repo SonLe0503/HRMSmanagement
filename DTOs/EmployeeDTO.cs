@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -39,6 +39,9 @@ namespace HRManagement.DTOs
         public string EmploymentStatus { get; set; } = null!;
         public string DepartmentName { get; set; } = null!;
         public string PositionName { get; set; } = null!;
+        public string? ManagerName { get; set; }
+        public int? DepartmentId { get; set; }
+        public string? RoleName { get; set; }
     }
     public class CreateEmployeeDto
     {
