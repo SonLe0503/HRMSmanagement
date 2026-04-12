@@ -18,7 +18,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<ActionResult<HRProcedureResponseDto>> SubmitProcedure([FromBody] CreateHRProcedureDto createDto)
         {
             try
@@ -36,6 +36,10 @@ namespace HRManagement.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -83,7 +87,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [Authorize(Roles = "ADMIN,MANAGE,HR")]
         public async Task<ActionResult<HRProcedureResponseDto>> UpdateProcedure(
             int id,
             [FromBody] UpdateHRProcedureDto updateDto)
@@ -96,6 +100,10 @@ namespace HRManagement.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -118,6 +126,10 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -139,6 +151,10 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -150,7 +166,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [Authorize(Roles = "ADMIN,MANAGE,HR")]
         public async Task<ActionResult> DeleteProcedure(int id)
         {
             var deleted = await _procedureService.DeleteProcedureAsync(id);
@@ -174,6 +190,10 @@ namespace HRManagement.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {

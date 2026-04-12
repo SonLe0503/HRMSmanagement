@@ -34,6 +34,8 @@ namespace HRManagement.Controllers
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+                .Include(u => u.Employee)
+                .ThenInclude(e => e.Position)
                 .FirstOrDefaultAsync(u => u.Username == request.Username);
             if (user == null)
             {
@@ -59,6 +61,8 @@ namespace HRManagement.Controllers
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
                   new Claim("EmployeeID", user.EmployeeId?.ToString() ?? ""),
+                  new Claim("IsTopLevel", (user.Employee?.Position?.IsTopLevel ?? false).ToString().ToLower()),
+                  new Claim("PositionName", user.Employee?.Position?.PositionName ?? ""),
                   new Claim("LastLogin", lastLoginStr)
 
             };

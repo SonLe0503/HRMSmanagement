@@ -2,6 +2,7 @@ using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.Emails;
 using Microsoft.EntityFrameworkCore;
 using Task = System.Threading.Tasks.Task;
 
@@ -14,19 +15,22 @@ namespace HRManagement.Services.HRProceduces
         private readonly ICurrentUserService _currentUserService;
         private readonly HrmsDbContext _context;
         private readonly Approvals.ITopLevelResolver _topLevelResolver;
+        private readonly IEmailService _emailService;
 
         public HRProcedureService(
             IHRProcedureRepository hrProcedureRepository,
             IEmployeeRepository employeeRepository,
             ICurrentUserService currentUserService,
             HrmsDbContext context,
-            Approvals.ITopLevelResolver topLevelResolver)
+            Approvals.ITopLevelResolver topLevelResolver,
+            IEmailService emailService)
         {
             _hrProcedureRepository = hrProcedureRepository;
             _employeeRepository = employeeRepository;
             _currentUserService = currentUserService;
             _context = context;
             _topLevelResolver = topLevelResolver;
+            _emailService = emailService;
         }
 
         // ─────────────────────────────────────────
@@ -311,7 +315,32 @@ namespace HRManagement.Services.HRProceduces
 
         public async Task<IEnumerable<HRProcedureListDto>> GetAllProceduresAsync()
         {
-            var procedures = await _hrProcedureRepository.GetAllAsync();
+            var isAdmin = _currentUserService.RoleName == "ADMIN";
+            var isHR = _currentUserService.RoleName == "HR";
+            bool seeAll = isAdmin || isHR;
+
+            if (!seeAll)
+            {
+                try
+                {
+                    var currentEmpId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                    seeAll = await _topLevelResolver.IsTopLevelEmployeeAsync(currentEmpId);
+                }
+                catch { /* Không phải nhân viên */ }
+            }
+
+            IEnumerable<Hrprocedure> procedures;
+            if (seeAll)
+            {
+                procedures = await _hrProcedureRepository.GetAllAsync();
+            }
+            else
+            {
+                // Chỉ xem được đơn của chính mình
+                var currentEmpId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                procedures = await _hrProcedureRepository.GetByEmployeeIdAsync(currentEmpId);
+            }
+
             return await MapToListDtosAsync(procedures);
         }
 
@@ -362,7 +391,7 @@ namespace HRManagement.Services.HRProceduces
 
         /// <summary>Phase 2: nên apply ngay nếu EffectiveDate &lt;= hôm nay</summary>
         private static bool ShouldApplyNow(Hrprocedure procedure)
-            => procedure.EffectiveDate <= DateOnly.FromDateTime(DateTime.UtcNow);
+            => procedure.EffectiveDate <= DateOnly.FromDateTime(DateTime.Today);
 
         /// <summary>Phase 2: ghi thay đổi vào employee profile</summary>
         private async Task ApplyProcedureToEmployeeAsync(Hrprocedure procedure, int? appliedBy = null)
@@ -394,17 +423,26 @@ namespace HRManagement.Services.HRProceduces
                 case "resignation":
                     employee.EmploymentStatus = "Resignation";
                     employee.ResignationDate  = procedure.EffectiveDate;
+                    await DeactivateUserAccountAsync(employee);
                     break;
 
                 case "termination":
                     employee.EmploymentStatus = "Termination";
                     employee.ResignationDate  = procedure.EffectiveDate;
+                    await DeactivateUserAccountAsync(employee);
                     break;
             }
 
             employee.ModifiedDate = DateTime.UtcNow;
             employee.ModifiedBy   = appliedBy;
             await _employeeRepository.UpdateEmployeeAsync(employee);
+
+            // Tự động cấp/nâng cấp tài khoản nếu vị trí mới là cấp quản lý
+            if (procedure.NewPositionId.HasValue &&
+                procedure.ProcedureType.ToLower() is "appointment" or "transfer" or "promotion")
+            {
+                await ProvisionUserAccountAsync(employee, procedure.NewPositionId.Value, procedure.ProcedureType);
+            }
         }
 
         /// <summary>Phase 1: phát hiện no-op – tất cả giá trị mới giống hiện tại</summary>
@@ -506,5 +544,158 @@ namespace HRManagement.Services.HRProceduces
             var random = new Random().Next(1000, 9999);
             return $"PR-{datePrefix}-{random}";
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // AUTO PROVISIONING HELPERS
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Tự động tạo tài khoản mới hoặc nâng cấp Role khi nhân viên được
+        /// thăng chức / bổ nhiệm / điều chuyển sang vị trí cấp quản lý
+        /// (Position.Level >= 2 hoặc IsTopLevel = true).
+        /// </summary>
+        private async Task ProvisionUserAccountAsync(Employee employee, int newPositionId, string procedureType)
+        {
+            var newPosition = await _context.Positions.FindAsync(newPositionId);
+            if (newPosition == null) return;
+
+            // Chỉ xử lý khi vị trí mới là cấp quản lý trở lên
+            bool needsManagerRole = newPosition.Level >= 2 || newPosition.IsTopLevel;
+            if (!needsManagerRole) return;
+
+            // Xác định Role phù hợp: Luôn là MANAGE theo yêu cầu
+            string targetRoleName = "MANAGE";
+            var targetRole = await _context.Roles
+                .FirstOrDefaultAsync(r => r.RoleName == targetRoleName && r.IsActive);
+            if (targetRole == null) return; // Role chưa được cấu hình trong DB
+
+            // Kiểm tra nhân viên đã có tài khoản active chưa
+            var existingUser = await _context.Users
+                .Include(u => u.UserRoles)
+                .FirstOrDefaultAsync(u => u.EmployeeId == employee.EmployeeId && u.IsActive);
+
+            if (existingUser != null)
+            {
+                // Kiểm tra xem đã có đúng role MANAGE chưa
+                bool hasOnlyTargetRole = existingUser.UserRoles.Count == 1 && existingUser.UserRoles.Any(ur => ur.RoleId == targetRole.RoleId);
+                
+                if (!hasOnlyTargetRole)
+                {
+                    // Xóa tất cả Role hiện tại để đảm bảo chỉ có 1 Role duy nhất
+                    _context.UserRoles.RemoveRange(existingUser.UserRoles);
+                    
+                    _context.UserRoles.Add(new UserRole
+                    {
+                        UserId = existingUser.UserId,
+                        RoleId = targetRole.RoleId
+                    });
+                    
+                    await _context.SaveChangesAsync();
+
+                    // Gửi email thông báo cập nhật quyền
+                    var upgradeBody = $@"
+                        <h3>Cập nhật quyền hạn tài khoản HR System</h3>
+                        <p>Xin chào <b>{employee.FullName}</b>,</p>
+                        <p>Tài khoản của bạn vừa được cập nhật quyền hạn mới sau quyết định <b>{GetProcedureTypeVN(procedureType)}</b>:</p>
+                        <ul>
+                            <li><b>Vị trí mới:</b> {newPosition.PositionName}</li>
+                            <li><b>Quyền hạn hiện tại:</b> {targetRoleName}</li>
+                        </ul>
+                        <p>Ghi chú: Mọi quyền hạn cũ đã được thay thế bằng quyền hạn Quản lý. Vui lòng đăng nhập lại để áp dụng.</p>";
+
+                    await _emailService.SendAsync(
+                        employee.Email,
+                        "Cập nhật quyền hạn tài khoản HR System",
+                        upgradeBody);
+                }
+            }
+            else
+            {
+                // TH2: Chưa có tài khoản → Tạo mới
+                var baseUsername = employee.EmployeeCode.ToLowerInvariant();
+                var username = baseUsername;
+                var suffix = 1;
+                while (await _context.Users.AnyAsync(u => u.Username == username))
+                    username = $"{baseUsername}{suffix++}";
+
+                var tempPassword = Guid.NewGuid().ToString("N")[..8];
+
+                var newUser = new User
+                {
+                    Username     = username,
+                    Email        = employee.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword),
+                    EmployeeId   = employee.EmployeeId,
+                    IsActive     = true,
+                    CreatedDate  = DateTime.UtcNow
+                };
+
+                _context.Users.Add(newUser);
+                await _context.SaveChangesAsync();
+
+                _context.UserRoles.Add(new UserRole
+                {
+                    UserId = newUser.UserId,
+                    RoleId = targetRole.RoleId
+                });
+                await _context.SaveChangesAsync();
+
+                var newAccountBody = $@"
+                    <h3>Tài khoản HR System đã được tạo</h3>
+                    <p>Xin chào <b>{employee.FullName}</b>,</p>
+                    <p>Chúc mừng bạn đã được <b>{GetProcedureTypeVN(procedureType)}</b> lên vị trí <b>{newPosition.PositionName}</b>.</p>
+                    <p>Hệ thống đã tự động tạo tài khoản để bạn thực hiện các nghiệp vụ quản lý:</p>
+                    <ul>
+                        <li><b>Username:</b> {username}</li>
+                        <li><b>Mật khẩu tạm:</b> {tempPassword}</li>
+                        <li><b>Vai trò:</b> {targetRoleName}</li>
+                    </ul>
+                    <p><b>Vui lòng đăng nhập và đổi mật khẩu ngay sau khi nhận được email này.</b></p>";
+
+                await _emailService.SendAsync(
+                    employee.Email,
+                    "Tài khoản HR System của bạn đã được kích hoạt",
+                    newAccountBody);
+            }
+        }
+
+        /// <summary>
+        /// Tự động vô hiệu hóa tài khoản khi nhân viên thôi việc hoặc bị sa thải.
+        /// </summary>
+        private async Task DeactivateUserAccountAsync(Employee employee)
+        {
+            var users = await _context.Users
+                .Where(u => u.EmployeeId == employee.EmployeeId && u.IsActive)
+                .ToListAsync();
+
+            if (!users.Any()) return;
+
+            foreach (var user in users)
+            {
+                user.IsActive     = false;
+                user.ModifiedDate = DateTime.UtcNow;
+            }
+            await _context.SaveChangesAsync();
+
+            var deactivateBody = $@"
+                <h3>Thông báo: Tài khoản HR System đã bị vô hiệu hóa</h3>
+                <p>Xin chào <b>{employee.FullName}</b>,</p>
+                <p>Do thủ tục nhân sự liên quan đến việc chấm dứt hợp đồng,
+                   tài khoản của bạn đã bị <b>vô hiệu hóa</b>.</p>
+                <p>Nếu có thắc mắc, vui lòng liên hệ bộ phận Nhân sự.</p>";
+
+            await _emailService.SendAsync(
+                employee.Email,
+                "Tài khoản HR System đã bị vô hiệu hóa",
+                deactivateBody);
+        }
+
+        private static string GetProcedureTypeVN(string type) => type.ToLower() switch
+        {
+            "appointment" => "Bổ nhiệm",
+            "transfer"    => "Điều chuyển",
+            "promotion"   => "Thăng tiến",
+            _             => type
+        };
     }
 }

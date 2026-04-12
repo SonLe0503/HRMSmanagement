@@ -27,7 +27,7 @@ namespace HRManagement.Controllers
             _userAccountValidationService = userAccountValidationService;
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,HR,MANAGE")]
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -48,6 +48,7 @@ namespace HRManagement.Controllers
             return Ok(users);
         }
 
+        [Authorize(Roles = "ADMIN,HR,MANAGE")]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
         {

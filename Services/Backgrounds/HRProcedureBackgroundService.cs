@@ -33,8 +33,8 @@ namespace HRManagement.Services.Backgrounds
                     _logger.LogError(ex, "Error occurred while applying pending HR procedures.");
                 }
 
-                // Chạy mỗi ngày một lần (để test có thể để ngắn hơn, nhưng thực tế là daily)
-                await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                // Chạy mỗi 5 phút một lần để đảm bảo cập nhật kịp thời
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
 
             _logger.LogInformation("HR Procedure Background Service is stopping.");
