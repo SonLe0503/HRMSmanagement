@@ -257,7 +257,7 @@ namespace HRManagement.Services
             if (dto.DateOfBirth.HasValue && dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
                 throw new ArgumentException("Employee must be at least 18 years old at the time of joining.");
 
-            if(dto.DateOfBirth.HasValue && dto.DateOfBirth.Value.AddYears(18) < dto.JoinDate)
+            if(dto.DateOfBirth.HasValue && dto.JoinDate < dto.DateOfBirth.Value.AddYears(18))
                 throw new ArgumentException("Join date cannot be before employee turns 18.");
 
             if (dto.DepartmentId.HasValue)
