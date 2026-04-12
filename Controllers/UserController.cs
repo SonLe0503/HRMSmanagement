@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 using HRManagement.Services.Emails;
 using HRManagement.Services.Users;
@@ -92,7 +92,7 @@ namespace HRManagement.Controllers
             if (!roleValidation.IsValid)
                 return BadRequest(roleValidation.ErrorMessage);
 
-            var managerValidationError = _userAccountValidationService.ValidateDirectManagerRequirement(employee, roleValidation.RoleNames);
+            var managerValidationError = await _userAccountValidationService.ValidateApprovalRouteAsync(employee, roleValidation.RoleNames);
             if (managerValidationError != null)
                 return BadRequest(managerValidationError);
 
@@ -201,9 +201,9 @@ namespace HRManagement.Controllers
             if (!roleValidation.IsValid)
                 return BadRequest(roleValidation.ErrorMessage);
 
-            var managerValidationError = _userAccountValidationService.ValidateDirectManagerRequirement(employee, roleValidation.RoleNames);
-            if (managerValidationError != null)
-                return BadRequest(managerValidationError);
+            var approvalRouteError = await _userAccountValidationService.ValidateApprovalRouteAsync(employee, roleValidation.RoleNames);
+            if (approvalRouteError != null)
+                return BadRequest(approvalRouteError);
 
             var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
             var emailAlreadyUsed = await _context.Users
@@ -320,7 +320,7 @@ namespace HRManagement.Controllers
             if (employee == null)
                 return BadRequest("Employee does not exist");
 
-            var managerValidationError = _userAccountValidationService.ValidateDirectManagerRequirement(
+            var managerValidationError = await _userAccountValidationService.ValidateApprovalRouteAsync(
                 employee,
                 user.UserRoles.Select(ur => ur.Role.RoleName));
 

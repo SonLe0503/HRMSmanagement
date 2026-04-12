@@ -481,7 +481,8 @@ namespace HRManagement.Services.Overtimes
                 return ServiceResult<List<PendingOvertimeRequestDTO>>.Fail("MSG-106", "Access Denied.");
             }
 
-            var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var topLevelFallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var defaultFallbackUserId = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
 
             var pendingRequests = await _context.OvertimeRequests
                 .Where(or => or.Status == "Pending")
@@ -489,7 +490,8 @@ namespace HRManagement.Services.Overtimes
                     .ThenInclude(e => e.Position)
                 .Where(or =>
                     (managerUser.EmployeeId.HasValue && or.Employee.ManagerId == managerUser.EmployeeId) ||
-                    (or.Employee.ManagerId == null && or.Employee.Position.IsTopLevel && fallbackUserId == managerUserId)
+                    (or.Employee.ManagerId == null && or.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
+                    (or.Employee.ManagerId == null && !or.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId)
                 )
                 .OrderByDescending(x => x.SubmittedDate)
                 .ToListAsync();

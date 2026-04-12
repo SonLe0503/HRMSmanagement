@@ -142,6 +142,36 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
             )
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                var userIdStr = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var tokenLastLogin = principal?.FindFirst("LastLogin")?.Value;
+
+                if (string.IsNullOrEmpty(tokenLastLogin))
+                {
+                    context.Fail("Invalid or outdated token format. Please re-login.");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int userId))
+                {
+                    var dbContext = context.HttpContext.RequestServices.GetRequiredService<HrmsDbContext>();
+                    var user = await dbContext.Users.FindAsync(userId);
+                    
+                    if (user != null && user.LastLogin.HasValue)
+                    {
+                        var dbLastLogin = user.LastLogin.Value.ToString("yyyyMMddHHmmss");
+                        if (dbLastLogin != tokenLastLogin)
+                        {
+                            context.Fail("Concurrent login detected. Session is no longer valid.");
+                        }
+                    }
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();

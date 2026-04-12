@@ -48,7 +48,9 @@ namespace HRManagement.Controllers
             {
                 return Unauthorized(new { message = "Mật khẩu không đúng" });
             }
-            user.LastLogin = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            user.LastLogin = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second);
+            var lastLoginStr = user.LastLogin.Value.ToString("yyyyMMddHHmmss");
             await _context.SaveChangesAsync();
 
 
@@ -56,7 +58,8 @@ namespace HRManagement.Controllers
             {
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
-                  new Claim("EmployeeID", user.EmployeeId?.ToString() ?? "")
+                  new Claim("EmployeeID", user.EmployeeId?.ToString() ?? ""),
+                  new Claim("LastLogin", lastLoginStr)
 
             };
 
@@ -143,13 +146,14 @@ namespace HRManagement.Controllers
                 .FirstOrDefaultAsync(u =>
                     u.Email.ToLower() == input || u.Username.ToLower() == input);
 
-            // Vì lý do bảo mật: không nói rõ user có tồn tại hay không
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
-                return Ok(new
-                {
-                    message = "Nếu tài khoản tồn tại, mã OTP đặt lại mật khẩu đã được gửi qua email."
-                });
+                return BadRequest(new { message = "Email hoặc Username không tồn tại trong hệ thống." });
+            }
+
+            if (!user.IsActive)
+            {
+                return BadRequest(new { message = "Tài khoản của bạn hiện đang bị vô hiệu hóa." });
             }
 
             var otp = GenerateOtp();
@@ -244,6 +248,13 @@ namespace HRManagement.Controllers
         {
             var random = new Random();
             return random.Next(100000, 999999).ToString();
+        }
+
+        [Authorize]
+        [HttpGet("ping")]
+        public IActionResult Ping()
+        {
+            return Ok(new { message = "Session is valid." });
         }
     }
 }

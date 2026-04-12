@@ -1,7 +1,8 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.Models;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace HRManagement.Services.Employees
 {
@@ -9,10 +10,22 @@ namespace HRManagement.Services.Employees
     {
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        public EmployeeService(IEmployeeRepository employeeRepository, IHttpContextAccessor httpContextAccessor)
+        private readonly Approvals.IApprovalRouteService _approvalRouteService;
+        private readonly Approvals.ITopLevelResolver _topLevelResolver;
+        private readonly HRManagement.Models.HrmsDbContext _context;
+
+        public EmployeeService(
+            IEmployeeRepository employeeRepository, 
+            IHttpContextAccessor httpContextAccessor,
+            Approvals.IApprovalRouteService approvalRouteService,
+            Approvals.ITopLevelResolver topLevelResolver,
+            HRManagement.Models.HrmsDbContext context)
         {
             _employeeRepository = employeeRepository;
             _httpContextAccessor = httpContextAccessor;
+            _approvalRouteService = approvalRouteService;
+            _topLevelResolver = topLevelResolver;
+            _context = context;
         }
 
         private async Task<string> GenerateEmployeeCodeAsync()
@@ -35,19 +48,12 @@ namespace HRManagement.Services.Employees
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-            //if (await _employeeRepository.EmployeeCodeExistsAsync(dto.EmployeeCode))
-            //    throw new InvalidOperationException($"Employee code '{dto.EmployeeCode}' already exists.");
-
             if (await _employeeRepository.EmailExistsAsync(dto.Email))
                 throw new InvalidOperationException($"Email '{dto.Email}' already exists.");
 
 
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
-
-
-            if (dto.JoinDate > today)
-                throw new ArgumentException("Join date cannot be in the future.");
 
 
             if (dto.DateOfBirth is DateOnly dob)
@@ -252,8 +258,6 @@ namespace HRManagement.Services.Employees
             if (dto.BaseSalary < 0)
                 throw new ArgumentException("Base salary cannot be negative.");
 
-            if (dto.JoinDate > today)
-                throw new ArgumentException("Join date cannot be in the future.");
 
             if (dto.ResignationDate.HasValue && dto.ResignationDate.Value < dto.JoinDate)
                 throw new ArgumentException("Resignation date cannot be before join date.");
@@ -363,6 +367,83 @@ namespace HRManagement.Services.Employees
                 BaseSalary = employee.BaseSalary,
             };
         }
+        public async Task<IEnumerable<EmployeeApprovalAnalysisDto>> GetApprovalAnalysisAsync()
+        {
+            var employees = await _context.Employees
+                .Include(e => e.Manager)
+                .Include(e => e.Position)
+                .ToListAsync();
+
+            var result = new List<EmployeeApprovalAnalysisDto>();
+
+            foreach (var e in employees)
+            {
+                var isTopLevel = e.Position?.IsTopLevel ?? false;
+                var approverUserId = await _approvalRouteService.GetApproverIdAsync(e.EmployeeId);
+                
+                string routeType = "None";
+                string? approverName = null;
+
+                if (approverUserId.HasValue)
+                {
+                    var approverUser = await _context.Users
+                        .Include(u => u.Employee)
+                        .FirstOrDefaultAsync(u => u.UserId == approverUserId.Value);
+                    
+                    if (approverUser != null)
+                    {
+                        approverName = approverUser.Username;
+                        if (approverUser.Employee != null)
+                        {
+                            approverName = $"{approverUser.Employee.FullName} ({approverUser.Username})";
+                        }
+                    }
+                    else
+                    {
+                        approverName = "Unknown User";
+                    }
+
+                    // Determine type based on precedence
+                    if (e.ManagerId.HasValue)
+                    {
+                        routeType = "Direct";
+                    }
+                    else if (isTopLevel)
+                    {
+                        routeType = "TopLevelFallback";
+                    }
+                    else
+                    {
+                        var defaultSetting = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
+                        if (defaultSetting.HasValue && defaultSetting.Value == approverUserId)
+                        {
+                            routeType = "DefaultFallback";
+                        }
+                        else
+                        {
+                            routeType = "SystemAdminFallback";
+                        }
+                    }
+                }
+
+                result.Add(new EmployeeApprovalAnalysisDto
+                {
+                    EmployeeId = e.EmployeeId,
+                    EmployeeCode = e.EmployeeCode,
+                    FullName = e.FullName,
+                    ManagerId = e.ManagerId,
+                    ManagerName = e.Manager?.FullName,
+                    IsTopLevel = isTopLevel,
+                    TargetApproverId = approverUserId,
+                    TargetApproverName = approverName,
+                    ApprovalRouteType = routeType,
+                    IsValid = approverUserId.HasValue
+                });
+            }
+
+            return result;
+        }
+
         private int GetCurrentUserId(int? createdBy)
         {
             if (createdBy.HasValue)
