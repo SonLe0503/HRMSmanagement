@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess;
+using HRManagement.DataAcess;
 using HRManagement.DTOs;
 using HRManagement.Models;
 
@@ -39,9 +39,9 @@ namespace HRManagement.Services
             }
 
             int currentUserId = await _currentUserService.GetCurrentEmployeeIdAsync();
-            if (evaluation.Employee?.EmployeeId != currentUserId)
+            if (evaluation.EmployeeId != currentUserId)
             {
-                throw new InvalidOperationException("You can only submit self-evaluation for your own evaluation.");
+                throw new InvalidOperationException("You can only submit self-evaluation for your own evaluation. (Current ID: " + currentUserId + ", Target ID: " + evaluation.EmployeeId + ")");
             }
 
             var cycle = evaluation.Cycle;
@@ -102,10 +102,10 @@ namespace HRManagement.Services
             int currentUserId = await _currentUserService.GetCurrentEmployeeIdAsync();
             var currentEmployee = evaluation.Employee;
 
-            if (evaluation.PrimaryEvaluator?.EmployeeId != currentUserId &&
-                evaluation.SecondaryEvaluator?.EmployeeId != currentUserId)
+            if (evaluation.PrimaryEvaluatorId != currentUserId &&
+                evaluation.SecondaryEvaluatorId != currentUserId)
             {
-                throw new InvalidOperationException("You are not assigned as an evaluator for this evaluation.");
+                throw new InvalidOperationException("You are not assigned as an evaluator for this evaluation. (Current ID: " + currentUserId + ", Primary: " + evaluation.PrimaryEvaluatorId + ")");
             }
             var cycle = evaluation.Cycle;
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -169,6 +169,14 @@ namespace HRManagement.Services
             if (evaluation == null)
             {
                 throw new KeyNotFoundException("Evaluation not found.");
+            }
+
+            int currentUserId = await _currentUserService.GetCurrentEmployeeIdAsync();
+
+            if (evaluation.PrimaryEvaluatorId != currentUserId &&
+                evaluation.SecondaryEvaluatorId != currentUserId)
+            {
+                throw new InvalidOperationException("You are not assigned as an evaluator for this evaluation. (Current ID: " + currentUserId + ", Primary: " + evaluation.PrimaryEvaluatorId + ")");
             }
 
             foreach (var ratingDto in dto.Ratings)
@@ -240,7 +248,26 @@ namespace HRManagement.Services
             if (evaluation == null)
                 return null;
 
+            var criteriaList = evaluation.Template?.EvaluationCriteria ?? new List<EvaluationCriterion>();
             var ratings = await _ratingRepository.GetByEvaluationIdAsync(evaluationId);
+
+            var ratingsDtoList = criteriaList.Select(c => {
+                var r = ratings.FirstOrDefault(x => x.CriteriaId == c.CriteriaId);
+                return new EvaluationRatingResponseDto
+                {
+                    RatingId = r?.RatingId ?? 0,
+                    EvaluationId = evaluationId,
+                    CriteriaId = c.CriteriaId,
+                    CriteriaName = c.CriteriaName,
+                    CriteriaCategory = c.CriteriaCategory,
+                    Weightage = c.Weightage,
+                    SelfRating = r?.SelfRating,
+                    SelfComments = r?.SelfComments,
+                    ManagerRating = r?.ManagerRating,
+                    ManagerComments = r?.ManagerComments,
+                    Evidence = r?.Evidence
+                };
+            }).ToList();
 
             return new EvaluationDetailDto
             {
@@ -263,20 +290,7 @@ namespace HRManagement.Services
                 SubmittedDate = evaluation.SubmittedDate,
                 AcknowledgedDate = evaluation.AcknowledgedDate,
                 AcknowledgementComments = evaluation.AcknowledgementComments,
-                Ratings = ratings.Select(r => new EvaluationRatingResponseDto
-                {
-                    RatingId = r.RatingId,
-                    EvaluationId = r.EvaluationId,
-                    CriteriaId = r.CriteriaId,
-                    CriteriaName = r.Criteria?.CriteriaName ?? "N/A",
-                    CriteriaCategory = r.Criteria?.CriteriaCategory,
-                    Weightage = r.Criteria?.Weightage ?? 0,
-                    SelfRating = r.SelfRating,
-                    SelfComments = r.SelfComments,
-                    ManagerRating = r.ManagerRating,
-                    ManagerComments = r.ManagerComments,
-                    Evidence = r.Evidence
-                }).ToList()
+                Ratings = ratingsDtoList
             };
         }
 

@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -50,8 +50,12 @@ namespace HRManagement.Controllers
             {
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
-
             };
+
+            if (user.EmployeeId.HasValue)
+            {
+                claims.Add(new Claim("employeeId", user.EmployeeId.Value.ToString()));
+            }
 
             foreach (var userRole in user.UserRoles)
             {

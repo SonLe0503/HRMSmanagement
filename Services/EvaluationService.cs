@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess;
+using HRManagement.DataAcess;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using System;
@@ -214,9 +214,16 @@ namespace HRManagement.Services
 
             var employees = await GetEmployeesInScopeAsync();
             var previews = new List<AssignmentPreviewDto>();
+            
+            var existingEvals = await _evaluationRepository.GetByCycleIdAsync(cycleId);
+            var assignedEmployeeIds = existingEvals.Select(e => e.EmployeeId).ToHashSet();
 
             foreach (var employee in employees)
             {
+                if (assignedEmployeeIds.Contains(employee.EmployeeId))
+                {
+                    continue; // Skip employees who are already assigned
+                }
                 var preview = new AssignmentPreviewDto
                 {
                     EmployeeId = employee.EmployeeId,

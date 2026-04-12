@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -467,6 +467,7 @@ namespace HRManagement.DTOs
     public class EvaluationResultDto
     {
         public int EvaluationId { get; set; }
+        public int EmployeeId { get; set; }
         public string CycleName { get; set; } = null!;
         public DateOnly EvaluationPeriodStart { get; set; }
         public DateOnly EvaluationPeriodEnd { get; set; }

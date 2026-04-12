@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess;
+using HRManagement.DataAcess;
 using HRManagement.DTOs;
 
 namespace HRManagement.Services
@@ -90,6 +90,7 @@ namespace HRManagement.Services
             return new EvaluationResultDto
             {
                 EvaluationId = evaluation.EvaluationId,
+                EmployeeId = evaluation.EmployeeId,
                 CycleName = evaluation.Cycle?.CycleName ?? "N/A",
                 EvaluationPeriodStart = evaluation.Cycle?.EvaluationPeriodStart ?? DateOnly.MinValue,
                 EvaluationPeriodEnd = evaluation.Cycle?.EvaluationPeriodEnd ?? DateOnly.MinValue,

@@ -1,4 +1,4 @@
-﻿using HRManagement.Models;
+using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRManagement.DataAcess
@@ -58,6 +58,8 @@ namespace HRManagement.DataAcess
                 .Include(e => e.Employee)
                     .ThenInclude(emp => emp.Position)
                 .Include(e => e.Template)
+                .Include(e => e.PrimaryEvaluator)
+                .Include(e => e.SecondaryEvaluator)
                 .Where(e => e.PrimaryEvaluatorId == evaluatorId || e.SecondaryEvaluatorId == evaluatorId)
                 .ToListAsync();
         }
