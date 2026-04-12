@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -79,7 +79,7 @@ namespace HRManagement.DataAcess.Implementations
         public async Task<Hrprocedure> AddAsync(Hrprocedure procedure)
         {
             await _context.Hrprocedures.AddAsync(procedure);
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
             return procedure;
         }
 

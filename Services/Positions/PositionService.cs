@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using System.Security.Claims;
@@ -27,6 +27,7 @@ namespace HRManagement.Services.Positions
                 PositionName = createDto.PositionName,
                 Description = createDto.Description,
                 Level = createDto.Level,
+                IsTopLevel = createDto.IsTopLevel,
                 IsActive = true,
                 CreatedDate = DateTime.UtcNow,
                 CreatedBy = GetCurrentUserId()
@@ -41,6 +42,7 @@ namespace HRManagement.Services.Positions
                 PositionName = position.PositionName,
                 Description = position.Description,
                 Level = position.Level,
+                IsTopLevel = position.IsTopLevel,
                 IsActive = position.IsActive,
                 EmployeeCount = position.Employees?.Count ?? 0,
                 CreatedDate = position.CreatedDate,
@@ -61,6 +63,7 @@ namespace HRManagement.Services.Positions
                 PositionCode = position.PositionCode,
                 PositionName = position.PositionName,
                 Level = position.Level,
+                IsTopLevel = position.IsTopLevel,
                 EmployeeCount = position.Employees?.Count ?? 0,
                 IsActive = position.IsActive
             }).ToList();
@@ -75,6 +78,7 @@ namespace HRManagement.Services.Positions
                 PositionCode = position.PositionCode,
                 PositionName = position.PositionName,
                 Level = position.Level,
+                IsTopLevel = position.IsTopLevel,
                 EmployeeCount = position.Employees?.Count ?? 0,
                 IsActive = position.IsActive
             }).ToList();
@@ -93,6 +97,7 @@ namespace HRManagement.Services.Positions
                 PositionName = position.PositionName,
                 Description = position.Description,
                 Level = position.Level,
+                IsTopLevel = position.IsTopLevel,
                 IsActive = position.IsActive,
                 EmployeeCount = position.Employees?.Count ?? 0,
                 CreatedDate = position.CreatedDate,
@@ -121,6 +126,7 @@ namespace HRManagement.Services.Positions
             position.PositionName = updateDto.PositionName;
             position.Description = updateDto.Description;
             position.Level = updateDto.Level;
+            position.IsTopLevel = updateDto.IsTopLevel;
             position.ModifiedDate = DateTime.UtcNow;
             position.ModifiedBy = GetCurrentUserId();
 
@@ -133,6 +139,7 @@ namespace HRManagement.Services.Positions
                 PositionName = position.PositionName,
                 Description = position.Description,
                 Level = position.Level,
+                IsTopLevel = position.IsTopLevel,
                 IsActive = position.IsActive,
                 EmployeeCount = position.Employees?.Count ?? 0,
                 CreatedDate = position.CreatedDate,

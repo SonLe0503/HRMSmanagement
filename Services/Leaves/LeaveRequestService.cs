@@ -141,6 +141,7 @@ namespace HRManagement.Services.Leaves
                     NumberOfDays = dto.NumberOfDays,
                     Reason = dto.Reason,
                     Status = initialStatus,
+                    TargetApproverId = approverId,
                     SubmittedDate = DateTime.Now,
                     ReviewedDate = initialStatus == "Approved" ? DateTime.Now : null,
                     ReviewedBy = initialStatus == "Approved" ? null : null, // System approved
@@ -272,9 +273,8 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-45", "Employee not found.");
                 }
 
-                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
-                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                // Validation using frozen TargetApproverId
+                if (leaveRequest.TargetApproverId == null || leaveRequest.TargetApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -426,9 +426,8 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-46", "Employee not found.");
                 }
 
-                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
-                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                // Validation using frozen TargetApproverId
+                if (leaveRequest.TargetApproverId == null || leaveRequest.TargetApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -630,9 +629,7 @@ namespace HRManagement.Services.Leaves
                     .Include(x => x.LeaveType)
                     .Where(x =>
                         x.Status == "Approved" &&
-                        ((managerEmployeeId.HasValue && x.Employee.ManagerId == managerEmployeeId) ||
-                         (x.Employee.ManagerId == null && x.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
-                         (x.Employee.ManagerId == null && !x.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId))
+                        x.TargetApproverId == managerUserId
                     )
                     .OrderBy(x => x.StartDate)
                     .Select(x => new TeamLeaveCalendarDTO
@@ -689,9 +686,7 @@ namespace HRManagement.Services.Leaves
                     .ThenInclude(e => e.Position)
                 .Include(lr => lr.LeaveType)
                 .Where(lr =>
-                    (managerUser.EmployeeId.HasValue && lr.Employee.ManagerId == managerUser.EmployeeId) ||
-                    (lr.Employee.ManagerId == null && lr.Employee.Position.IsTopLevel && topLevelFallbackUserId == managerUserId) ||
-                    (lr.Employee.ManagerId == null && !lr.Employee.Position.IsTopLevel && defaultFallbackUserId == managerUserId)
+                    lr.TargetApproverId == managerUserId
                 )
                 .Select(x => new PendingLeaveRequestDTO
                 {

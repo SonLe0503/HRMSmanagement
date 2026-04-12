@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HRManagement.Models;
@@ -18,6 +18,8 @@ public partial class Hrprocedure
     public int? NewDepartmentId { get; set; }
 
     public int? NewPositionId { get; set; }
+
+    public int? NewManagerId { get; set; }
 
     public decimal? NewSalary { get; set; }
 
@@ -39,9 +41,17 @@ public partial class Hrprocedure
 
     public int? ApprovedBy { get; set; }
 
+    public DateTime? AppliedDate { get; set; }
+
+    public int? AppliedBy { get; set; }
+
     public virtual Employee Employee { get; set; } = null!;
 
     public virtual Department? NewDepartment { get; set; }
 
     public virtual Position? NewPosition { get; set; }
+    
+    public virtual Employee? NewManager { get; set; }
+    
+    public virtual Employee? AppliedByNavigation { get; set; }
 }

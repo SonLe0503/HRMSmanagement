@@ -210,7 +210,10 @@ namespace HRManagement.Services.Employees
                 Gender = e.Gender,
                 EmploymentStatus = e.EmploymentStatus,
                 DepartmentName = e.Department?.DepartmentName ?? "N/A",
-                PositionName = e.Position?.PositionName ?? "N/A"
+                PositionName = e.Position?.PositionName ?? "N/A",
+                ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",
+                DepartmentId = e.DepartmentId,
+                RoleName = e.Users.FirstOrDefault()?.UserRoles.FirstOrDefault()?.Role.RoleName
             }).ToList();
         }
 

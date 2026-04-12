@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -18,6 +18,7 @@ namespace HRManagement.DTOs
         [Required]
         [Range(1, 10)]
         public int Level { get; set; }
+        public bool IsTopLevel { get; set; }
     }
     public class UpdatePositionDto
     {
@@ -35,6 +36,7 @@ namespace HRManagement.DTOs
         [Required]
         [Range(1, 10)]
         public int Level { get; set; }
+        public bool IsTopLevel { get; set; }
     }
     public class PositionResponseDto
     {
@@ -43,6 +45,7 @@ namespace HRManagement.DTOs
         public string PositionName { get; set; } = null!;
         public string? Description { get; set; }
         public int Level { get; set; }
+        public bool IsTopLevel { get; set; }
         public bool IsActive { get; set; }
         public int EmployeeCount { get; set; }
         public DateTime CreatedDate { get; set; }
@@ -59,6 +62,7 @@ namespace HRManagement.DTOs
         public string PositionCode { get; set; } = null!;
         public string PositionName { get; set; } = null!;
         public int Level { get; set; }
+        public bool IsTopLevel { get; set; }
         public int EmployeeCount { get; set; }
         public bool IsActive { get; set; }
     }
