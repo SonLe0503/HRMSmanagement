@@ -67,6 +67,11 @@ namespace HRManagement.Controllers
 
             };
 
+            if (user.EmployeeId.HasValue)
+            {
+                claims.Add(new Claim("employeeId", user.EmployeeId.Value.ToString()));
+            }
+
             foreach (var userRole in user.UserRoles)
             {
                 claims.Add(new Claim(

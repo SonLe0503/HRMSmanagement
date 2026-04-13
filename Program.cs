@@ -58,6 +58,7 @@ builder.Services.AddScoped<IEvaluationRepository, EvaluationRepository>();
 builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
 builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
+builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
 
 // Core Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -82,11 +83,13 @@ builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
 builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 
-// Specialized Services (New Structure)
+// Specialized Services (Evaluation, Analytics, etc.)
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
 builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
 builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
+builder.Services.AddScoped<ISubmitEvaluationService, SubmitEvaluationService>();
+builder.Services.AddScoped<IViewEvaluationResultService, ViewEvaluationResultService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
