@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HRManagement.Models;
@@ -14,6 +14,7 @@ public partial class Position
     public string? Description { get; set; }
 
     public int Level { get; set; }
+    public bool IsTopLevel { get; set; }
 
     public bool IsActive { get; set; }
 

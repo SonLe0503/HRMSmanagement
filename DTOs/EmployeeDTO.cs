@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -39,13 +39,16 @@ namespace HRManagement.DTOs
         public string EmploymentStatus { get; set; } = null!;
         public string DepartmentName { get; set; } = null!;
         public string PositionName { get; set; } = null!;
+        public string? ManagerName { get; set; }
+        public int? DepartmentId { get; set; }
+        public string? RoleName { get; set; }
     }
     public class CreateEmployeeDto
     {
-        public int EmployeeId { get; set; }
-        [Required]
-        [MaxLength(20)]
-        public string EmployeeCode { get; set; } = null!;
+        //public int EmployeeId { get; set; }
+        //[Required]
+        //[MaxLength(20)]
+        //public string EmployeeCode { get; set; } = null!;
 
         [Required]
         [MaxLength(50)]
@@ -97,9 +100,9 @@ namespace HRManagement.DTOs
     }
     public class UpdateEmployeeDto
     {
-        [Required]
-        [MaxLength(20)]
-        public string EmployeeCode { get; set; } = null!;
+        //[Required]
+        //[MaxLength(20)]
+        //public string EmployeeCode { get; set; } = null!;
 
         [Required]
         [MaxLength(50)]

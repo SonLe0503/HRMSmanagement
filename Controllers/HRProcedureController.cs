@@ -1,5 +1,5 @@
-﻿using HRManagement.DTOs;
-using HRManagement.Services;
+using HRManagement.DTOs;
+using HRManagement.Services.HRProceduces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,6 +7,7 @@ namespace HRManagement.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class HRProcedureController : ControllerBase
     {
         private readonly IHRProcedureService _procedureService;
@@ -17,6 +18,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "HR")]
         public async Task<ActionResult<HRProcedureResponseDto>> SubmitProcedure([FromBody] CreateHRProcedureDto createDto)
         {
             try
@@ -34,6 +36,10 @@ namespace HRManagement.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -81,6 +87,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "ADMIN,MANAGE,HR")]
         public async Task<ActionResult<HRProcedureResponseDto>> UpdateProcedure(
             int id,
             [FromBody] UpdateHRProcedureDto updateDto)
@@ -94,6 +101,10 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -101,6 +112,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("{id}/approve")]
+        [Authorize(Roles = "ADMIN,MANAGE")]
         public async Task<ActionResult<HRProcedureResponseDto>> ApproveProcedure(
             int id,
             [FromBody] ApproveHRProcedureDto approveDto)
@@ -114,6 +126,10 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -121,6 +137,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("{id}/reject")]
+        [Authorize(Roles = "ADMIN,MANAGE")]
         public async Task<ActionResult<HRProcedureResponseDto>> RejectProcedure(
             int id,
             [FromBody] RejectHRProcedureDto rejectDto)
@@ -134,6 +151,10 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -145,6 +166,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "ADMIN,MANAGE,HR")]
         public async Task<ActionResult> DeleteProcedure(int id)
         {
             var deleted = await _procedureService.DeleteProcedureAsync(id);
@@ -153,6 +175,30 @@ namespace HRManagement.Controllers
                 return NotFound(new { message = "HR procedure not found or cannot be deleted." });
 
             return NoContent();
+        }
+
+        /// <summary>Phase 2: Manually apply an Approved procedure (e.g. when EffectiveDate is reached)</summary>
+        [HttpPost("{id}/apply")]
+        [Authorize(Roles = "ADMIN,MANAGE")]
+        public async Task<ActionResult<HRProcedureResponseDto>> ApplyProcedure(int id)
+        {
+            try
+            {
+                var procedure = await _procedureService.ApplyApprovedProcedureAsync(id);
+                return Ok(procedure);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

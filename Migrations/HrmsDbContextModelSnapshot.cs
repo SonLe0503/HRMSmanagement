@@ -48,6 +48,9 @@ namespace HRManagement.Migrations
                         .HasColumnType("int")
                         .HasColumnName("EmployeeID");
 
+                    b.Property<int?>("FaceVerificationId")
+                        .HasColumnType("int");
+
                     b.Property<string>("IpAddress")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -84,6 +87,14 @@ namespace HRManagement.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("Web");
 
+                    b.Property<string>("VerificationMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("VerificationStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.HasKey("LogId")
                         .HasName("PK__Attendan__5E5499A8");
 
@@ -115,8 +126,22 @@ namespace HRManagement.Migrations
                     b.Property<DateTime?>("CheckInTime")
                         .HasColumnType("datetime");
 
+                    b.Property<string>("CheckInVerificationMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool?>("CheckInVerified")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("CheckOutTime")
                         .HasColumnType("datetime");
+
+                    b.Property<string>("CheckOutVerificationMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool?>("CheckOutVerified")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
@@ -829,6 +854,114 @@ namespace HRManagement.Migrations
                     b.ToTable("EvaluationTemplates");
                 });
 
+            modelBuilder.Entity("HRManagement.Models.FaceProfile", b =>
+                {
+                    b.Property<int>("FaceProfileId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FaceProfileId"));
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FaceEmbedding")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ModifiedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReferenceImagePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("FaceProfileId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("FaceProfiles");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.FaceVerificationLog", b =>
+                {
+                    b.Property<int>("VerificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VerificationId"));
+
+                    b.Property<int?>("AttendanceLogId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CapturedImagePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("ConfidenceScore")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DeviceInfo")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsMatch")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("LivenessPassed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("ThresholdUsed")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("VerificationType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("VerificationId");
+
+                    b.HasIndex("AttendanceLogId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("FaceVerificationLogs");
+                });
+
             modelBuilder.Entity("HRManagement.Models.Hrprocedure", b =>
                 {
                     b.Property<int>("ProcedureId")
@@ -837,6 +970,12 @@ namespace HRManagement.Migrations
                         .HasColumnName("ProcedureID");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProcedureId"));
+
+                    b.Property<int?>("AppliedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("AppliedDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("ApprovedBy")
                         .HasColumnType("int");
@@ -854,6 +993,9 @@ namespace HRManagement.Migrations
                     b.Property<int?>("NewDepartmentId")
                         .HasColumnType("int")
                         .HasColumnName("NewDepartmentID");
+
+                    b.Property<int?>("NewManagerId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("NewPositionId")
                         .HasColumnType("int")
@@ -904,9 +1046,13 @@ namespace HRManagement.Migrations
                     b.HasKey("ProcedureId")
                         .HasName("PK__HRProced__54C2E50D0DCD81AE");
 
+                    b.HasIndex("AppliedBy");
+
                     b.HasIndex("EmployeeId");
 
                     b.HasIndex("NewDepartmentId");
+
+                    b.HasIndex("NewManagerId");
 
                     b.HasIndex("NewPositionId");
 
@@ -1033,6 +1179,9 @@ namespace HRManagement.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
+                    b.Property<int?>("TargetApproverId")
+                        .HasColumnType("int");
+
                     b.HasKey("LeaveRequestId")
                         .HasName("PK__LeaveReq__6094218E199159EC");
 
@@ -1041,6 +1190,8 @@ namespace HRManagement.Migrations
                     b.HasIndex("LeaveTypeId");
 
                     b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("TargetApproverId");
 
                     b.HasIndex(new[] { "StartDate", "EndDate" }, "IX_LeaveRequests_Dates");
 
@@ -1231,6 +1382,9 @@ namespace HRManagement.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
+                    b.Property<int?>("TargetApproverId")
+                        .HasColumnType("int");
+
                     b.Property<string>("TaskDescription")
                         .HasColumnType("nvarchar(max)");
 
@@ -1243,6 +1397,8 @@ namespace HRManagement.Migrations
                     b.HasIndex("ApprovedBy");
 
                     b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("TargetApproverId");
 
                     b.HasIndex(new[] { "EmployeeId" }, "IX_OvertimeRequests_EmployeeID");
 
@@ -1643,6 +1799,11 @@ namespace HRManagement.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsTopLevel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Level")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -1768,6 +1929,9 @@ namespace HRManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
+
+                    b.Property<int?>("EarliestCheckOutMinutes")
+                        .HasColumnType("int");
 
                     b.Property<int?>("EarlyCheckInMinutes")
                         .HasColumnType("int");
@@ -2045,6 +2209,12 @@ namespace HRManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("PasswordResetOtp")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PasswordResetOtpExpiry")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -2430,8 +2600,42 @@ namespace HRManagement.Migrations
                     b.Navigation("Evaluation");
                 });
 
+            modelBuilder.Entity("HRManagement.Models.FaceProfile", b =>
+                {
+                    b.HasOne("HRManagement.Models.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.FaceVerificationLog", b =>
+                {
+                    b.HasOne("HRManagement.Models.AttendanceLog", "AttendanceLog")
+                        .WithMany()
+                        .HasForeignKey("AttendanceLogId");
+
+                    b.HasOne("HRManagement.Models.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AttendanceLog");
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("HRManagement.Models.Hrprocedure", b =>
                 {
+                    b.HasOne("HRManagement.Models.Employee", "AppliedByNavigation")
+                        .WithMany()
+                        .HasForeignKey("AppliedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_HRProcedures_AppliedBy");
+
                     b.HasOne("HRManagement.Models.Employee", "Employee")
                         .WithMany("Hrprocedures")
                         .HasForeignKey("EmployeeId")
@@ -2443,14 +2647,24 @@ namespace HRManagement.Migrations
                         .HasForeignKey("NewDepartmentId")
                         .HasConstraintName("FK_HRProcedures_NewDepartment");
 
+                    b.HasOne("HRManagement.Models.Employee", "NewManager")
+                        .WithMany()
+                        .HasForeignKey("NewManagerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_HRProcedures_NewManager");
+
                     b.HasOne("HRManagement.Models.Position", "NewPosition")
                         .WithMany("Hrprocedures")
                         .HasForeignKey("NewPositionId")
                         .HasConstraintName("FK_HRProcedures_NewPosition");
 
+                    b.Navigation("AppliedByNavigation");
+
                     b.Navigation("Employee");
 
                     b.Navigation("NewDepartment");
+
+                    b.Navigation("NewManager");
 
                     b.Navigation("NewPosition");
                 });
@@ -2498,6 +2712,11 @@ namespace HRManagement.Migrations
                         .HasForeignKey("ReviewedBy")
                         .HasConstraintName("FK_LeaveRequests_ReviewedBy");
 
+                    b.HasOne("HRManagement.Models.User", "TargetApprover")
+                        .WithMany()
+                        .HasForeignKey("TargetApproverId")
+                        .HasConstraintName("FK_LeaveRequests_TargetApprover");
+
                     b.Navigation("ApprovedByNavigation");
 
                     b.Navigation("Employee");
@@ -2505,6 +2724,8 @@ namespace HRManagement.Migrations
                     b.Navigation("LeaveType");
 
                     b.Navigation("ReviewedByNavigation");
+
+                    b.Navigation("TargetApprover");
                 });
 
             modelBuilder.Entity("HRManagement.Models.Notification", b =>
@@ -2536,11 +2757,18 @@ namespace HRManagement.Migrations
                         .HasForeignKey("ReviewedBy")
                         .HasConstraintName("FK_OvertimeRequests_ReviewedBy");
 
+                    b.HasOne("HRManagement.Models.User", "TargetApprover")
+                        .WithMany()
+                        .HasForeignKey("TargetApproverId")
+                        .HasConstraintName("FK_OvertimeRequests_TargetApprover");
+
                     b.Navigation("ApprovedByNavigation");
 
                     b.Navigation("Employee");
 
                     b.Navigation("ReviewedByNavigation");
+
+                    b.Navigation("TargetApprover");
                 });
 
             modelBuilder.Entity("HRManagement.Models.PayrollAllowance", b =>

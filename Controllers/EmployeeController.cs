@@ -1,5 +1,6 @@
-﻿using HRManagement.DTOs;
-using HRManagement.Services;
+using HRManagement.DTOs;
+using HRManagement.Services.Employees;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRManagement.Controllers
@@ -18,6 +19,14 @@ namespace HRManagement.Controllers
         {
             var employees = await _employeeService.GetAllEmployeesAsync();
             return Ok(employees);
+        }
+
+        [HttpGet("approval-analysis")]
+        [Authorize(Roles = "ADMIN,MANAGE")]
+        public async Task<IActionResult> GetApprovalAnalysis()
+        {
+            var analysis = await _employeeService.GetApprovalAnalysisAsync();
+            return Ok(analysis);
         }
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)

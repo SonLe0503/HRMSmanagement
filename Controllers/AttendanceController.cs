@@ -1,10 +1,13 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
-using HRManagement.Services;
+using HRManagement.Services.Attendances;
+using HRManagement.Services.CurrentUsers;
+using HRManagement.Services.FaceVerifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Controllers
 {
@@ -15,78 +18,135 @@ namespace HRManagement.Controllers
         private readonly IAttendanceService _attendanceService;
         private readonly HrmsDbContext _context;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IFaceVerificationService _faceVerificationService;
 
-        public AttendanceController(IAttendanceService attendanceService, HrmsDbContext context, ICurrentUserService currentUserService)
+        public AttendanceController(IAttendanceService attendanceService, HrmsDbContext context, ICurrentUserService currentUserService, IFaceVerificationService faceVerificationService)
         {
             _attendanceService = attendanceService;
             _context = context;
             _currentUserService = currentUserService;
+            _faceVerificationService = faceVerificationService;
         }
 
 
 
 
-        [HttpPost("check-in")]
-        [Authorize]
-        public async Task<IActionResult> CheckIn([FromBody] CheckInRequestDto dto)
+        [HttpPost("checkin")]
+        public async Task<IActionResult> FaceCheckIn([FromBody] CheckInRequestDto request)
         {
             try
             {
                 var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-                var result = await _attendanceService.CheckInAsync(employeeId, dto);
-                return Ok(result);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
+                
+                // Add GPS validation logic here or move to service
+                // For now, keep the location validation in controller as it uses SystemSettings
+                await ValidateLocationAsync(request);
+
+                var result = await _attendanceService.CheckInAsync(employeeId, request);
+                return Ok(new
+                {
+                    message = "Check-in thành công.",
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
+                    // Note: Face verification results are handled inside Service
+                });
             }
             catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = ex.Message });
+                // Handle "Already checked in" gracefully
+                if (ex.Message.Contains("đã check-in hôm nay rồi"))
+                {
+                    var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                    var today = DateOnly.FromDateTime(DateTime.Now);
+                    var attendance = await _context.AttendanceRecords
+                        .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == today);
+                    
+                    return Ok(new
+                    {
+                        message = "Bạn đã check-in trước đó. Hệ thống giữ nguyên thời gian đầu tiên.",
+                        attendance?.AttendanceId,
+                        attendance?.EmployeeId,
+                        attendance?.AttendanceDate,
+                        attendance?.CheckInTime
+                    });
+                }
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-in.", detail = ex.Message });
             }
         }
 
-        [HttpPost("check-out")]
-        [Authorize]
-        public async Task<IActionResult> CheckOut([FromBody] CheckOutRequestDto dto)
+        private async Task ValidateLocationAsync(CheckInRequestDto request)
+        {
+             // Verify Location if configured in SystemSettings
+            var officeLatSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLatitude");
+            var officeLngSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "OfficeLongitude");
+            var radiusSetting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "AttendanceAllowedRadius");
+
+            if (officeLatSetting != null && officeLngSetting != null && radiusSetting != null && 
+                !string.IsNullOrEmpty(officeLatSetting.SettingValue) && !string.IsNullOrEmpty(officeLngSetting.SettingValue))
+            {
+                if (double.TryParse(officeLatSetting.SettingValue, out var officeLat) && 
+                    double.TryParse(officeLngSetting.SettingValue, out var officeLng) && 
+                    double.TryParse(radiusSetting.SettingValue, out var radius))
+                {
+                    if (request.Latitude.HasValue && request.Longitude.HasValue)
+                    {
+                        var distance = CalculateDistance(request.Latitude.Value, request.Longitude.Value, officeLat, officeLng);
+                        if (distance > radius)
+                        {
+                            request.Location = "[INVALID] " + request.Location;
+                        }
+                    }
+                    else
+                    {
+                        request.Location = "[INVALID] Không có dữ liệu GPS";
+                    }
+                }
+            }
+        }
+
+        [HttpPost("checkout")]
+        public async Task<IActionResult> FaceCheckOut([FromBody] CheckOutRequestDto request)
         {
             try
             {
                 var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-                var result = await _attendanceService.CheckOutAsync(employeeId, dto);
-                return Ok(result);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
+
+                // Validation GPS using common helper
+                var checkInRequest = new CheckInRequestDto 
+                { 
+                    Latitude = request.Latitude, 
+                    Longitude = request.Longitude, 
+                    Location = request.Location 
+                };
+                await ValidateLocationAsync(checkInRequest);
+                request.Location = checkInRequest.Location;
+
+                var result = await _attendanceService.CheckOutAsync(employeeId, request);
+
+                return Ok(new
+                {
+                    message = "Check-out thành công.",
+                    result.AttendanceId,
+                    result.EmployeeId,
+                    result.AttendanceDate,
+                    result.CheckInTime,
+                    result.CheckOutTime,
+                    result.WorkingHours
+                });
             }
             catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = ex.Message });
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-out.", detail = ex.Message });
             }
         }
 
@@ -395,6 +455,68 @@ namespace HRManagement.Controllers
             {
                 return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
             }
+        }
+
+        public class LocationReasonDto
+        {
+            public string Reason { get; set; } = string.Empty;
+        }
+
+        [HttpPut("{attendanceId:int}/location-reason")]
+        [Authorize]
+        public async Task<IActionResult> AddLocationReason(int attendanceId, [FromBody] LocationReasonDto dto)
+        {
+            try
+            {
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                var attendance = await _context.AttendanceRecords.FirstOrDefaultAsync(x => x.AttendanceId == attendanceId);
+                
+                if (attendance == null)
+                    return NotFound(new { message = "Không tìm thấy chấm công." });
+
+                if (attendance.EmployeeId != employeeId)
+                    return Unauthorized(new { message = "Bạn không có quyền thực hiện thao tác này." });
+
+                if (string.IsNullOrWhiteSpace(attendance.Remarks))
+                {
+                    attendance.Remarks = $"Lý do sai vị trí: {dto.Reason}";
+                }
+                else
+                {
+                    var remarks = attendance.Remarks;
+                    if (remarks.Contains("Lý do sai vị trí:")) {
+                         remarks = System.Text.RegularExpressions.Regex.Replace(remarks, @"Lý do sai vị trí:.*", $"Lý do sai vị trí: {dto.Reason}");
+                         attendance.Remarks = remarks;
+                    } else {
+                        attendance.Remarks += $"\nLý do sai vị trí: {dto.Reason}";
+                    }
+                }
+
+                attendance.ModifiedDate = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Đã cập nhật lý do sai vị trí thành công." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            var R = 6371e3; // metres
+            var phi1 = lat1 * Math.PI / 180;
+            var phi2 = lat2 * Math.PI / 180;
+            var deltaPhi = (lat2 - lat1) * Math.PI / 180;
+            var deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+            var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
+                    Math.Cos(phi1) * Math.Cos(phi2) *
+                    Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return R * c; // in metres
         }
     }
 }

@@ -1,6 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
 
 namespace HRManagement.Models;
 
@@ -88,6 +89,9 @@ public partial class HrmsDbContext : DbContext
     public virtual DbSet<WorkflowStageApprover> WorkflowStageApprovers { get; set; }
 
     public virtual DbSet<AttendanceLog> AttendanceLogs { get; set; }
+
+    public virtual DbSet<FaceProfile> FaceProfiles { get; set; }
+    public virtual DbSet<FaceVerificationLog> FaceVerificationLogs { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
@@ -451,6 +455,16 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.NewPosition).WithMany(p => p.Hrprocedures)
                 .HasForeignKey(d => d.NewPositionId)
                 .HasConstraintName("FK_HRProcedures_NewPosition");
+
+            entity.HasOne(d => d.NewManager).WithMany()
+                .HasForeignKey(d => d.NewManagerId)
+                .HasConstraintName("FK_HRProcedures_NewManager")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.AppliedByNavigation).WithMany()
+                .HasForeignKey(d => d.AppliedBy)
+                .HasConstraintName("FK_HRProcedures_AppliedBy")
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<LeaveBalance>(entity =>
@@ -529,6 +543,10 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.LeaveRequestReviewedByNavigations)
                 .HasForeignKey(d => d.ReviewedBy)
                 .HasConstraintName("FK_LeaveRequests_ReviewedBy");
+
+            entity.HasOne(d => d.TargetApprover).WithMany()
+                .HasForeignKey(d => d.TargetApproverId)
+                .HasConstraintName("FK_LeaveRequests_TargetApprover");
         });
 
         modelBuilder.Entity<LeaveType>(entity =>
@@ -611,6 +629,10 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.OvertimeRequestReviewedByNavigations)
                 .HasForeignKey(d => d.ReviewedBy)
                 .HasConstraintName("FK_OvertimeRequests_ReviewedBy");
+
+            entity.HasOne(d => d.TargetApprover).WithMany()
+                .HasForeignKey(d => d.TargetApproverId)
+                .HasConstraintName("FK_OvertimeRequests_TargetApprover");
         });
 
         modelBuilder.Entity<PayrollAllowance>(entity =>
@@ -786,6 +808,7 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Level).HasDefaultValue(1);
+            entity.Property(e => e.IsTopLevel).HasDefaultValue(false);
             entity.Property(e => e.PositionCode).HasMaxLength(20);
             entity.Property(e => e.PositionName).HasMaxLength(100);
         });

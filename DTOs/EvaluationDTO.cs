@@ -271,6 +271,23 @@ namespace HRManagement.DTOs
 
         public int? DepartmentId { get; set; } 
     }
+
+    public class BulkAssignByDepartmentDto
+    {
+        [Required]
+        public int CycleId { get; set; }
+
+        [Required]
+        public int DepartmentId { get; set; }
+
+        [Required]
+        public int TemplateId { get; set; }
+
+        [Required]
+        public int PrimaryEvaluatorId { get; set; }
+
+        public int? SecondaryEvaluatorId { get; set; }
+    }
     public class EvaluationResponseDto
     {
         public int EvaluationId { get; set; }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -17,6 +17,8 @@ namespace HRManagement.DTOs
         public int? NewDepartmentId { get; set; }
 
         public int? NewPositionId { get; set; }
+
+        public int? NewManagerId { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal? NewSalary { get; set; }
@@ -41,6 +43,8 @@ namespace HRManagement.DTOs
         public int? NewDepartmentId { get; set; }
 
         public int? NewPositionId { get; set; }
+        
+        public int? NewManagerId { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal? NewSalary { get; set; }
@@ -74,6 +78,8 @@ namespace HRManagement.DTOs
         public string? NewDepartmentName { get; set; }
         public int? NewPositionId { get; set; }
         public string? NewPositionName { get; set; }
+        public int? NewManagerId { get; set; }
+        public string? NewManagerName { get; set; }
         public decimal? NewSalary { get; set; }
         public string? Reason { get; set; }
         public string Status { get; set; } = null!;
@@ -87,6 +93,9 @@ namespace HRManagement.DTOs
         public DateTime? ApprovedDate { get; set; }
         public int? ApprovedBy { get; set; }
         public string? ApprovedByName { get; set; }
+        public DateTime? AppliedDate { get; set; }
+        public int? AppliedBy { get; set; }
+        public string? AppliedByName { get; set; }
     }
     public class HRProcedureListDto
     {
