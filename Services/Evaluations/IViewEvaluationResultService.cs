@@ -1,6 +1,8 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public interface IViewEvaluationResultService
     {

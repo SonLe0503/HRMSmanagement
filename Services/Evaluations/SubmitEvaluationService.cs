@@ -1,8 +1,9 @@
 using HRManagement.DataAcess;
+using HRManagement.Services.CurrentUsers;
 using HRManagement.DTOs;
 using HRManagement.Models;
 
-namespace HRManagement.Services
+namespace HRManagement.Services.Evaluations
 {
     public class SubmitEvaluationService : ISubmitEvaluationService
     {

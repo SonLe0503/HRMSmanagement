@@ -1,11 +1,10 @@
-﻿
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace HRManagement.DataAcess
+namespace HRManagement.DataAcess.Implementations
 {
     public class EvaluationRatingRepository : IEvaluationRatingRepository
     {
