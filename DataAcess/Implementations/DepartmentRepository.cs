@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,12 +40,29 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<IEnumerable<Department>> GetActiveAsync()
         {
-            return await _context.Departments.Include(e => e.Employees).Include(e => e.ParentDepartment).Include(e => e.Manager).Where(e => e.IsActive).ToListAsync();
+            return await _context.Departments
+                .Include(e => e.Employees)
+                    .ThenInclude(emp => emp.Position)
+                .Include(e => e.Employees)
+                    .ThenInclude(emp => emp.Users)
+                        .ThenInclude(u => u.UserRoles)
+                            .ThenInclude(ur => ur.Role)
+                .Include(e => e.Manager)
+                .Where(e => e.IsActive)
+                .ToListAsync();
         }
 
         public async Task<IEnumerable<Department>> GetAllAsync()
         {
-            return await _context.Departments.Include(d => d.ParentDepartment).Include(d => d.Employees).Include(d => d.Manager).ToListAsync();
+            return await _context.Departments
+                .Include(d => d.Employees)
+                    .ThenInclude(emp => emp.Position)
+                .Include(d => d.Employees)
+                    .ThenInclude(emp => emp.Users)
+                        .ThenInclude(u => u.UserRoles)
+                            .ThenInclude(ur => ur.Role)
+                .Include(d => d.Manager)
+                .ToListAsync();
         }
 
         public async Task<Department?> GetByIdAsync(int departmentId)
@@ -56,8 +73,12 @@ namespace HRManagement.DataAcess.Implementations
         public async Task<Department?> GetByIdWithDetailsAsync(int departmentId)
         {
             return await _context.Departments
-                .Include(d => d.ParentDepartment)
                 .Include(d => d.Employees)
+                    .ThenInclude(emp => emp.Position)
+                .Include(d => d.Employees)
+                    .ThenInclude(emp => emp.Users)
+                        .ThenInclude(u => u.UserRoles)
+                            .ThenInclude(ur => ur.Role)
                 .Include(d => d.InverseParentDepartment)
                 .Include(d => d.Manager)
                 .FirstOrDefaultAsync(d => d.DepartmentId == departmentId);
