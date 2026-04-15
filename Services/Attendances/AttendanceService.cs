@@ -581,7 +581,7 @@ namespace HRManagement.Services.Attendances
                 var today = DateOnly.FromDateTime(DateTime.Now);
                 foreach (var assignment in assignments)
                 {
-                    if (assignment.AssignmentDate > today) continue; // skip future
+                    if (assignment.AssignmentDate >= today) continue; // skip today and future
 
                     var key = (EmployeeId: assignment.EmployeeId, Date: assignment.AssignmentDate);
                     if (!attendanceMap.ContainsKey(key))
