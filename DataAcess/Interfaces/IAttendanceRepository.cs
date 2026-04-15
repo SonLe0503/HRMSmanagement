@@ -22,6 +22,7 @@ namespace HRManagement.DataAcess.Interfaces
         Task<Shift?> GetShiftByIdAsync(int shiftId);
 
         Task<FaceProfile?> GetActiveFaceProfileByEmployeeIdAsync(int employeeId);
+        Task<List<(Employee Employee, FaceProfile? FaceProfile)>> GetAllEmployeesWithFaceProfileAsync();
         System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile);
         System.Threading.Tasks.Task UpdateFaceProfileAsync(FaceProfile faceProfile);
 

@@ -76,7 +76,10 @@ namespace HRManagement.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi check-in.", detail = ex.Message });
+                var inner = ex.InnerException?.InnerException?.Message
+                         ?? ex.InnerException?.Message
+                         ?? ex.Message;
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-in.", detail = inner });
             }
         }
 
@@ -146,7 +149,10 @@ namespace HRManagement.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi check-out.", detail = ex.Message });
+                var inner = ex.InnerException?.InnerException?.Message
+                         ?? ex.InnerException?.Message
+                         ?? ex.Message;
+                return StatusCode(500, new { message = "Lỗi hệ thống khi check-out.", detail = inner });
             }
         }
 

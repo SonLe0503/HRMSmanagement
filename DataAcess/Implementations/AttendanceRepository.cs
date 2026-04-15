@@ -127,6 +127,26 @@ namespace HRManagement.DataAcess.Implementations
                 .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.Status == "Active");
         }
 
+        public async Task<List<(Employee Employee, FaceProfile? FaceProfile)>> GetAllEmployeesWithFaceProfileAsync()
+        {
+            var employees = await _context.Employees
+                .Include(e => e.Department)
+                .Include(e => e.Position)
+                .Where(e => e.EmploymentStatus != "Resigned")
+                .OrderBy(e => e.FullName)
+                .ToListAsync();
+
+            var faceProfiles = await _context.FaceProfiles
+                .Where(f => f.Status == "Active")
+                .ToListAsync();
+
+            var profileMap = faceProfiles.ToDictionary(f => f.EmployeeId);
+
+            return employees
+                .Select(e => (e, profileMap.TryGetValue(e.EmployeeId, out var fp) ? fp : (FaceProfile?)null))
+                .ToList();
+        }
+
         public async System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile)
         {
             await _context.FaceProfiles.AddAsync(faceProfile);

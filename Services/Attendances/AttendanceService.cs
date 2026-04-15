@@ -306,7 +306,7 @@ namespace HRManagement.Services.Attendances
             if (!validLocOut) attendance.ExplanationStatus = "Required";
 
             var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
-            attendance.WorkingHours = Math.Round(workingHours, 2);
+            attendance.WorkingHours = Math.Round(Math.Min(workingHours, 9999m), 2);
 
             if (shift != null)
             {
@@ -327,7 +327,7 @@ namespace HRManagement.Services.Attendances
                 {
                     attendance.EarlyLeaveMinutes = 0;
                     var overtime = (decimal)(now - shiftEnd).TotalHours;
-                    attendance.OvertimeHours = overtime > 0 ? Math.Round(overtime, 2) : 0;
+                    attendance.OvertimeHours = overtime > 0 ? Math.Round(Math.Min(overtime, 9999m), 2) : 0;
                 }
             }
 
@@ -356,7 +356,8 @@ namespace HRManagement.Services.Attendances
 
             attendance.Source = "Web-Face";
 
-            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            // Entity đã được track bởi EF Core từ GetOpenAttendanceRecordAsync,
+            // không cần gọi Update() vì sẽ mark cả navigation properties → lỗi.
             await _attendanceRepository.SaveChangesAsync();
 
             var result = await _attendanceRepository.GetAttendanceByIdAsync(attendance.AttendanceId)

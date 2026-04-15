@@ -7,6 +7,7 @@ namespace HRManagement.Services.FaceVerifications
         Task<FaceVerificationResultDto> VerifyAsync(int employeeId, string faceImageBase64, string verificationType, string? deviceInfo, string? ipAddress, string? location);
         Task<string> RegisterFaceAsync(int employeeId, string referenceImageBase64);
         Task<bool> IsFaceRegisteredAsync(int employeeId);
-
+        Task<List<EmployeeFaceStatusDto>> GetAllEmployeesFaceStatusAsync();
+        Task DeleteFaceAsync(int employeeId);
     }
 }

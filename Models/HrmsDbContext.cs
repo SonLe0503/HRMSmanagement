@@ -120,13 +120,13 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
             entity.Property(e => e.OvertimeHours)
                 .HasDefaultValue(0m)
-                .HasColumnType("decimal(4, 2)");
+                .HasColumnType("decimal(6, 2)");
             entity.Property(e => e.Remarks).HasMaxLength(500);
             entity.Property(e => e.ShiftId).HasColumnName("ShiftID");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValue("Present");
-            entity.Property(e => e.WorkingHours).HasColumnType("decimal(4, 2)");
+            entity.Property(e => e.WorkingHours).HasColumnType("decimal(6, 2)");
 
             entity.HasOne(d => d.Employee).WithMany(p => p.AttendanceRecords)
                 .HasForeignKey(d => d.EmployeeId)
