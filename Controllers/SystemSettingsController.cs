@@ -80,6 +80,33 @@ namespace HRManagement.Controllers
             return Ok(new { message = "Cập nhật cấu hình phê duyệt thành công." });
         }
 
+        [HttpGet("payroll")]
+        [Authorize]
+        public async Task<IActionResult> GetPayrollSettings()
+        {
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.SettingKey == "Payroll.CutOffDay");
+
+            var dto = new PayrollSettingsDto
+            {
+                PayrollCutOffDay = setting != null && int.TryParse(setting.SettingValue, out var day) ? day : 1
+            };
+
+            return Ok(dto);
+        }
+
+        [HttpPut("payroll")]
+        [Authorize(Roles = "HR")]
+        public async Task<IActionResult> UpdatePayrollSettings([FromBody] PayrollSettingsDto dto)
+        {
+            if (dto.PayrollCutOffDay < 1 || dto.PayrollCutOffDay > 28)
+                return BadRequest(new { message = "Ngày chốt lương phải từ 1 đến 28." });
+
+            await UpdateOrInsertSetting("Payroll.CutOffDay", dto.PayrollCutOffDay.ToString(), "Payroll");
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cập nhật cấu hình kỳ lương thành công." });
+        }
+
         private async Task UpdateOrInsertSetting(string key, string value, string category)
         {
             var exists = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == key);
