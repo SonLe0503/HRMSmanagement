@@ -27,5 +27,9 @@ namespace HRManagement.DTOs.Attendances
 
         public string? Location { get; set; }
         public string? Remarks { get; set; }
+
+        public string? ExplanationMessage { get; set; }
+        public string? ExplanationStatus { get; set; }
+        public string? ExplanationResponse { get; set; }
     }
 }

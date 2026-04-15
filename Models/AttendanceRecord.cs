@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -42,6 +42,11 @@ public partial class AttendanceRecord
 
     // NEW
     public DateTime? ApprovedDate { get; set; }
+    
+    // EXPLANATION WORKFLOW
+    public string? ExplanationMessage { get; set; }
+    public string? ExplanationStatus { get; set; }
+    public string? ExplanationResponse { get; set; }
 
     public string? Location { get; set; }
 

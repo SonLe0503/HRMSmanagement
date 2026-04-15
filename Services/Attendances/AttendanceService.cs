@@ -115,6 +115,7 @@ namespace HRManagement.Services.Attendances
 
             if (attendance == null)
             {
+                bool validLoc = await IsValidLocation(dto.Latitude, dto.Longitude);
                 attendance = new AttendanceRecord
                 {
                     EmployeeId = employeeId,
@@ -127,6 +128,7 @@ namespace HRManagement.Services.Attendances
                     LateMinutes = lateMinutes,
                     EarlyLeaveMinutes = 0,
                     Status = lateMinutes > 0 ? "Late" : "Present",
+                    ExplanationStatus = validLoc ? null : "Required",
                     Source = "Web",
                     IsManualAdjusted = false,
                     IsLocked = false,
@@ -146,10 +148,12 @@ namespace HRManagement.Services.Attendances
             }
             else
             {
+                bool validLoc = await IsValidLocation(dto.Latitude, dto.Longitude);
                 attendance.ShiftId = shift.ShiftId;
                 attendance.CheckInTime = now;
                 attendance.LateMinutes = lateMinutes;
                 attendance.Status = lateMinutes > 0 ? "Late" : "Present";
+                if (!validLoc) attendance.ExplanationStatus = "Required";
                 attendance.Source = "Web";
                 attendance.Location = dto.Location;
                 attendance.Remarks = dto.Remarks;
@@ -298,6 +302,9 @@ namespace HRManagement.Services.Attendances
             attendance.CheckOutVerificationMethod = "Face";
             attendance.CheckOutVerified = true;
 
+            bool validLocOut = await IsValidLocation(dto.Latitude, dto.Longitude);
+            if (!validLocOut) attendance.ExplanationStatus = "Required";
+
             var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
             attendance.WorkingHours = Math.Round(workingHours, 2);
 
@@ -328,6 +335,7 @@ namespace HRManagement.Services.Attendances
             if (!attendance.CheckInTime.HasValue || !attendance.CheckOutTime.HasValue)
             {
                 attendance.Status = "Incomplete";
+                attendance.ExplanationStatus = "Required";
             }
             else if ((attendance.LateMinutes ?? 0) > 0 && (attendance.EarlyLeaveMinutes ?? 0) > 0)
             {
@@ -567,6 +575,47 @@ namespace HRManagement.Services.Attendances
                 attendance.OvertimeHours = attendance.PayrollOvertimeHours; // Standard view uses Payroll OT
             }
 
+            // 3. Generate virtual "Absent" records for shift days with no check-in and no leave
+            if (status == null)
+            {
+                var today = DateOnly.FromDateTime(DateTime.Now);
+                foreach (var assignment in assignments)
+                {
+                    if (assignment.AssignmentDate > today) continue; // skip future
+
+                    var key = (EmployeeId: assignment.EmployeeId, Date: assignment.AssignmentDate);
+                    if (!attendanceMap.ContainsKey(key))
+                    {
+                        var empName = await _context.Employees
+                            .Where(e => e.EmployeeId == assignment.EmployeeId)
+                            .Select(e => e.FullName)
+                            .FirstOrDefaultAsync() ?? "Unknown";
+
+                        var absentRecord = new AttendanceResponseDto
+                        {
+                            AttendanceId = 0,
+                            EmployeeId = assignment.EmployeeId,
+                            EmployeeName = empName,
+                            AttendanceDate = assignment.AssignmentDate,
+                            ShiftId = assignment.ShiftId,
+                            ShiftName = assignment.Shift?.ShiftName ?? "No Shift",
+                            CheckInTime = null,
+                            CheckOutTime = null,
+                            WorkingHours = 0,
+                            OvertimeHours = 0,
+                            LateMinutes = 0,
+                            EarlyLeaveMinutes = 0,
+                            Status = "Absent",
+                            Source = "System",
+                            Remarks = null
+                        };
+
+                        result.Add(absentRecord);
+                        attendanceMap[key] = absentRecord;
+                    }
+                }
+            }
+
             return result.OrderByDescending(r => r.AttendanceDate).ThenBy(r => r.EmployeeName).ToList();
         }
 
@@ -701,8 +750,173 @@ namespace HRManagement.Services.Attendances
 
         
 
+        public async Task<AttendanceResponseDto> SubmitExplanationAsync(int employeeId, int attendanceId, string message)
+        {
+            var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
+
+            if (attendance.EmployeeId != employeeId)
+                throw new InvalidOperationException("Bạn không có quyền giải trình cho bản ghi này.");
+                
+            if (attendance.IsLocked == true)
+                throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
+
+            attendance.ExplanationMessage = message;
+            attendance.ExplanationStatus = "Pending";
+            attendance.ModifiedDate = DateTime.Now;
+            attendance.ModifiedBy = employeeId;
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            return MapAttendance(attendance);
+        }
+
+        public async Task<AttendanceResponseDto> SubmitAbsentExplanationAsync(int employeeId, DateOnly date, string message)
+        {
+            // Verify if there was a shift assignment
+            var assignment = await _context.ShiftAssignments
+                .Include(sa => sa.Shift)
+                .FirstOrDefaultAsync(sa => sa.EmployeeId == employeeId && sa.AssignmentDate == date && sa.Status == "Active");
+
+            if (assignment == null)
+            {
+                throw new InvalidOperationException("Bạn không có ca làm việc vào ngày này để giải trình.");
+            }
+
+            // Check if there is already an attendance record
+            var attendance = await _attendanceRepository.GetAttendanceByEmployeeAndDateAsync(employeeId, date);
+            if (attendance != null)
+            {
+                if (attendance.IsLocked == true)
+                    throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
+
+                attendance.ExplanationMessage = message;
+                attendance.ExplanationStatus = "Pending";
+                attendance.ModifiedDate = DateTime.Now;
+                attendance.ModifiedBy = employeeId;
+                await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            }
+            else
+            {
+                attendance = new AttendanceRecord
+                {
+                    EmployeeId = employeeId,
+                    AttendanceDate = date,
+                    ShiftId = assignment.ShiftId,
+                    CheckInTime = null,
+                    CheckOutTime = null,
+                    WorkingHours = 0,
+                    OvertimeHours = 0,
+                    LateMinutes = 0,
+                    EarlyLeaveMinutes = 0,
+                    Status = "Absent",
+                    Source = "System",
+                    IsManualAdjusted = false,
+                    IsLocked = false,
+                    ExplanationMessage = message,
+                    ExplanationStatus = "Pending",
+                    CreatedDate = DateTime.Now
+                };
+                await _attendanceRepository.AddAttendanceAsync(attendance);
+            }
+
+            await _attendanceRepository.SaveChangesAsync();
+            return MapAttendance(attendance);
+        }
+
+        public async Task<AttendanceResponseDto> ApproveExplanationAsync(int managerId, int attendanceId, ApproveExplanationDto dto)
+        {
+            var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
+                ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
+
+            if (dto.IsApproved)
+            {
+                attendance.ExplanationStatus = "Approved";
+
+                // If manager provided manual times to fix a missing check-in/out
+                if (dto.ManualCheckInTime.HasValue)
+                {
+                    attendance.CheckInTime = attendance.AttendanceDate.ToDateTime(TimeOnly.FromTimeSpan(dto.ManualCheckInTime.Value));
+                    attendance.IsManualAdjusted = true;
+                }
+                if (dto.ManualCheckOutTime.HasValue)
+                {
+                    attendance.CheckOutTime = attendance.AttendanceDate.ToDateTime(TimeOnly.FromTimeSpan(dto.ManualCheckOutTime.Value));
+                    attendance.IsManualAdjusted = true;
+                }
+
+                if (dto.ManualCheckInTime.HasValue || dto.ManualCheckOutTime.HasValue)
+                {
+                    var lateMinutes = 0;
+                    var earlyLeaveMinutes = 0;
+
+                    if (attendance.CheckInTime.HasValue && attendance.CheckOutTime.HasValue)
+                    {
+                        var hours = (decimal)(attendance.CheckOutTime.Value - attendance.CheckInTime.Value).TotalHours;
+                        attendance.WorkingHours = Math.Round(hours, 2);
+
+                        var shift = await _context.Shifts.FindAsync(attendance.ShiftId);
+                        if (shift != null)
+                        {
+                            var shiftStart = attendance.AttendanceDate.ToDateTime(shift.StartTime);
+                            var shiftEnd = attendance.AttendanceDate.ToDateTime(shift.EndTime);
+                            if (shift.IsOvernight ?? false) shiftEnd = shiftEnd.AddDays(1);
+
+                            if (attendance.CheckInTime.Value > shiftStart)
+                            {
+                                lateMinutes = (int)Math.Floor((attendance.CheckInTime.Value - shiftStart).TotalMinutes);
+                            }
+                            if (attendance.CheckOutTime.Value < shiftEnd)
+                            {
+                                earlyLeaveMinutes = (int)Math.Floor((shiftEnd - attendance.CheckOutTime.Value).TotalMinutes);
+                            }
+                        }
+
+                        attendance.LateMinutes = lateMinutes;
+                        attendance.EarlyLeaveMinutes = earlyLeaveMinutes;
+
+                        if (lateMinutes > 0 && earlyLeaveMinutes > 0)
+                            attendance.Status = "LateEarlyLeave";
+                        else if (lateMinutes > 0)
+                            attendance.Status = "Late";
+                        else if (earlyLeaveMinutes > 0)
+                            attendance.Status = "EarlyLeave";
+                        else
+                            attendance.Status = "Present";
+                    }
+                    else
+                    {
+                        attendance.WorkingHours = null;
+                        if (!attendance.CheckInTime.HasValue && !attendance.CheckOutTime.HasValue)
+                            attendance.Status = "Absent";
+                        else
+                            attendance.Status = "Incomplete";
+                    }
+                }
+            }
+            else
+            {
+                attendance.ExplanationStatus = "Rejected";
+            }
+
+            attendance.ExplanationResponse = dto.Response;
+            attendance.ApprovedBy = managerId;
+            attendance.ApprovedDate = DateTime.Now;
+            attendance.ModifiedDate = DateTime.Now;
+            attendance.ModifiedBy = managerId;
+
+            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            return MapAttendance(attendance);
+        }
+
         private static AttendanceResponseDto MapAttendance(AttendanceRecord a)
         {
+            // NẾU LUỒNG GIẢI TRÌNH CHƯA HOÀN THẤT (Cần giải trình, Đang chờ duyệt, Bị từ chối) -> Không trả về WorkingHours
+            bool isExplanationUnresolved = a.ExplanationStatus == "Required" || a.ExplanationStatus == "Pending" || a.ExplanationStatus == "Rejected";
+            
             return new AttendanceResponseDto
             {
                 AttendanceId = a.AttendanceId,
@@ -713,8 +927,8 @@ namespace HRManagement.Services.Attendances
                 ShiftName = a.Shift?.ShiftName,
                 CheckInTime = a.CheckInTime,
                 CheckOutTime = a.CheckOutTime,
-                WorkingHours = a.WorkingHours,
-                OvertimeHours = a.OvertimeHours,
+                WorkingHours = isExplanationUnresolved ? 0 : a.WorkingHours,
+                OvertimeHours = isExplanationUnresolved ? 0 : a.OvertimeHours,
                 LateMinutes = a.LateMinutes,
                 EarlyLeaveMinutes = a.EarlyLeaveMinutes,
                 Status = a.Status,
@@ -722,7 +936,10 @@ namespace HRManagement.Services.Attendances
                 IsManualAdjusted = a.IsManualAdjusted,
                 IsLocked = a.IsLocked,
                 Location = a.Location,
-                Remarks = a.Remarks
+                Remarks = a.Remarks,
+                ExplanationMessage = a.ExplanationMessage,
+                ExplanationStatus = a.ExplanationStatus,
+                ExplanationResponse = a.ExplanationResponse
             };
         }
 
@@ -741,6 +958,46 @@ namespace HRManagement.Services.Attendances
                 Location = l.Location,
                 Remarks = l.Remarks
             };
+        }
+
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            var R = 6371e3; // metres
+            var p1 = lat1 * Math.PI / 180;
+            var p2 = lat2 * Math.PI / 180;
+            var dp = (lat2 - lat1) * Math.PI / 180;
+            var dl = (lon2 - lon1) * Math.PI / 180;
+
+            var a = Math.Sin(dp / 2) * Math.Sin(dp / 2) +
+                    Math.Cos(p1) * Math.Cos(p2) *
+                    Math.Sin(dl / 2) * Math.Sin(dl / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return R * c; 
+        }
+
+        private async Task<bool> IsValidLocation(double? lat, double? lon)
+        {
+            if (!lat.HasValue || !lon.HasValue) return false;
+
+            var companyLatStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyLat");
+            var companyLngStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyLng");
+            var companyRadiusStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyRadius");
+
+            if (companyLatStr == null || companyLngStr == null) return true; // Default to true if not configured
+
+            if (double.TryParse(companyLatStr.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLat) && 
+                double.TryParse(companyLngStr.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLng))
+            {
+                double radius = 500;
+                if (companyRadiusStr != null && double.TryParse(companyRadiusStr.SettingValue, out double r))
+                    radius = r;
+
+                var dist = CalculateDistance(cLat, cLng, lat.Value, lon.Value);
+                return dist <= radius;
+            }
+
+            return true;
         }
 
     }

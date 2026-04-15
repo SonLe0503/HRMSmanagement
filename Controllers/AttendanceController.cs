@@ -457,48 +457,56 @@ namespace HRManagement.Controllers
             }
         }
 
-        public class LocationReasonDto
-        {
-            public string Reason { get; set; } = string.Empty;
-        }
-
-        [HttpPut("{attendanceId:int}/location-reason")]
+        [HttpPost("{attendanceId:int}/submit-explanation")]
         [Authorize]
-        public async Task<IActionResult> AddLocationReason(int attendanceId, [FromBody] LocationReasonDto dto)
+        public async Task<IActionResult> SubmitExplanation(int attendanceId, [FromBody] SubmitExplanationDto dto)
         {
             try
             {
                 var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-                var attendance = await _context.AttendanceRecords.FirstOrDefaultAsync(x => x.AttendanceId == attendanceId);
-                
-                if (attendance == null)
-                    return NotFound(new { message = "Không tìm thấy chấm công." });
-
-                if (attendance.EmployeeId != employeeId)
-                    return Unauthorized(new { message = "Bạn không có quyền thực hiện thao tác này." });
-
-                if (string.IsNullOrWhiteSpace(attendance.Remarks))
-                {
-                    attendance.Remarks = $"Lý do sai vị trí: {dto.Reason}";
-                }
-                else
-                {
-                    var remarks = attendance.Remarks;
-                    if (remarks.Contains("Lý do sai vị trí:")) {
-                         remarks = System.Text.RegularExpressions.Regex.Replace(remarks, @"Lý do sai vị trí:.*", $"Lý do sai vị trí: {dto.Reason}");
-                         attendance.Remarks = remarks;
-                    } else {
-                        attendance.Remarks += $"\nLý do sai vị trí: {dto.Reason}";
-                    }
-                }
-
-                attendance.ModifiedDate = DateTime.Now;
-                await _context.SaveChangesAsync();
-
-                return Ok(new { message = "Đã cập nhật lý do sai vị trí thành công." });
+                var result = await _attendanceService.SubmitExplanationAsync(employeeId, attendanceId, dto.Message);
+                return Ok(new { message = "Đã gửi phiếu giải trình. Đang chờ Quản lý duyệt.", data = result });
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("quyền") || ex.Message.Contains("Không tìm thấy"))
+                    return BadRequest(new { message = ex.Message });
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPost("submit-absent-explanation")]
+        [Authorize]
+        public async Task<IActionResult> SubmitAbsentExplanation([FromBody] SubmitAbsentExplanationDto dto)
+        {
+            try
+            {
+                var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+                var result = await _attendanceService.SubmitAbsentExplanationAsync(employeeId, dto.Date, dto.Message);
+                return Ok(new { message = "Đã gửi phiếu giải trình cho ngày vắng mặt. Đang chờ Quản lý duyệt.", data = result });
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("quyền") || ex.Message.Contains("Không tìm thấy") || ex.Message.Contains("ca làm việc"))
+                    return BadRequest(new { message = ex.Message });
+                return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
+            }
+        }
+
+        [HttpPut("{attendanceId:int}/approve-explanation")]
+        [Authorize]
+        public async Task<IActionResult> ApproveExplanation(int attendanceId, [FromBody] ApproveExplanationDto dto)
+        {
+            try
+            {
+                var managerId = _currentUserService.GetCurrentUserId();
+                var result = await _attendanceService.ApproveExplanationAsync(managerId, attendanceId, dto);
+                return Ok(new { message = "Đã xử lý phiếu giải trình.", data = result });
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("Không tìm thấy"))
+                    return BadRequest(new { message = ex.Message });
                 return StatusCode(500, new { message = "Lỗi hệ thống.", detail = ex.Message });
             }
         }
