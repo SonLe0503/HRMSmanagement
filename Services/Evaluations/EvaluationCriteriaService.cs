@@ -45,6 +45,9 @@ namespace HRManagement.Services.Evaluations
                     $"attempting to add: {dto.Weightage}%.");
             }
 
+            var existingCriteria = await _criterionRepository.GetByTemplateIdAsync(templateId);
+            var nextOrder = existingCriteria.Any() ? existingCriteria.Max(c => c.DisplayOrder) + 1 : 1;
+
             var criterion = new EvaluationCriterion
             {
                 TemplateId = templateId,
@@ -52,7 +55,7 @@ namespace HRManagement.Services.Evaluations
                 CriteriaCategory = dto.CriteriaCategory,
                 Description = dto.Description,
                 Weightage = dto.Weightage,
-                DisplayOrder = dto.DisplayOrder
+                DisplayOrder = nextOrder
             };
 
             await _criterionRepository.AddAsync(criterion);
@@ -92,6 +95,9 @@ namespace HRManagement.Services.Evaluations
                 throw new InvalidOperationException("Duplicate criteria names found in the request.");
             }
 
+            var existingCriteriaForBulk = await _criterionRepository.GetByTemplateIdAsync(templateId);
+            var nextOrderBulk = existingCriteriaForBulk.Any() ? existingCriteriaForBulk.Max(c => c.DisplayOrder) + 1 : 1;
+
             var results = new List<EvaluationCriterionResponseDto>();
 
             foreach (var criterionDto in dto.Criteria)
@@ -108,7 +114,7 @@ namespace HRManagement.Services.Evaluations
                     CriteriaCategory = criterionDto.CriteriaCategory,
                     Description = criterionDto.Description,
                     Weightage = criterionDto.Weightage,
-                    DisplayOrder = criterionDto.DisplayOrder
+                    DisplayOrder = nextOrderBulk++
                 };
 
                 await _criterionRepository.AddAsync(criterion);
@@ -170,8 +176,8 @@ namespace HRManagement.Services.Evaluations
             criterion.CriteriaCategory = dto.CriteriaCategory;
             criterion.Description = dto.Description;
             criterion.Weightage = dto.Weightage;
-            criterion.DisplayOrder = dto.DisplayOrder;
-
+            // Ignore DisplayOrder update since it's auto-managed
+            
             await _criterionRepository.UpdateAsync(criterion);
 
             return MapToResponseDto(criterion);

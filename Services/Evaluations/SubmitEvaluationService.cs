@@ -236,7 +236,11 @@ namespace HRManagement.Services.Evaluations
                     Deadline = e.Cycle.ManagerEvaluationEnd,
                     SelfEvaluationCompleted = e.Status == STATUS_SELF_EVALUATION ||
                                              e.Status == STATUS_MANAGER_EVALUATION ||
-                                             e.Status == STATUS_COMPLETED
+                                             e.Status == STATUS_COMPLETED,
+                    SelfEvaluationStart = e.Cycle.SelfEvaluationStart,
+                    SelfEvaluationEnd = e.Cycle.SelfEvaluationEnd,
+                    ManagerEvaluationStart = e.Cycle.ManagerEvaluationStart,
+                    ManagerEvaluationEnd = e.Cycle.ManagerEvaluationEnd
                 })
                 .ToList();
 
@@ -291,7 +295,11 @@ namespace HRManagement.Services.Evaluations
                 SubmittedDate = evaluation.SubmittedDate,
                 AcknowledgedDate = evaluation.AcknowledgedDate,
                 AcknowledgementComments = evaluation.AcknowledgementComments,
-                Ratings = ratingsDtoList
+                Ratings = ratingsDtoList,
+                SelfEvaluationStart = evaluation.Cycle?.SelfEvaluationStart ?? default,
+                SelfEvaluationEnd = evaluation.Cycle?.SelfEvaluationEnd ?? default,
+                ManagerEvaluationStart = evaluation.Cycle?.ManagerEvaluationStart ?? default,
+                ManagerEvaluationEnd = evaluation.Cycle?.ManagerEvaluationEnd ?? default
             };
         }
 

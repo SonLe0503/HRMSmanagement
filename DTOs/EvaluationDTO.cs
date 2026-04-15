@@ -187,9 +187,7 @@ namespace HRManagement.DTOs
         [Range(0, 100)]
         public int Weightage { get; set; }
 
-        [Required]
-        [Range(1, 100)]
-        public int DisplayOrder { get; set; }
+        public int? DisplayOrder { get; set; }
     }
     public class UpdateEvaluationCriterionDto
     {
@@ -207,9 +205,7 @@ namespace HRManagement.DTOs
         [Range(0, 100)]
         public int Weightage { get; set; }
 
-        [Required]
-        [Range(1, 100)]
-        public int DisplayOrder { get; set; }
+        public int? DisplayOrder { get; set; }
     }
     public class EvaluationCriterionResponseDto
     {
@@ -453,6 +449,11 @@ namespace HRManagement.DTOs
         public string? AcknowledgementComments { get; set; }
         public List<EvaluationRatingResponseDto> Ratings { get; set; } = new();
         public EvaluationFeedbackDto? Feedback { get; set; }
+        // Cycle timeline for time-gating
+        public DateOnly SelfEvaluationStart { get; set; }
+        public DateOnly SelfEvaluationEnd { get; set; }
+        public DateOnly ManagerEvaluationStart { get; set; }
+        public DateOnly ManagerEvaluationEnd { get; set; }
     }
     public class EvaluationFeedbackDto
     {
@@ -479,6 +480,11 @@ namespace HRManagement.DTOs
         public string Status { get; set; } = null!;
         public DateOnly Deadline { get; set; }
         public bool SelfEvaluationCompleted { get; set; }
+        // Cycle timeline for time-gating
+        public DateOnly SelfEvaluationStart { get; set; }
+        public DateOnly SelfEvaluationEnd { get; set; }
+        public DateOnly ManagerEvaluationStart { get; set; }
+        public DateOnly ManagerEvaluationEnd { get; set; }
     }
 
     public class EvaluationResultDto
