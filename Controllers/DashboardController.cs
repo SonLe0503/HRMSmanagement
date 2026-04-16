@@ -1,0 +1,315 @@
+using HRManagement.DTOs;
+using HRManagement.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+
+namespace HRManagement.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Roles = "ADMIN,HR,MANAGER,MANAGE")]
+    public class DashboardController : ControllerBase
+    {
+        private readonly HrmsDbContext _context;
+
+        public DashboardController(HrmsDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet("admin-stats")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> GetAdminStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var start = fromDate ?? today.AddDays(-30);
+            var end = toDate ?? today;
+
+            var stats = new StatisticsDto();
+
+            // 1. User Stats
+            stats.TotalUsers = await _context.Users.CountAsync();
+            stats.NewUsers = await _context.Users.CountAsync(u => DateOnly.FromDateTime(u.CreatedDate) >= start);
+            stats.ActiveUsers = await _context.Users.CountAsync(u => u.IsActive == true);
+
+            // 2. Employee & Org Stats
+            stats.TotalEmployees = await _context.Employees.CountAsync();
+            stats.TotalDepartments = await _context.Departments.CountAsync();
+
+            // 3. Request Stats
+            stats.TotalLeaveRequests = await _context.LeaveRequests.CountAsync(r => DateOnly.FromDateTime(r.SubmittedDate) >= start && DateOnly.FromDateTime(r.SubmittedDate) <= end);
+            stats.PendingApprovals = await _context.LeaveRequests.CountAsync(r => r.Status == "Pending") +
+                                     await _context.OvertimeRequests.CountAsync(r => r.Status == "Pending");
+
+            // 4. Attendance Stats
+            var attendanceRecords = await _context.AttendanceRecords
+                .Where(a => a.AttendanceDate >= start && a.AttendanceDate <= end)
+                .ToListAsync();
+
+            if (attendanceRecords.Any())
+            {
+                var presentCount = attendanceRecords.Count(a => a.Status == "Present" || a.Status == "Late");
+                stats.AttendanceRate = Math.Round((double)presentCount / attendanceRecords.Count * 100, 1);
+            }
+
+            stats.OvertimeHours = (double)await _context.OvertimeRequests
+                .Where(o => o.Status == "Approved" && o.OvertimeDate >= start && o.OvertimeDate <= end)
+                .SumAsync(o => o.TotalHours);
+
+            // 5. System Stats (Real-ish)
+            var uptime = DateTime.Now - Process.GetCurrentProcess().StartTime;
+            stats.SystemUptime = $"{(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m";
+            
+            // Database Size (Mocked for now or query sys tables if possible)
+            stats.DatabaseSize = "42.5 MB"; 
+            stats.ErrorRate = 0.02; // Mocked
+            stats.ApiResponseTime = new Random().Next(30, 150);
+
+            // Recent Activities
+            var recentActivities = await _context.AuditLogs
+                .Include(a => a.User)
+                .OrderByDescending(a => a.ActionDate)
+                .Take(5)
+                .Select(a => new RecentActivityDto
+                {
+                    Description = $"{a.Action} on {a.TableName} by {a.User.Username ?? "System"}",
+                    Timestamp = a.ActionDate
+                })
+                .ToListAsync();
+
+            // Alerts (Mocked for realism)
+            var alerts = new List<NotificationDto>
+            {
+                new NotificationDto { Message = "Backup successful.", Level = "Info" },
+                new NotificationDto { Message = "3 failed login attempts detected.", Level = "Warning" },
+                new NotificationDto { Message = "Disk usage at 85%.", Level = "Warning" }
+            };
+
+            // Scheduled Tasks (Mocked)
+            var tasks = new List<ScheduledTaskDto>
+            {
+                new ScheduledTaskDto { Name = "Weekly Payroll Generation", Status = "Completed" },
+                new ScheduledTaskDto { Name = "Daily Attendance Sync", Status = "Running" },
+                new ScheduledTaskDto { Name = "Monthly Report Cleanup", Status = "Pending" }
+            };
+
+            return Ok(new AdminDashboardDto
+            {
+                Statistics = stats,
+                RecentActivities = recentActivities,
+                Alerts = alerts,
+                ScheduledTasks = tasks
+            });
+        }
+        [HttpGet("hr-stats")]
+        [Authorize(Roles = "ADMIN,HR")]
+        public async Task<IActionResult> GetHrStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var start = fromDate ?? today.AddDays(-30);
+            var end = toDate ?? today;
+
+            var stats = new HrStatisticsDto();
+
+            // 1. Basic Counts
+            stats.TotalHeadcount = await _context.Employees.CountAsync(e => e.EmploymentStatus == "Active");
+            stats.NewHires = await _context.Employees.CountAsync(e => e.JoinDate >= start && e.JoinDate <= end);
+            stats.Terminations = await _context.Employees.CountAsync(e => e.ResignationDate >= start && e.ResignationDate <= end);
+
+            // 2. Attendance & Leave
+            var attendanceRecords = await _context.AttendanceRecords
+                .Where(a => a.AttendanceDate >= start && a.AttendanceDate <= end)
+                .ToListAsync();
+
+            if (attendanceRecords.Any())
+            {
+                var presentCount = attendanceRecords.Count(a => a.Status == "Present" || a.Status == "Late");
+                stats.OverallAttendanceRate = Math.Round((double)presentCount / attendanceRecords.Count * 100, 1);
+            }
+
+            var approvedLeaves = await _context.LeaveRequests
+                .Where(r => r.Status == "Approved" && r.StartDate >= start && r.StartDate <= end)
+                .ToListAsync();
+
+            if (stats.TotalHeadcount > 0)
+            {
+                stats.AverageLeaveDays = Math.Round((double)approvedLeaves.Sum(l => l.NumberOfDays) / stats.TotalHeadcount, 1);
+            }
+
+            stats.PendingLeaveRequests = await _context.LeaveRequests.CountAsync(r => r.Status == "Pending");
+
+            // 3. Evaluations
+            stats.PendingEvaluations = await _context.Evaluations.CountAsync(e => e.Status == "Pending");
+            stats.CompletedEvaluations = await _context.Evaluations.CountAsync(e => e.Status == "Completed" && e.SubmittedDate >= start.ToDateTime(TimeOnly.MinValue));
+            
+            var completedEvaluations = await _context.Evaluations.Where(e => e.Status == "Completed" && e.OverallRating.HasValue).ToListAsync();
+            if (completedEvaluations.Any())
+            {
+                stats.AveragePerformanceScore = Math.Round((double)completedEvaluations.Average(e => e.OverallRating!.Value), 1);
+            }
+
+            // 4. Upcoming Events
+            var upcomingProbation = await _context.Employees
+                .Where(e => e.EmploymentStatus == "Active" && e.JoinDate.AddMonths(2) >= today && e.JoinDate.AddMonths(2) <= today.AddDays(30))
+                .Select(e => new UpcomingEventDto
+                {
+                    EmployeeId = e.EmployeeId,
+                    EmployeeName = e.FullName,
+                    Date = e.JoinDate.AddMonths(2),
+                    Detail = "End of 2-month probation"
+                })
+                .ToListAsync();
+
+            var upcomingRenewals = await _context.EmployeeContracts
+                .Where(c => c.EndDate.HasValue && c.EndDate >= today && c.EndDate <= today.AddDays(30))
+                .Select(c => new UpcomingEventDto
+                {
+                    EmployeeId = c.EmployeeId,
+                    EmployeeName = c.Employee.FullName,
+                    Date = c.EndDate.Value,
+                    Detail = c.ContractType
+                })
+                .ToListAsync();
+
+            var birthdays = await _context.Employees
+                .Where(e => e.DateOfBirth.HasValue && e.DateOfBirth.Value.Month == today.Month)
+                .Select(e => new UpcomingEventDto
+                {
+                    EmployeeId = e.EmployeeId,
+                    EmployeeName = e.FullName,
+                    Date = e.DateOfBirth.Value,
+                    Detail = "Birthday"
+                })
+                .ToListAsync();
+
+            // Recent Activities
+            var recentActivities = await _context.AuditLogs
+                .Include(a => a.User)
+                .Where(a => a.TableName == "Employees" || a.TableName == "LeaveRequests" || a.TableName == "Evaluations")
+                .OrderByDescending(a => a.ActionDate)
+                .Take(5)
+                .Select(a => new RecentActivityDto
+                {
+                    Description = $"{a.Action} on {a.TableName} by {a.User.Username ?? "System"}",
+                    Timestamp = a.ActionDate
+                })
+                .ToListAsync();
+
+            return Ok(new HrDashboardDto
+            {
+                Statistics = stats,
+                UpcomingProbationEnds = upcomingProbation,
+                ContractRenewals = upcomingRenewals,
+                Birthdays = birthdays,
+                RecentHrActivities = recentActivities
+            });
+        }
+        [HttpGet("manager-stats")]
+        [Authorize(Roles = "MANAGE")]
+        public async Task<IActionResult> GetManagerStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var user = await _context.Users.FindAsync(userId);
+            if (user?.EmployeeId == null) return NotFound("Chỉ người dùng là quản lý trực tiếp nhân viên mới có dữ liệu đội nhóm.");
+
+            var managerEmployeeId = user.EmployeeId.Value;
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var start = fromDate ?? today.AddDays(-30);
+            var end = toDate ?? today;
+
+            var result = new ManagerDashboardDto();
+
+            // 1. Team Context
+            var teamEmployees = await _context.Employees
+                .Where(e => e.ManagerId == managerEmployeeId && e.EmploymentStatus == "Active")
+                .ToListAsync();
+            var teamEmployeeIds = teamEmployees.Select(e => e.EmployeeId).ToList();
+
+            result.Statistics.TeamSize = teamEmployees.Count;
+
+            // 2. Attendance Stats
+            var todayAttendance = await _context.AttendanceRecords
+                .Where(a => teamEmployeeIds.Contains(a.EmployeeId) && a.AttendanceDate == today)
+                .ToListAsync();
+
+            result.Statistics.PresentToday = todayAttendance.Count(a => a.Status == "Present" || a.Status == "Late");
+
+            var onLeaveToday = await _context.LeaveRequests
+                .Where(r => teamEmployeeIds.Contains(r.EmployeeId) && r.Status == "Approved" && r.StartDate <= today && r.EndDate >= today)
+                .Select(r => r.EmployeeId)
+                .Distinct()
+                .CountAsync();
+            result.Statistics.OnLeaveToday = onLeaveToday;
+
+            var teamAttendanceHistory = await _context.AttendanceRecords
+                .Where(a => teamEmployeeIds.Contains(a.EmployeeId) && a.AttendanceDate >= start && a.AttendanceDate <= end)
+                .ToListAsync();
+
+            if (teamAttendanceHistory.Any())
+            {
+                result.Statistics.TeamAttendanceRate = Math.Round((double)teamAttendanceHistory.Count(a => a.Status == "Present" || a.Status == "Late") / teamAttendanceHistory.Count * 100, 1);
+            }
+
+            // 3. Pending Actions
+            result.PendingLeaveRequests = await _context.LeaveRequests
+                .Where(r => teamEmployeeIds.Contains(r.EmployeeId) && r.Status == "Pending")
+                .Select(r => new PendingRequestDto
+                {
+                    RequestId = r.LeaveRequestId,
+                    EmployeeName = r.Employee.FullName,
+                    LeaveType = r.LeaveType.LeaveTypeName,
+                    Days = r.NumberOfDays
+                })
+                .ToListAsync();
+
+            result.UpcomingTeamLeaves = await _context.LeaveRequests
+                .Where(r => teamEmployeeIds.Contains(r.EmployeeId) && r.Status == "Approved" && r.StartDate > today && r.StartDate <= today.AddDays(14))
+                .Select(r => new UpcomingLeaveDto
+                {
+                    EmployeeName = r.Employee.FullName,
+                    LeaveType = r.LeaveType.LeaveTypeName,
+                    DateRange = $"{r.StartDate:dd/MM} - {r.EndDate:dd/MM}"
+                })
+                .ToListAsync();
+
+            // 4. Tasks & Performance
+            var teamUserIds = await _context.Users.Where(u => u.EmployeeId.HasValue && teamEmployeeIds.Contains(u.EmployeeId.Value)).Select(u => u.UserId).ToListAsync();
+            var teamTasks = await _context.Tasks
+                .Where(t => teamUserIds.Contains(t.AssignedTo))
+                .ToListAsync();
+
+            result.TaskPerformance.ActiveTasks = teamTasks.Count(t => t.Status == "Pending" || t.Status == "InProgress");
+            result.TaskPerformance.OverdueTasks = teamTasks.Count(t => t.Status != "Completed" && t.DueDate.HasValue && t.DueDate < today);
+            
+            if (teamTasks.Any())
+            {
+                result.TaskPerformance.CompletionRate = Math.Round((double)teamTasks.Count(t => t.Status == "Completed") / teamTasks.Count * 100, 1);
+            }
+            result.TaskPerformance.PendingEvaluations = await _context.Evaluations.CountAsync(e => teamEmployeeIds.Contains(e.EmployeeId) && e.Status == "Pending");
+
+            // 5. Action Summary
+            result.ActionSummary.PendingLeaveApprovals = result.PendingLeaveRequests.Count;
+            result.ActionSummary.PendingOvertimeApprovals = await _context.OvertimeRequests.CountAsync(r => teamEmployeeIds.Contains(r.EmployeeId) && r.Status == "Pending");
+            result.ActionSummary.PendingAttendanceCorrections = await _context.AttendanceRecords.CountAsync(a => teamEmployeeIds.Contains(a.EmployeeId) && a.ExplanationStatus == "Pending");
+            result.ActionSummary.TotalPendingApprovals = result.ActionSummary.PendingLeaveApprovals + result.ActionSummary.PendingOvertimeApprovals + result.ActionSummary.PendingAttendanceCorrections;
+
+            // 6. Insights & Milestones
+            result.TeamInsights.Add(new TeamInsightDto { Label = "Availability", Value = $"{100 - (result.Statistics.TeamSize > 0 ? (onLeaveToday * 100 / result.Statistics.TeamSize) : 0)}%" });
+            
+            result.TeamMilestones = await _context.Employees
+                .Where(e => teamEmployeeIds.Contains(e.EmployeeId) && e.DateOfBirth.HasValue && e.DateOfBirth.Value.Month == today.Month)
+                .Select(e => new UpcomingEventDto
+                {
+                    EmployeeId = e.EmployeeId,
+                    EmployeeName = e.FullName,
+                    Date = e.DateOfBirth.Value,
+                    Detail = "Birthday"
+                })
+                .ToListAsync();
+
+            return Ok(result);
+        }
+    }
+}
