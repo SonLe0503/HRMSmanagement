@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.DataAcess.Implementations
 {
@@ -44,10 +45,10 @@ namespace HRManagement.DataAcess.Implementations
             return rating;
         }
 
-        public async Task<EvaluationRating> UpdateAsync(EvaluationRating rating)
+        public Task<EvaluationRating> UpdateAsync(EvaluationRating rating)
         {
             _context.EvaluationRatings.Update(rating);
-            return rating;
+            return Task.FromResult(rating);
         }
 
         public async Task<bool> DeleteAsync(int ratingId)

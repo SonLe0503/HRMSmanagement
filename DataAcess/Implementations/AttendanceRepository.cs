@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -127,6 +127,26 @@ namespace HRManagement.DataAcess.Implementations
                 .FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.Status == "Active");
         }
 
+        public async Task<List<(Employee Employee, FaceProfile? FaceProfile)>> GetAllEmployeesWithFaceProfileAsync()
+        {
+            var employees = await _context.Employees
+                .Include(e => e.Department)
+                .Include(e => e.Position)
+                .Where(e => e.EmploymentStatus != "Resigned")
+                .OrderBy(e => e.FullName)
+                .ToListAsync();
+
+            var faceProfiles = await _context.FaceProfiles
+                .Where(f => f.Status == "Active")
+                .ToListAsync();
+
+            var profileMap = faceProfiles.ToDictionary(f => f.EmployeeId);
+
+            return employees
+                .Select(e => (e, profileMap.TryGetValue(e.EmployeeId, out var fp) ? fp : (FaceProfile?)null))
+                .ToList();
+        }
+
         public async System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile)
         {
             await _context.FaceProfiles.AddAsync(faceProfile);
@@ -151,6 +171,18 @@ namespace HRManagement.DataAcess.Implementations
                 .Where(a => a.EmployeeId == employeeId
                             && a.CheckInTime.HasValue
                             && !a.CheckOutTime.HasValue)
+                .OrderByDescending(a => a.AttendanceDate)
+                .ThenByDescending(a => a.CheckInTime)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<AttendanceRecord?> GetLatestAttendanceRecordAsync(int employeeId)
+        {
+            return await _context.AttendanceRecords
+                .Include(a => a.Employee)
+                .Include(a => a.Shift)
+                .Where(a => a.EmployeeId == employeeId
+                            && a.CheckInTime.HasValue)
                 .OrderByDescending(a => a.AttendanceDate)
                 .ThenByDescending(a => a.CheckInTime)
                 .FirstOrDefaultAsync();

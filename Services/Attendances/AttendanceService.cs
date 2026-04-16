@@ -192,20 +192,14 @@ namespace HRManagement.Services.Attendances
         {
             var now = DateTime.Now;
 
-            // Ưu tiên lấy bản ghi đang mở (đã check-in nhưng chưa check-out)
-            var attendance = await _attendanceRepository.GetOpenAttendanceRecordAsync(employeeId);
+            // Lấy bản ghi chấm công gần nhất (có thể đã checkout rồi - cho phép checkout lại)
+            var attendance = await _attendanceRepository.GetLatestAttendanceRecordAsync(employeeId);
 
-            if (attendance == null)
-                throw new InvalidOperationException("Bạn chưa check-in hoặc đã check-out rồi.");
+            if (attendance == null || !attendance.CheckInTime.HasValue)
+                throw new InvalidOperationException("Bạn chưa check-in hoặc không tìm thấy bản ghi chấm công.");
 
             if (attendance.IsLocked ?? false)
                 throw new InvalidOperationException("Bản ghi chấm công đã bị khóa.");
-
-            if (!attendance.CheckInTime.HasValue)
-                throw new InvalidOperationException("Bạn chưa check-in hôm nay.");
-
-            if (attendance.CheckOutTime.HasValue)
-                throw new InvalidOperationException("Bạn đã check-out rồi.");
 
             if (string.IsNullOrWhiteSpace(dto.FaceImageBase64))
                 throw new ArgumentException("Vui lòng chụp ảnh khuôn mặt để check-out.");
@@ -232,8 +226,9 @@ namespace HRManagement.Services.Attendances
                     .Where(o => o.EmployeeId == employeeId && o.OvertimeDate == attendanceDate && o.Status == "Approved")
                     .ToListAsync();
 
-                // Cho phép checkout sớm tối đa 2 tiếng trước giờ kết thúc ca (Giữ nguyên kỷ luật ca chính)
-                var earliestCheckOut = shiftEnd.AddMinutes(-120);
+                // Cho phép checkout sớm tối đa X phút trước giờ kết thúc ca (Mặc định 120 phút theo comment)
+                var earliestCheckOutMinutes = shift.EarliestCheckOutMinutes ?? 120;
+                var earliestCheckOut = shiftEnd.AddMinutes(-earliestCheckOutMinutes);
 
                 // Cho phép checkout muộn tối đa X phút sau giờ kết thúc ca
                 var latestCheckOutMinutes = shift.LatestCheckOutMinutes ?? 240;
@@ -306,7 +301,7 @@ namespace HRManagement.Services.Attendances
             if (!validLocOut) attendance.ExplanationStatus = "Required";
 
             var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
-            attendance.WorkingHours = Math.Round(workingHours, 2);
+            attendance.WorkingHours = Math.Round(Math.Min(workingHours, 9999m), 2);
 
             if (shift != null)
             {
@@ -327,7 +322,7 @@ namespace HRManagement.Services.Attendances
                 {
                     attendance.EarlyLeaveMinutes = 0;
                     var overtime = (decimal)(now - shiftEnd).TotalHours;
-                    attendance.OvertimeHours = overtime > 0 ? Math.Round(overtime, 2) : 0;
+                    attendance.OvertimeHours = overtime > 0 ? Math.Round(Math.Min(overtime, 9999m), 2) : 0;
                 }
             }
 
@@ -337,17 +332,15 @@ namespace HRManagement.Services.Attendances
                 attendance.Status = "Incomplete";
                 attendance.ExplanationStatus = "Required";
             }
-            else if ((attendance.LateMinutes ?? 0) > 0 && (attendance.EarlyLeaveMinutes ?? 0) > 0)
-            {
-                attendance.Status = "LateEarlyLeave";
-            }
             else if ((attendance.LateMinutes ?? 0) > 0)
             {
+                // If there are late minutes, status is Late (even if there is also early leave)
                 attendance.Status = "Late";
             }
             else if ((attendance.EarlyLeaveMinutes ?? 0) > 0)
             {
-                attendance.Status = "EarlyLeave";
+                // If no late minutes but there is early leave, status is Incomplete
+                attendance.Status = "Incomplete";
             }
             else
             {
@@ -356,7 +349,8 @@ namespace HRManagement.Services.Attendances
 
             attendance.Source = "Web-Face";
 
-            await _attendanceRepository.UpdateAttendanceAsync(attendance);
+            // Entity đã được track bởi EF Core từ GetOpenAttendanceRecordAsync,
+            // không cần gọi Update() vì sẽ mark cả navigation properties → lỗi.
             await _attendanceRepository.SaveChangesAsync();
 
             var result = await _attendanceRepository.GetAttendanceByIdAsync(attendance.AttendanceId)
@@ -876,12 +870,10 @@ namespace HRManagement.Services.Attendances
                         attendance.LateMinutes = lateMinutes;
                         attendance.EarlyLeaveMinutes = earlyLeaveMinutes;
 
-                        if (lateMinutes > 0 && earlyLeaveMinutes > 0)
-                            attendance.Status = "LateEarlyLeave";
-                        else if (lateMinutes > 0)
+                        if (lateMinutes > 0)
                             attendance.Status = "Late";
                         else if (earlyLeaveMinutes > 0)
-                            attendance.Status = "EarlyLeave";
+                            attendance.Status = "Incomplete";
                         else
                             attendance.Status = "Present";
                     }

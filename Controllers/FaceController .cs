@@ -70,6 +70,59 @@ namespace HRManagement.Controllers
             });
         }
 
+        // ─── HR/Admin Endpoints ────────────────────────────────────────────────────
+
+        [HttpGet("admin/employees")]
+        public async Task<IActionResult> GetAllEmployeesFaceStatus()
+        {
+            try
+            {
+                var result = await _faceVerificationService.GetAllEmployeesFaceStatusAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("admin/register/{employeeId:int}")]
+        public async Task<IActionResult> AdminRegisterFace(int employeeId, [FromBody] FaceRegisterRequestDto request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.ReferenceImageBase64))
+                return BadRequest(new { message = "Ảnh khuôn mặt là bắt buộc." });
+
+            try
+            {
+                var imagePath = await _faceVerificationService.RegisterFaceAsync(employeeId, request.ReferenceImageBase64);
+                return Ok(new
+                {
+                    message = $"Đăng ký khuôn mặt cho nhân viên #{employeeId} thành công.",
+                    referenceImagePath = imagePath
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("admin/{employeeId:int}")]
+        public async Task<IActionResult> AdminDeleteFace(int employeeId)
+        {
+            try
+            {
+                await _faceVerificationService.DeleteFaceAsync(employeeId);
+                return Ok(new { message = $"Đã xóa hồ sơ khuôn mặt của nhân viên #{employeeId}." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+
         [HttpPost("verify")]
         public async Task<IActionResult> VerifyFace([FromBody] CheckInRequestDto request)
         {

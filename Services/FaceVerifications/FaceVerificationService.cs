@@ -1,7 +1,7 @@
 using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
-using HRManagement.Services.FileStorages;
 using HRManagement.DataAcess.Interfaces;
+using HRManagement.Services.FileStorages;
 using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services.FaceVerifications
@@ -80,6 +80,36 @@ namespace HRManagement.Services.FaceVerifications
         {
             var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
             return existing != null && !string.IsNullOrWhiteSpace(existing.FaceEmbedding);
+        }
+
+        public async Task<List<EmployeeFaceStatusDto>> GetAllEmployeesFaceStatusAsync()
+        {
+            var rows = await _attendanceRepository.GetAllEmployeesWithFaceProfileAsync();
+            return rows.Select(r => new EmployeeFaceStatusDto
+            {
+                EmployeeId = r.Employee.EmployeeId,
+                EmployeeCode = r.Employee.EmployeeCode,
+                FullName = r.Employee.FullName,
+                Email = r.Employee.Email,
+                DepartmentName = r.Employee.Department?.DepartmentName,
+                PositionName = r.Employee.Position?.PositionName,
+                IsRegistered = r.FaceProfile != null && !string.IsNullOrWhiteSpace(r.FaceProfile.FaceEmbedding),
+                RegisteredAt = r.FaceProfile?.CreatedDate,
+                LastUpdatedAt = r.FaceProfile?.ModifiedDate
+            }).ToList();
+        }
+
+        public async Task DeleteFaceAsync(int employeeId)
+        {
+            var existing = await _attendanceRepository.GetActiveFaceProfileByEmployeeIdAsync(employeeId);
+            if (existing == null)
+                throw new Exception("Nhân viên chưa có hồ sơ khuôn mặt.");
+
+            existing.Status = "Inactive";
+            existing.ModifiedDate = DateTime.Now;
+
+            await _attendanceRepository.UpdateFaceProfileAsync(existing);
+            await _attendanceRepository.SaveChangesAsync();
         }
 
         public async Task<FaceVerificationResultDto> VerifyAsync(
