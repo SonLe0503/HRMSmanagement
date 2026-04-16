@@ -98,6 +98,11 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+
+// Payroll Services
+builder.Services.AddScoped<TaxCalculationService>();
+builder.Services.AddScoped<IPayrollService, PayrollService>();
+
 builder.Services.AddHostedService<HRProcedureBackgroundService>();
 
 // CORS
