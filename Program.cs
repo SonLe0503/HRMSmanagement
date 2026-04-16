@@ -60,6 +60,10 @@ builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
 builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
 
+// Payroll Repositories
+builder.Services.AddScoped<IPayrollRepository, PayrollRepository>();
+builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
+
 // Core Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
