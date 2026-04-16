@@ -824,6 +824,10 @@ namespace HRManagement.Services.Attendances
             var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
 
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            if (attendance.AttendanceDate >= today)
+                throw new InvalidOperationException("Phiếu giải trình cho ngày hiện tại chỉ có thể được phê duyệt sau khi ngày làm việc kết thúc (từ ngày mai).");
+
             if (dto.IsApproved)
             {
                 attendance.ExplanationStatus = "Approved";

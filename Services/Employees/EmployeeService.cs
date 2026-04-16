@@ -56,6 +56,9 @@ namespace HRManagement.Services.Employees
                 throw new ArgumentException("Base salary cannot be negative.");
 
 
+            if (dto.JoinDate < today)
+                throw new ArgumentException("Join date cannot be in the past.");
+
             if (dto.DateOfBirth is DateOnly dob)
             {
                 if (dob > today)
