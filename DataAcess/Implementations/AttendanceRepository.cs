@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -171,6 +171,18 @@ namespace HRManagement.DataAcess.Implementations
                 .Where(a => a.EmployeeId == employeeId
                             && a.CheckInTime.HasValue
                             && !a.CheckOutTime.HasValue)
+                .OrderByDescending(a => a.AttendanceDate)
+                .ThenByDescending(a => a.CheckInTime)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<AttendanceRecord?> GetLatestAttendanceRecordAsync(int employeeId)
+        {
+            return await _context.AttendanceRecords
+                .Include(a => a.Employee)
+                .Include(a => a.Shift)
+                .Where(a => a.EmployeeId == employeeId
+                            && a.CheckInTime.HasValue)
                 .OrderByDescending(a => a.AttendanceDate)
                 .ThenByDescending(a => a.CheckInTime)
                 .FirstOrDefaultAsync();

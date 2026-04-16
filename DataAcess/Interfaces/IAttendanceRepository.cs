@@ -1,4 +1,4 @@
-﻿using HRManagement.Models;
+using HRManagement.Models;
 
 namespace HRManagement.DataAcess.Interfaces
 {
@@ -29,6 +29,7 @@ namespace HRManagement.DataAcess.Interfaces
         System.Threading.Tasks.Task AddFaceVerificationLogAsync(FaceVerificationLog log);
 
         Task<AttendanceRecord?> GetOpenAttendanceRecordAsync(int employeeId);
+        Task<AttendanceRecord?> GetLatestAttendanceRecordAsync(int employeeId);
 
         System.Threading.Tasks.Task SaveChangesAsync();
     }
