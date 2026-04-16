@@ -34,7 +34,10 @@ namespace HRManagement.Services.Payroll
         Task<PayrollRecordDto> ApproveRecordAsync(int payrollRecordId, int approvedByUserId);
 
         // --- Phiếu lương ---
+        Task<PayslipDto> GeneratePayslipAsync(int payrollRecordId);
         Task<List<PayslipDto>> GetPayslipsByEmployeeAsync(int employeeId);
+        Task<byte[]> GetPayslipPdfAsync(int payslipId);
+        Task<byte[]> ExportPayrollExcelAsync(int periodId);
 
         // --- Tính thuế ---
         Task<TaxCalculationResultDto> CalculateTaxAsync(TaxCalculationRequestDto request);

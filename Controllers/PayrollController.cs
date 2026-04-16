@@ -243,6 +243,18 @@ namespace HRManagement.Controllers
         // PHIẾU LƯƠNG (PAYSLIPS)
         // ══════════════════════════════════════════════
 
+        [HttpPost("payslips/{recordId:int}/generate")]
+        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        public async Task<IActionResult> GeneratePayslip(int recordId)
+        {
+            try {
+                var payslip = await _payrollService.GeneratePayslipAsync(recordId);
+                return Ok(payslip);
+            } catch (Exception ex) {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpGet("payslips/employee/{employeeId:int}")]
         public async Task<IActionResult> GetPayslipsByEmployee(int employeeId)
         {
@@ -250,9 +262,33 @@ namespace HRManagement.Controllers
             return Ok(payslips);
         }
 
+        [HttpGet("payslips/{payslipId:int}/pdf")]
+        public async Task<IActionResult> DownloadPdf(int payslipId)
+        {
+            try {
+                var pdfBytes = await _payrollService.GetPayslipPdfAsync(payslipId);
+                var record = await _payrollService.GetPayslipsByEmployeeAsync(0); // Dummy but maybe I should have a GetPayslipById
+                return File(pdfBytes, "application/pdf", $"payslip_{payslipId}.pdf");
+            } catch (Exception ex) {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
         // ══════════════════════════════════════════════
         // TIỆN ÍCH
         // ══════════════════════════════════════════════
+
+        [HttpGet("export/{periodId:int}")]
+        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        public async Task<IActionResult> ExportExcel(int periodId)
+        {
+            try {
+                var excelBytes = await _payrollService.ExportPayrollExcelAsync(periodId);
+                return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Payroll_Period_{periodId}.xlsx");
+            } catch (Exception ex) {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
         [HttpPost("tax/calculate")]
         public async Task<IActionResult> CalculateTax([FromBody] TaxCalculationRequestDto request)

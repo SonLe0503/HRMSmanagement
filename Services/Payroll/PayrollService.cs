@@ -349,6 +349,58 @@ namespace HRManagement.Services.Payroll
             return _mapper.Map<PayrollRecordDto>(record);
         }
 
+        public async Task<PayslipDto> GeneratePayslipAsync(int payrollRecordId)
+        {
+            var record = await _payrollRepo.GetByIdAsync(payrollRecordId)
+                ?? throw new KeyNotFoundException("Không tìm thấy bản ghi lương.");
+
+            var period = await _periodRepo.GetByIdAsync(record.PeriodId)
+                ?? throw new KeyNotFoundException();
+
+            // 1. Kiểm tra Payslip đã tồn tại chưa
+            var existingPayslip = await _context.Payslips.FirstOrDefaultAsync(p => p.PayrollRecordId == payrollRecordId);
+            
+            var payslip = existingPayslip ?? new Payslip();
+            payslip.PayrollRecordId = payrollRecordId;
+            payslip.EmployeeId = record.EmployeeId;
+            payslip.PeriodId = record.PeriodId;
+            payslip.PayslipNumber = $"PS-{period.Year}{period.Month:D2}-{record.PayrollRecordId:D5}";
+            payslip.GeneratedDate = DateTime.Now;
+            payslip.IsViewed = false;
+
+            if (existingPayslip == null)
+                _context.Payslips.Add(payslip);
+            else
+                _context.Payslips.Update(payslip);
+
+            await _context.SaveChangesAsync();
+            return _mapper.Map<PayslipDto>(payslip);
+        }
+
+        public async Task<byte[]> GetPayslipPdfAsync(int payslipId)
+        {
+            var payslip = await _context.Payslips
+                .Include(p => p.PayrollRecord).ThenInclude(r => r.PayrollAllowances)
+                .Include(p => p.PayrollRecord).ThenInclude(r => r.PayrollDeductions)
+                .Include(p => p.PayrollRecord).ThenInclude(r => r.Employee).ThenInclude(e => e.Department)
+                .Include(p => p.PayrollRecord).ThenInclude(r => r.Employee).ThenInclude(e => e.Position)
+                .Include(p => p.Period)
+                .FirstOrDefaultAsync(p => p.PayslipId == payslipId)
+                ?? throw new KeyNotFoundException();
+
+            var pdfService = new PayslipPdfService();
+            return pdfService.GeneratePdf(payslip.PayrollRecord, payslip.Period);
+        }
+
+        public async Task<byte[]> ExportPayrollExcelAsync(int periodId)
+        {
+            var period = await _periodRepo.GetByIdAsync(periodId) ?? throw new KeyNotFoundException();
+            var records = await _payrollRepo.GetByPeriodWithDetailsAsync(periodId);
+            
+            var excelService = new PayrollExportService();
+            return excelService.ExportPayrollExcel(records, period);
+        }
+
         public async Task<List<PayslipDto>> GetPayslipsByEmployeeAsync(int employeeId)
         {
             var payslips = await _context.Payslips

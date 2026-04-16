@@ -38,6 +38,7 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260330" />
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260302" />
+    <PackageReference Include="QuestPDF" Version="2026.2.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
   </ItemGroup>
 
