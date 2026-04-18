@@ -220,6 +220,26 @@ namespace HRManagement.Services.Employees
             }).ToList();
         }
 
+        public async Task<IEnumerable<EmployeeResponseListDto>> GetActiveEmployeesAsync()
+        {
+            var employees = await _employeeRepository.GetActiveEmployeesAsync();
+            return employees.Select(e => new EmployeeResponseListDto
+            {
+                EmployeeId = e.EmployeeId,
+                EmployeeCode = e.EmployeeCode,
+                FullName = e.FullName, 
+                Email = e.Email,
+                Phone = e.Phone,
+                Gender = e.Gender,
+                EmploymentStatus = e.EmploymentStatus,
+                DepartmentName = e.Department?.DepartmentName ?? "N/A",
+                PositionName = e.Position?.PositionName ?? "N/A",
+                ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",
+                DepartmentId = e.DepartmentId,
+                RoleName = e.Users.FirstOrDefault()?.UserRoles.FirstOrDefault()?.Role.RoleName
+            }).ToList();
+        }
+
         public async Task<EmployeeResponseDetailDto?> GetEmployeeByIdAsync(int employeeId)
         {
             var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
