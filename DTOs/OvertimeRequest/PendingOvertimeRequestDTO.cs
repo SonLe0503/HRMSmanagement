@@ -10,6 +10,8 @@ namespace HRManagement.DTOs.OvertimeRequest
         public TimeOnly StartTime { get; set; }
         public TimeOnly EndTime { get; set; }
         public decimal TotalHours { get; set; }
+        public string? OTType { get; set; }
+        public string? OTMode { get; set; }
         public string? Reason { get; set; }
         public string? TaskDescription { get; set; }
         public string Status { get; set; } = string.Empty;

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs
 {
@@ -15,8 +15,6 @@ namespace HRManagement.DTOs
         [MaxLength(500)]
         public string? Description { get; set; }
 
-        public int? ParentDepartmentId { get; set; }
-
         public int? ManagerId { get; set; }
     }
     public class UpdateDepartmentDto
@@ -32,8 +30,6 @@ namespace HRManagement.DTOs
         [MaxLength(500)]
         public string? Description { get; set; }
 
-        public int? ParentDepartmentId { get; set; }
-
         public int? ManagerId { get; set; }
     }
     public class DepartmentResponseDto
@@ -42,13 +38,11 @@ namespace HRManagement.DTOs
         public string DepartmentCode { get; set; } = null!;
         public string DepartmentName { get; set; } = null!;
         public string? Description { get; set; }
-        public int? ParentDepartmentId { get; set; }
-        public string? ParentDepartmentName { get; set; }
         public int? ManagerId { get; set; }
         public string? ManagerName { get; set; }
         public bool IsActive { get; set; }
         public int EmployeeCount { get; set; }
-        public int SubDepartmentCount { get; set; }
+        public IEnumerable<DepartmentEmployeeDto> Employees { get; set; } = new List<DepartmentEmployeeDto>();
         public DateTime CreatedDate { get; set; }
         public int? CreatedBy { get; set; }
         public string? CreatedByName { get; set; }
@@ -56,12 +50,22 @@ namespace HRManagement.DTOs
         public int? ModifiedBy { get; set; }
         public string? ModifiedByName { get; set; }
     }
+    public class DepartmentEmployeeDto
+    {
+        public int EmployeeId { get; set; }
+        public string EmployeeCode { get; set; } = null!;
+        public string FullName { get; set; } = null!;
+        public string? PositionName { get; set; }
+        public string Email { get; set; } = null!;
+        public string? Phone { get; set; }
+        public string EmploymentStatus { get; set; } = null!;
+        public string? Gender { get; set; }
+    }
     public class DepartmentListDto
     {
         public int DepartmentId { get; set; }
         public string DepartmentCode { get; set; } = null!;
         public string DepartmentName { get; set; } = null!;
-        public string? ParentDepartmentName { get; set; }
         public string? ManagerName { get; set; }
         public int EmployeeCount { get; set; }
         public bool IsActive { get; set; }

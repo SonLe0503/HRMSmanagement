@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using System.Security.Claims;
@@ -65,28 +65,11 @@ namespace HRManagement.Services.Departments
                 throw new InvalidOperationException($"Department code '{createDto.DepartmentCode}' already exists.");
             }
 
-            if (createDto.ParentDepartmentId.HasValue)
-            {
-                if (!await _departmentRepository.ParentDepartmentExistsAsync(createDto.ParentDepartmentId.Value))
-                {
-                    throw new KeyNotFoundException("Parent department not found or inactive.");
-                }
-            }
-
-            if (createDto.ManagerId.HasValue)
-            {
-                if (!await _departmentRepository.EmployeeExistsAsync(createDto.ManagerId.Value))
-                {
-                    throw new KeyNotFoundException("Manager employee not found.");
-                }
-            }
-
             var department = new Department
             {
                 DepartmentCode = createDto.DepartmentCode,
                 DepartmentName = createDto.DepartmentName,
                 Description = createDto.Description,
-                ParentDepartmentId = createDto.ParentDepartmentId,
                 ManagerId = createDto.ManagerId,
                 IsActive = true,
                 CreatedDate = DateTime.UtcNow,
@@ -94,19 +77,19 @@ namespace HRManagement.Services.Departments
             };
 
             await _departmentRepository.AddAsync(department);
+            
+            // Reload to get employees if needed, but for new dept it's empty anyway
             return new DepartmentResponseDto
             {
                 DepartmentId = department.DepartmentId,
                 DepartmentCode = department.DepartmentCode,
                 DepartmentName = department.DepartmentName,
                 Description = department.Description,
-                ParentDepartmentId = department.ParentDepartmentId,
-                ParentDepartmentName = department.ParentDepartment?.DepartmentName,
-                ManagerId = department.ManagerId,
-                ManagerName = department.Manager?.FirstName + " " + department.Manager?.LastName,
+                ManagerId = FindDepartmentManagerId(department) ?? department.ManagerId,
+                ManagerName = FindDepartmentManagerName(department),
                 IsActive = department.IsActive,
-                EmployeeCount = department.Employees?.Count ?? 0,
-                SubDepartmentCount = department.InverseParentDepartment?.Count ?? 0,
+                EmployeeCount = 0,
+                Employees = new List<DepartmentEmployeeDto>(),
                 CreatedDate = department.CreatedDate,
                 CreatedBy = department.CreatedBy,
                 CreatedByName = "System",
@@ -125,8 +108,8 @@ namespace HRManagement.Services.Departments
                 DepartmentCode = d.DepartmentCode,
                 DepartmentName = d.DepartmentName,
                 IsActive = d.IsActive,
-                ParentDepartmentName = d.ParentDepartment != null ? d.ParentDepartment.DepartmentName : null,
-                ManagerName = d.Manager != null ? $"{d.Manager.FirstName} {d.Manager.LastName}" : null
+                EmployeeCount = d.Employees?.Count ?? 0,
+                ManagerName = FindDepartmentManagerName(d)
             }).ToList();
         }
 
@@ -139,8 +122,8 @@ namespace HRManagement.Services.Departments
                 DepartmentCode = d.DepartmentCode,
                 DepartmentName = d.DepartmentName,
                 IsActive = d.IsActive,
-                ParentDepartmentName = d.ParentDepartment != null ? d.ParentDepartment.DepartmentName : null,
-                ManagerName = d.Manager != null ? $"{d.Manager.FirstName} {d.Manager.LastName}" : null
+                EmployeeCount = d.Employees?.Count ?? 0,
+                ManagerName = FindDepartmentManagerName(d)
             }).ToList();
         }
 
@@ -155,13 +138,11 @@ namespace HRManagement.Services.Departments
                 DepartmentCode = department.DepartmentCode,
                 DepartmentName = department.DepartmentName,
                 Description = department.Description,
-                ParentDepartmentId = department.ParentDepartmentId,
-                ParentDepartmentName = department.ParentDepartment?.DepartmentName,
-                ManagerId = department.ManagerId,
-                ManagerName = department.Manager != null ? $"{department.Manager.FirstName} {department.Manager.LastName}" : null,
+                ManagerId = FindDepartmentManagerId(department) ?? department.ManagerId,
+                ManagerName = FindDepartmentManagerName(department),
                 IsActive = department.IsActive,
                 EmployeeCount = department.Employees?.Count ?? 0,
-                SubDepartmentCount = department.InverseParentDepartment?.Count ?? 0,
+                Employees = MapDepartmentEmployees(department.Employees),
                 CreatedDate = department.CreatedDate,
                 CreatedBy = department.CreatedBy,
                 CreatedByName = "System",
@@ -173,7 +154,7 @@ namespace HRManagement.Services.Departments
 
         public async Task<DepartmentResponseDto> UpdateDepartmentAsync(int departmentId, UpdateDepartmentDto updateDto)
         {
-            var department = await _departmentRepository.GetByIdAsync(departmentId);
+            var department = await _departmentRepository.GetByIdWithDetailsAsync(departmentId);
             if (department == null)
             {
                 throw new KeyNotFoundException("Department not found.");
@@ -184,31 +165,9 @@ namespace HRManagement.Services.Departments
                 throw new InvalidOperationException($"Department code '{updateDto.DepartmentCode}' already exists.");
             }
 
-            if (updateDto.ParentDepartmentId.HasValue)
-            {
-                if (updateDto.ParentDepartmentId.Value == departmentId)
-                {
-                    throw new InvalidOperationException("Department cannot be its own parent.");
-                }
-
-                if (!await _departmentRepository.ParentDepartmentExistsAsync(updateDto.ParentDepartmentId.Value))
-                {
-                    throw new KeyNotFoundException("Parent department not found or inactive.");
-                }
-            }
-
-            if (updateDto.ManagerId.HasValue)
-            {
-                if (!await _departmentRepository.EmployeeExistsAsync(updateDto.ManagerId.Value))
-                {
-                    throw new KeyNotFoundException("Manager employee not found.");
-                }
-            }
-
             department.DepartmentCode = updateDto.DepartmentCode;
             department.DepartmentName = updateDto.DepartmentName;
             department.Description = updateDto.Description;
-            department.ParentDepartmentId = updateDto.ParentDepartmentId;
             department.ManagerId = updateDto.ManagerId;
             department.ModifiedDate = DateTime.UtcNow;
             department.ModifiedBy = GetCurrentUserId();
@@ -221,13 +180,11 @@ namespace HRManagement.Services.Departments
                 DepartmentCode = department.DepartmentCode,
                 DepartmentName = department.DepartmentName,
                 Description = department.Description,
-                ParentDepartmentId = department.ParentDepartmentId,
-                ParentDepartmentName = department.ParentDepartment?.DepartmentName,
-                ManagerId = department.ManagerId,
-                ManagerName = department.Manager != null ? $"{department.Manager.FirstName} {department.Manager.LastName}" : null,
+                ManagerId = FindDepartmentManagerId(department) ?? department.ManagerId,
+                ManagerName = FindDepartmentManagerName(department),
                 IsActive = department.IsActive,
                 EmployeeCount = department.Employees?.Count ?? 0,
-                SubDepartmentCount = department.InverseParentDepartment?.Count ?? 0,
+                Employees = MapDepartmentEmployees(department.Employees),
                 CreatedDate = department.CreatedDate,
                 CreatedBy = department.CreatedBy,
                 CreatedByName = "System",
@@ -236,6 +193,49 @@ namespace HRManagement.Services.Departments
                 ModifiedByName = department.ModifiedBy.HasValue ? "System" : null
             };
         }
+
+        private int? FindDepartmentManagerId(Department d)
+        {
+            if (d.Employees == null || !d.Employees.Any())
+                return null;
+
+            var manager = d.Employees
+                .Where(e => e.Users.Any(u => u.UserRoles.Any(ur => ur.Role.RoleName == "MANAGE")))
+                .OrderByDescending(e => e.Position?.Level ?? 0)
+                .FirstOrDefault();
+
+            return manager?.EmployeeId;
+        }
+
+        private string? FindDepartmentManagerName(Department d)
+        {
+            if (d.Employees == null || !d.Employees.Any())
+                return null;
+
+            var manager = d.Employees
+                .Where(e => e.Users.Any(u => u.UserRoles.Any(ur => ur.Role.RoleName == "MANAGE")))
+                .OrderByDescending(e => e.Position?.Level ?? 0)
+                .FirstOrDefault();
+
+            return manager?.FullName;
+        }
+
+        private IEnumerable<DepartmentEmployeeDto> MapDepartmentEmployees(ICollection<Employee>? employees)
+        {
+            if (employees == null) return new List<DepartmentEmployeeDto>();
+            return employees.Select(e => new DepartmentEmployeeDto
+            {
+                EmployeeId = e.EmployeeId,
+                EmployeeCode = e.EmployeeCode,
+                FullName = e.FullName,
+                PositionName = e.Position?.PositionName,
+                Email = e.Email,
+                Phone = e.Phone,
+                EmploymentStatus = e.EmploymentStatus,
+                Gender = e.Gender
+            });
+        }
+
         private int GetCurrentUserId()
         {
             var claim = _httpContextAccessor.HttpContext?

@@ -34,6 +34,8 @@ namespace HRManagement.Controllers
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+                .Include(u => u.Employee)
+                .ThenInclude(e => e.Position)
                 .FirstOrDefaultAsync(u => u.Username == request.Username);
             if (user == null)
             {
@@ -48,7 +50,9 @@ namespace HRManagement.Controllers
             {
                 return Unauthorized(new { message = "Mật khẩu không đúng" });
             }
-            user.LastLogin = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            user.LastLogin = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second);
+            var lastLoginStr = user.LastLogin.Value.ToString("yyyyMMddHHmmss");
             await _context.SaveChangesAsync();
 
 
@@ -56,8 +60,17 @@ namespace HRManagement.Controllers
             {
                   new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                   new Claim(ClaimTypes.Name, user.Username),
+                  new Claim("EmployeeID", user.EmployeeId?.ToString() ?? ""),
+                  new Claim("IsTopLevel", (user.Employee?.Position?.IsTopLevel ?? false).ToString().ToLower()),
+                  new Claim("PositionName", user.Employee?.Position?.PositionName ?? ""),
+                  new Claim("LastLogin", lastLoginStr)
 
             };
+
+            if (user.EmployeeId.HasValue)
+            {
+                claims.Add(new Claim("employeeId", user.EmployeeId.Value.ToString()));
+            }
 
             foreach (var userRole in user.UserRoles)
             {
@@ -142,13 +155,14 @@ namespace HRManagement.Controllers
                 .FirstOrDefaultAsync(u =>
                     u.Email.ToLower() == input || u.Username.ToLower() == input);
 
-            // Vì lý do bảo mật: không nói rõ user có tồn tại hay không
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
-                return Ok(new
-                {
-                    message = "Nếu tài khoản tồn tại, mã OTP đặt lại mật khẩu đã được gửi qua email."
-                });
+                return BadRequest(new { message = "Email hoặc Username không tồn tại trong hệ thống." });
+            }
+
+            if (!user.IsActive)
+            {
+                return BadRequest(new { message = "Tài khoản của bạn hiện đang bị vô hiệu hóa." });
             }
 
             var otp = GenerateOtp();
@@ -243,6 +257,13 @@ namespace HRManagement.Controllers
         {
             var random = new Random();
             return random.Next(100000, 999999).ToString();
+        }
+
+        [Authorize]
+        [HttpGet("ping")]
+        public IActionResult Ping()
+        {
+            return Ok(new { message = "Session is valid." });
         }
     }
 }

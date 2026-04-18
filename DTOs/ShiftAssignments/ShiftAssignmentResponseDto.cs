@@ -1,4 +1,4 @@
-﻿namespace HRManagement.DTOs.ShiftAssignments
+namespace HRManagement.DTOs.ShiftAssignments
 {
     public class ShiftAssignmentResponseDto
     {
@@ -21,5 +21,7 @@
         public DateTime CreatedDate { get; set; }
         public int? CreatedBy { get; set; }
 
+        public TimeOnly? StartTime { get; set; }
+        public TimeOnly? EndTime { get; set; }
     }
 }

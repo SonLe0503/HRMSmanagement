@@ -1,4 +1,4 @@
-﻿using HRManagement.DataAcess.Interfaces;
+using HRManagement.DataAcess.Interfaces;
 using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +25,9 @@ namespace HRManagement.DataAcess.Implementations
                  .Include(d => d.Department)
                  .Include(p => p.Position)
                  .Include(m => m.Manager)
+                 .Include(e => e.Users)
+                    .ThenInclude(u => u.UserRoles)
+                        .ThenInclude(ur => ur.Role)
                  .ToListAsync();
         }
 
@@ -65,6 +68,11 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == userId);
+        }
+
+        public async Task<bool> EmployeeExistsAsync(int employeeId)
+        {
+            return await _context.Employees.AnyAsync(e => e.EmployeeId == employeeId);
         }
         public async Task<string?> GetLastEmployeeCodeAsync()
         {

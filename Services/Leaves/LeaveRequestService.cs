@@ -58,17 +58,20 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-08", "Invalid leave type.");
                 }
 
-                var hasOverlap = await _context.LeaveRequests.AnyAsync(x =>
-                    x.EmployeeId == employee.EmployeeId &&
-                    (x.Status == "Pending" || x.Status == "Approved") &&
-                    dto.StartDate <= x.EndDate &&
-                    dto.EndDate >= x.StartDate);
+                var overlappingRequest = await _context.LeaveRequests
+                    .Where(x =>
+                        x.EmployeeId == employee.EmployeeId &&
+                        (x.Status == "Pending" || x.Status == "Approved") &&
+                        dto.StartDate <= x.EndDate &&
+                        dto.EndDate >= x.StartDate)
+                    .Select(x => new { x.StartDate, x.EndDate })
+                    .FirstOrDefaultAsync();
 
-                if (hasOverlap)
+                if (overlappingRequest != null)
                 {
                     return ServiceResult<LeaveRequestResponseDTO>.Fail(
                         "MSG-09",
-                        "Selected dates overlap with an existing pending or approved leave request.");
+                        $"Selected dates overlap with an existing {overlappingRequest.StartDate:dd/MM/yyyy} to {overlappingRequest.EndDate:dd/MM/yyyy} leave request.");
                 }
 
                 decimal currentBalance = 0;
@@ -85,13 +88,17 @@ namespace HRManagement.Services.Leaves
 
                     if (leaveBalance == null)
                     {
-                        return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-104", "Leave balance not found.");
+                        // Instead of failing, we'll assume 0 balance and let the user "Submit anyway" if they want
+                        currentBalance = 0;
+                        remainingAfterRequest = -dto.NumberOfDays;
                     }
+                    else
+                    {
+                        currentBalance = leaveBalance.RemainingDays
+                            ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
 
-                    currentBalance = leaveBalance.RemainingDays
-                        ?? leaveBalance.TotalEntitlement - leaveBalance.UsedDays + leaveBalance.CarriedForward;
-
-                    remainingAfterRequest = currentBalance - dto.NumberOfDays;
+                        remainingAfterRequest = currentBalance - dto.NumberOfDays;
+                    }
 
                     if (currentBalance < dto.NumberOfDays && !dto.SubmitAnyway)
                     {
@@ -134,6 +141,7 @@ namespace HRManagement.Services.Leaves
                     NumberOfDays = dto.NumberOfDays,
                     Reason = dto.Reason,
                     Status = initialStatus,
+                    TargetApproverId = approverId,
                     SubmittedDate = DateTime.Now,
                     ReviewedDate = initialStatus == "Approved" ? DateTime.Now : null,
                     ReviewedBy = initialStatus == "Approved" ? null : null, // System approved
@@ -164,6 +172,7 @@ namespace HRManagement.Services.Leaves
                 if (initialStatus == "Approved" && leaveBalance != null)
                 {
                     leaveBalance.UsedDays += dto.NumberOfDays;
+                    leaveBalance.RemainingDays = (leaveBalance.TotalEntitlement + leaveBalance.CarriedForward) - leaveBalance.UsedDays;
                     leaveBalance.LastUpdated = DateTime.Now;
                 }
 
@@ -264,9 +273,8 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-45", "Employee not found.");
                 }
 
-                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
-                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                // Validation using frozen TargetApproverId
+                if (leaveRequest.TargetApproverId == null || leaveRequest.TargetApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -292,7 +300,19 @@ namespace HRManagement.Services.Leaves
 
                     if (leaveBalance == null)
                     {
-                        return ServiceResult<string>.Fail("MSG-46", "Unable to retrieve leave balance information.");
+                        // Create a default balance if it doesn't exist to track the usage
+                        leaveBalance = new LeaveBalance
+                        {
+                            EmployeeId = leaveRequest.EmployeeId,
+                            LeaveTypeId = leaveRequest.LeaveTypeId,
+                            Year = targetYear,
+                            TotalEntitlement = leaveType.AnnualEntitlement,
+                            UsedDays = 0,
+                            CarriedForward = 0,
+                            RemainingDays = leaveType.AnnualEntitlement,
+                            LastUpdated = DateTime.Now
+                        };
+                        _context.LeaveBalances.Add(leaveBalance);
                     }
 
                     decimal currentBalance = leaveBalance.RemainingDays
@@ -300,14 +320,9 @@ namespace HRManagement.Services.Leaves
 
                     decimal newBalance = currentBalance - leaveRequest.NumberOfDays;
 
-                    if (newBalance < 0)
-                    {
-                        return ServiceResult<string>.Fail(
-                            "MSG-43",
-                            "Warning: Approving this leave request will result in negative leave balance for the employee.");
-                    }
-
+                    // Allow negative balance, but log it or handle it in Salary calculation later
                     leaveBalance.UsedDays += leaveRequest.NumberOfDays;
+                    leaveBalance.RemainingDays = (leaveBalance.TotalEntitlement + leaveBalance.CarriedForward) - leaveBalance.UsedDays;
                     leaveBalance.LastUpdated = DateTime.Now;
                 }
 
@@ -411,9 +426,8 @@ namespace HRManagement.Services.Leaves
                     return ServiceResult<string>.Fail("MSG-46", "Employee not found.");
                 }
 
-                // Validation using ApprovalRouteService (Supports Direct Manager + Top-level Fallback)
-                var expectedApproverId = await _approvalRouteService.GetApproverIdAsync(employee.EmployeeId);
-                if (expectedApproverId == null || expectedApproverId != managerUserId)
+                // Validation using frozen TargetApproverId
+                if (leaveRequest.TargetApproverId == null || leaveRequest.TargetApproverId != managerUserId)
                 {
                     return ServiceResult<string>.Fail("MSG-41", "You do not have authority to process this request.");
                 }
@@ -553,7 +567,11 @@ namespace HRManagement.Services.Leaves
 
             if (user == null || user.EmployeeId == null)
             {
-                return ServiceResult<List<MyLeaveRequestItemDTO>>.Fail("MSG-106", "Access Denied.");
+                return ServiceResult<List<MyLeaveRequestItemDTO>>.Ok(
+                    "MSG-00", 
+                    "User has no employee profile, so they have no personal leave requests.", 
+                    new List<MyLeaveRequestItemDTO>()
+                );
             }
 
             var requests = await _context.LeaveRequests
@@ -588,23 +606,30 @@ namespace HRManagement.Services.Leaves
                 var managerUser = await _context.Users
                     .FirstOrDefaultAsync(x => x.UserId == managerUserId && x.IsActive);
 
-                if (managerUser == null || managerUser.EmployeeId == null)
+                if (managerUser == null)
                 {
-                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail(
-                        "MSG-106",
-                        "Access Denied.");
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Fail("MSG-106", "Access Denied.");
+                }
+                
+                if (managerUser.EmployeeId == null)
+                {
+                    return ServiceResult<IEnumerable<TeamLeaveCalendarDTO>>.Ok(
+                        "MSG-00",
+                        "User has no employee profile, so no team calendar is available.",
+                        new List<TeamLeaveCalendarDTO>());
                 }
 
-                var managerEmployeeId = managerUser.EmployeeId.Value;
-                var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                var managerEmployeeId = managerUser.EmployeeId;
+                var topLevelFallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+                var defaultFallbackUserId = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
 
                 var approvedLeaves = await _context.LeaveRequests
                     .Include(x => x.Employee)
+                        .ThenInclude(e => e.Position)
                     .Include(x => x.LeaveType)
                     .Where(x =>
                         x.Status == "Approved" &&
-                        ((x.Employee.ManagerId == managerEmployeeId) ||
-                         (x.Employee.ManagerId == null && x.Employee.Position.IsTopLevel && fallbackUserId == managerUserId))
+                        x.TargetApproverId == managerUserId
                     )
                     .OrderBy(x => x.StartDate)
                     .Select(x => new TeamLeaveCalendarDTO
@@ -652,7 +677,8 @@ namespace HRManagement.Services.Leaves
                 return ServiceResult<List<PendingLeaveRequestDTO>>.Fail("MSG-106", "Access Denied.");
             }
 
-            var fallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var topLevelFallbackUserId = await _topLevelResolver.GetTopLevelFallbackUserIdAsync();
+            var defaultFallbackUserId = await _topLevelResolver.GetDefaultFallbackUserIdAsync();
 
             var pendingRequests = await _context.LeaveRequests
                 .Where(lr => lr.Status == "Pending")
@@ -660,8 +686,7 @@ namespace HRManagement.Services.Leaves
                     .ThenInclude(e => e.Position)
                 .Include(lr => lr.LeaveType)
                 .Where(lr =>
-                    (managerUser.EmployeeId.HasValue && lr.Employee.ManagerId == managerUser.EmployeeId) ||
-                    (lr.Employee.ManagerId == null && lr.Employee.Position.IsTopLevel && fallbackUserId == managerUserId)
+                    lr.TargetApproverId == managerUserId
                 )
                 .Select(x => new PendingLeaveRequestDTO
                 {

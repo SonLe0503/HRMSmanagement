@@ -6,5 +6,6 @@ namespace HRManagement.Services.Approvals
     {
         Task<bool> IsTopLevelEmployeeAsync(int employeeId);
         Task<int?> GetTopLevelFallbackUserIdAsync();
+        Task<int?> GetDefaultFallbackUserIdAsync();
     }
 }
