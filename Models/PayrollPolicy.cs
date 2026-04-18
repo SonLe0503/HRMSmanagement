@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HRManagement.Models;
 
@@ -14,6 +13,9 @@ public partial class PayrollPolicy
     public string? Description { get; set; }
 
     public string? CalculationFormula { get; set; }
+    
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal BaseAmount { get; set; }
 
     public string? ApplicableEmployeeGroup { get; set; }
 

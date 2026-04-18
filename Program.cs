@@ -25,6 +25,7 @@ using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
 using HRManagement.Services.Backgrounds;
+using HRManagement.Services.Payroll;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,10 @@ builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
 builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
 
+// Payroll Repositories
+builder.Services.AddScoped<IPayrollRepository, PayrollRepository>();
+builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
+
 // Core Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
@@ -94,6 +99,11 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+
+// Payroll Services
+builder.Services.AddScoped<TaxCalculationService>();
+builder.Services.AddScoped<IPayrollService, PayrollService>();
+
 builder.Services.AddHostedService<HRProcedureBackgroundService>();
 
 // CORS
