@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.DataAcess.Implementations
 {
@@ -88,6 +89,6 @@ namespace HRManagement.DataAcess.Implementations
         public async Task<decimal> GetTotalNetPayByPeriodAsync(int periodId)
             => await _context.PayrollRecords
                 .Where(r => r.PeriodId == periodId)
-                .SumAsync(r => r.NetPay);
+                .SumAsync(r => r.NetPay ?? 0m);
     }
 }

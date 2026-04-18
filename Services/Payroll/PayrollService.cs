@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services.Payroll
 {
@@ -80,11 +81,11 @@ namespace HRManagement.Services.Payroll
                 TotalAllowances = records.Sum(r => r.TotalAllowances),
                 TotalOvertimePay = records.Sum(r => r.OvertimePay),
                 TotalBonuses = records.Sum(r => r.BonusAmount),
-                TotalGrossPay = records.Sum(r => r.GrossPay),
+                TotalGrossPay = records.Sum(r => r.GrossPay ?? 0m),
                 TotalInsurance = records.Sum(r => r.InsuranceAmount),
                 TotalTax = records.Sum(r => r.TaxAmount),
                 TotalDeductions = records.Sum(r => r.TotalDeductions),
-                TotalNetPay = records.Sum(r => r.NetPay)
+                TotalNetPay = records.Sum(r => r.NetPay ?? 0m)
             };
 
             summary.ByDepartment = records
@@ -93,7 +94,7 @@ namespace HRManagement.Services.Payroll
                 {
                     DepartmentName = g.Key,
                     EmployeeCount = g.Count(),
-                    TotalNetPay = g.Sum(r => r.NetPay)
+                    TotalNetPay = g.Sum(r => r.NetPay ?? 0m)
                 })
                 .ToList();
 
@@ -116,7 +117,7 @@ namespace HRManagement.Services.Payroll
                 ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
 
             // 1. Tính ngày công
-            var workingDays = CalculateWorkingDays(period.StartDate, period.EndDate);
+            var workingDays = await CalculateAssignedWorkingDaysAsync(employeeId, period);
             var actualWorkingDays = await CalculateActualWorkingDaysAsync(employeeId, period);
 
             // 2. Lương theo ngày công thực tế
@@ -134,8 +135,10 @@ namespace HRManagement.Services.Payroll
             var existingRecord = await _payrollRepo.GetByEmployeeAndPeriodAsync(employeeId, periodId);
             var bonusAmount = existingRecord?.BonusAmount ?? 0m;
 
-            var totalAllowances = allowances.Sum(a => a.Amount) + otAllowances.Sum(a => a.Amount);
-            var grossPay = salariedAmount + totalAllowances + bonusAmount;
+            // TotalAllowances chỉ gồm phụ cấp chính sách (KHÔNG gộp OT)
+            // OvertimePay lưu riêng để hiển thị tách biệt trên phiếu lương
+            var policyAllowancesTotal = allowances.Sum(a => a.Amount);
+            var grossPay = salariedAmount + policyAllowancesTotal + overtimePay + bonusAmount;
 
             // 6. Bảo hiểm (10.5%)
             var insuranceSalary = Math.Min(grossPay, 46_800_000m);
@@ -167,9 +170,10 @@ namespace HRManagement.Services.Payroll
             record.BaseSalary = baseSalary;
             record.WorkingDays = workingDays;
             record.ActualWorkingDays = actualWorkingDays;
-            record.TotalAllowances = totalAllowances;
-            record.OvertimePay = overtimePay;
+            record.TotalAllowances = policyAllowancesTotal;  // chỉ phụ cấp chính sách
+            record.OvertimePay = overtimePay;                // OT riêng biệt
             record.BonusAmount = bonusAmount;
+            record.GrossPay = grossPay;                      // Gross = ngày công + phụ cấp + OT + thưởng
             record.InsuranceAmount = insuranceAmount;
             record.TaxAmount = taxAmount;
             record.TotalDeductions = totalDeductions;
@@ -424,7 +428,32 @@ namespace HRManagement.Services.Payroll
         }
 
         // ── Helper methods ─────────────────────────────────────────────────────
-        private decimal CalculateWorkingDays(DateOnly startDate, DateOnly endDate)
+
+        /// <summary>
+        /// Mẫu số: Số ngày được phân ca làm việc (ShiftAssignment) trong kỳ.
+        /// Fallback về đếm T2-T6 nếu nhân viên chưa được phân ca.
+        /// </summary>
+        private async Task<decimal> CalculateAssignedWorkingDaysAsync(int employeeId, PayrollPeriod period)
+        {
+            var assignedDays = await _context.ShiftAssignments
+                .Where(sa => sa.EmployeeId == employeeId
+                    && sa.AssignmentDate >= period.StartDate
+                    && sa.AssignmentDate <= period.EndDate)
+                .Select(sa => sa.AssignmentDate)
+                .Distinct()
+                .CountAsync();
+
+            if (assignedDays > 0)
+                return assignedDays;
+
+            // Fallback: đếm ngày T2–T6 nếu chưa có phân ca
+            return CalculateWeekdayCount(period.StartDate, period.EndDate);
+        }
+
+        /// <summary>
+        /// Tính ngày T2–T6 trong khoảng — dùng làm fallback khi chưa có ShiftAssignment.
+        /// </summary>
+        private static decimal CalculateWeekdayCount(DateOnly startDate, DateOnly endDate)
         {
             var count = 0;
             var current = startDate;
@@ -437,18 +466,98 @@ namespace HRManagement.Services.Payroll
             return count;
         }
 
+        /// <summary>
+        /// Tử số: Ngày công thực tế quy đổi = Σ(WorkingHours / ShiftStandardHours).
+        /// Tính cho:
+        ///   - AttendanceRecord Status = "Present" hoặc "Late" (đi làm bình thường)
+        ///   - AttendanceRecord có ExplanationStatus = "Approved" (giải trình được phê duyệt)
+        /// Cộng thêm ngày nghỉ có lương (LeaveRequest Approved + IsPaid).
+        /// </summary>
         private async Task<decimal> CalculateActualWorkingDaysAsync(int employeeId, PayrollPeriod period)
         {
-            // Ngày có mặt từ AttendanceRecord (Status = Present, Late)
-            var attendanceDays = await _context.AttendanceRecords
+            // Bước 1: Lấy ShiftAssignment (chỉ lấy scalar, tránh navigation property sau GroupBy)
+            var assignments = await _context.ShiftAssignments
+                .Where(sa => sa.EmployeeId == employeeId
+                    && sa.AssignmentDate >= period.StartDate
+                    && sa.AssignmentDate <= period.EndDate)
+                .Select(sa => new { sa.AssignmentDate, sa.ShiftId })
+                .ToListAsync();
+
+            // Lấy thông tin giờ chuẩn của từng Shift
+            var shiftIds = assignments.Select(a => a.ShiftId).Distinct().ToList();
+            var shiftHoursMap = shiftIds.Count > 0
+                ? await _context.Shifts
+                    .Where(s => shiftIds.Contains(s.ShiftId))
+                    .ToDictionaryAsync(s => s.ShiftId, s => (decimal)s.WorkingHours)
+                : new Dictionary<int, decimal>();
+
+            // Xây dựng lookup: date → stdHours
+            var stdHoursByDate = assignments
+                .GroupBy(a => a.AssignmentDate)
+                .ToDictionary(
+                    g => g.Key,
+                    g => shiftHoursMap.TryGetValue(g.First().ShiftId, out var h) ? h : 8m
+                );
+
+            // Bước 2: Lấy AttendanceRecord hợp lệ (không Include navigation để tránh lỗi)
+            var validRecords = await _context.AttendanceRecords
                 .Where(a => a.EmployeeId == employeeId
                     && a.AttendanceDate >= period.StartDate
                     && a.AttendanceDate <= period.EndDate
-                    && (a.Status == "Present" || a.Status == "Late"))
-                .CountAsync();
+                    && ((a.Status == "Present" || a.Status == "Late")
+                        || a.ExplanationStatus == "Approved"))
+                .Select(a => new
+                {
+                    a.AttendanceDate,
+                    a.WorkingHours,
+                    a.ShiftId,
+                })
+                .ToListAsync();
 
-            // Ngày nghỉ có lương (LeaveRequest approved + IsPaid)
-            var paidLeaveRequests = await _context.LeaveRequests
+            // Lấy ShiftId từ AttendanceRecord (phòng trường hợp AttendanceRecord có ShiftId khác với Assignment)
+            var attShiftIds = validRecords.Where(r => r.ShiftId.HasValue)
+                                          .Select(r => r.ShiftId!.Value)
+                                          .Distinct()
+                                          .Except(shiftIds)
+                                          .ToList();
+            if (attShiftIds.Count > 0)
+            {
+                var extraShifts = await _context.Shifts
+                    .Where(s => attShiftIds.Contains(s.ShiftId))
+                    .ToDictionaryAsync(s => s.ShiftId, s => (decimal)s.WorkingHours);
+                foreach (var kv in extraShifts) shiftHoursMap[kv.Key] = kv.Value;
+            }
+
+            // Bước 3: Quy đổi sang ngày công
+            decimal actualDays = 0m;
+            foreach (var rec in validRecords)
+            {
+                // Số giờ chuẩn: ưu tiên từ ShiftAssignment → ShiftId trên record → mặc định 8
+                decimal stdHours = stdHoursByDate.TryGetValue(rec.AttendanceDate, out var sh1) ? sh1
+                                 : (rec.ShiftId.HasValue && shiftHoursMap.TryGetValue(rec.ShiftId.Value, out var sh2)) ? sh2
+                                 : 8m;
+
+                // Số giờ thực làm
+                decimal workedHours = rec.WorkingHours.HasValue && rec.WorkingHours.Value > 0
+                    ? rec.WorkingHours.Value
+                    : stdHours;
+
+                actualDays += workedHours / stdHours;
+            }
+
+            // Bước 4: Cộng ngày nghỉ có lương
+            actualDays += await CalculatePaidLeaveDaysAsync(employeeId, period);
+
+            return actualDays;
+        }
+
+        /// <summary>
+        /// Tính số ngày nghỉ có lương (LeaveRequest Approved + IsPaid) trong kỳ,
+        /// bỏ qua cuối tuần.
+        /// </summary>
+        private async Task<decimal> CalculatePaidLeaveDaysAsync(int employeeId, PayrollPeriod period)
+        {
+            var requests = await _context.LeaveRequests
                 .Include(l => l.LeaveType)
                 .Where(l => l.EmployeeId == employeeId
                     && l.Status == "Approved"
@@ -458,20 +567,19 @@ namespace HRManagement.Services.Payroll
                 .ToListAsync();
 
             decimal paidLeaveDays = 0;
-            foreach (var req in paidLeaveRequests) {
+            foreach (var req in requests)
+            {
                 var start = req.StartDate > period.StartDate ? req.StartDate : period.StartDate;
                 var end = req.EndDate < period.EndDate ? req.EndDate : period.EndDate;
-                
-                // Logic đơn giản cho các ngày trong kỳ
                 var current = start;
-                while (current <= end) {
+                while (current <= end)
+                {
                     if (current.DayOfWeek != DayOfWeek.Saturday && current.DayOfWeek != DayOfWeek.Sunday)
                         paidLeaveDays++;
                     current = current.AddDays(1);
                 }
             }
-
-            return (decimal)attendanceDays + paidLeaveDays;
+            return paidLeaveDays;
         }
 
         private async Task<List<PayrollAllowance>> BuildAllowancesAsync(Employee employee, PayrollPeriod period)
@@ -504,6 +612,8 @@ namespace HRManagement.Services.Payroll
             if (!overtimeRequests.Any())
                 return (0m, new List<PayrollAllowance>());
 
+            // Lương giờ = BaseSalary / (số ngày phân ca × 8 giờ/ngày)
+            // Dùng workingDays (số ca phân công) × 8 làm mẫu số chuẩn
             var hourlySalary = workingDays > 0 ? baseSalary / (workingDays * 8) : 0m;
             var details = new List<PayrollAllowance>();
             var totalOt = 0m;

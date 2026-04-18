@@ -57,16 +57,16 @@ namespace HRManagement.Services.Payroll
                 ws.Cell(currentRow, 6).Value = (double)r.BaseSalary;
                 ws.Cell(currentRow, 7).Value = (double)r.ActualWorkingDays;
                 
-                var salariedAmount = r.WorkingDays > 0 ? (r.BaseSalary / r.WorkingDays * r.ActualWorkingDays) : 0;
+                var salariedAmount = r.WorkingDays > 0 ? (r.BaseSalary / r.WorkingDays * r.ActualWorkingDays) : 0m;
                 ws.Cell(currentRow, 8).Value = (double)salariedAmount;
                 
-                ws.Cell(currentRow, 9).Value = (double)r.TotalAllowances - r.OvertimePay; // Phụ cấp không tính OT
+                ws.Cell(currentRow, 9).Value = (double)(r.TotalAllowances - r.OvertimePay); // Phụ cấp không tính OT
                 ws.Cell(currentRow, 10).Value = (double)r.OvertimePay;
                 ws.Cell(currentRow, 11).Value = (double)r.BonusAmount;
-                ws.Cell(currentRow, 12).Value = (double)r.GrossPay;
+                ws.Cell(currentRow, 12).Value = (double)(r.GrossPay ?? 0m);
                 ws.Cell(currentRow, 13).Value = (double)r.InsuranceAmount;
                 ws.Cell(currentRow, 14).Value = (double)r.TaxAmount;
-                ws.Cell(currentRow, 15).Value = (double)r.NetPay;
+                ws.Cell(currentRow, 15).Value = (double)(r.NetPay ?? 0m);
 
                 // Format số (tiền tệ và ngày công)
                 ws.Range(currentRow, 6, currentRow, 6).Style.NumberFormat.Format = "#,##0";

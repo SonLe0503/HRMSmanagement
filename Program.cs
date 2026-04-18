@@ -25,6 +25,7 @@ using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
 using HRManagement.Services.Backgrounds;
+using HRManagement.Services.Payroll;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;

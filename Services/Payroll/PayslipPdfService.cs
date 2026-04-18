@@ -143,7 +143,7 @@ namespace HRManagement.Services.Payroll
                             table.Footer(f =>
                             {
                                 f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG THU NHẬP").Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(record.GrossPay)).Bold();
+                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(record.GrossPay ?? 0m)).Bold();
                                 f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG KHẤU TRỪ").Bold();
                                 f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(record.TotalDeductions)).Bold();
                             });
@@ -155,10 +155,10 @@ namespace HRManagement.Services.Payroll
                         col.Item().Background(Colors.Green.Lighten5).Padding(10).Border(1).BorderColor(Colors.Green.Medium).Row(row =>
                         {
                             row.RelativeItem().Text("THỰC LĨNH (NET PAY)").Bold().FontSize(13).FontColor(Colors.Green.Medium);
-                            row.RelativeItem().AlignRight().Text(FormatCurrency(record.NetPay)).Bold().FontSize(14).FontColor(Colors.Green.Darken2);
+                            row.RelativeItem().AlignRight().Text(FormatCurrency(record.NetPay ?? 0m)).Bold().FontSize(14).FontColor(Colors.Green.Darken2);
                         });
 
-                        col.Item().PaddingTop(5).Text($"Bằng chữ: {NumberToVietnameseText((long)record.NetPay)}").Italic().FontSize(9);
+                        col.Item().PaddingTop(5).Text($"Bằng chữ: {NumberToVietnameseText((long)(record.NetPay ?? 0m))}").Italic().FontSize(9);
 
                         // 6. Chữ ký
                         col.Item().PaddingTop(40).Row(row =>

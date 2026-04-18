@@ -34,7 +34,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> CreatePeriod([FromBody] CreatePayrollPeriodDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -80,7 +80,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods/{periodId:int}/calculate")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> CalculateAll(int periodId)
         {
             try
@@ -95,7 +95,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("periods/{periodId:int}/approve")]
-        [Authorize(Roles = "ADMIN,HR")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> ApprovePeriod(int periodId)
         {
             try
@@ -148,7 +148,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods/{periodId:int}/calculate/{employeeId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> CalculateForEmployee(int periodId, int employeeId)
         {
             try
@@ -163,7 +163,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("records/{recordId:int}/bonus")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> UpdateBonus(int recordId, [FromBody] decimal bonusAmount)
         {
             try
@@ -178,7 +178,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("records/{recordId:int}/allowance")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> AddAllowance(int recordId, [FromBody] CreatePayrollAllowanceDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -194,7 +194,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("records/{recordId:int}/allowance/{allowanceId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> RemoveAllowance(int recordId, int allowanceId)
         {
             try
@@ -209,7 +209,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("records/{recordId:int}/deduction")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> AddDeduction(int recordId, [FromBody] CreatePayrollDeductionDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -225,7 +225,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("records/{recordId:int}/deduction/{deductionId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> RemoveDeduction(int recordId, int deductionId)
         {
             try
@@ -244,7 +244,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpPost("payslips/{recordId:int}/generate")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> GeneratePayslip(int recordId)
         {
             try {
@@ -279,7 +279,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpGet("export/{periodId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [Authorize(Roles = "HR")]
         public async Task<IActionResult> ExportExcel(int periodId)
         {
             try {
