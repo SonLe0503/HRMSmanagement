@@ -34,6 +34,7 @@ namespace HRManagement.Services.Payroll
         Task<PayrollRecordDto> ApproveRecordAsync(int payrollRecordId, int approvedByUserId);
 
         // --- Phiếu lương ---
+        Task<int> GeneratePayslipsForPeriodAsync(int periodId);
         Task<PayslipDto> GeneratePayslipAsync(int payrollRecordId);
         Task<List<PayslipDto>> GetPayslipsByEmployeeAsync(int employeeId);
         Task<byte[]> GetPayslipPdfAsync(int payslipId);

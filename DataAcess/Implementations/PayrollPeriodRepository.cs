@@ -27,6 +27,7 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<List<PayrollPeriod>> GetAllAsync()
             => await _context.PayrollPeriods
+                .Include(p => p.PayrollRecords)
                 .OrderByDescending(p => p.Year).ThenByDescending(p => p.Month)
                 .ToListAsync();
 

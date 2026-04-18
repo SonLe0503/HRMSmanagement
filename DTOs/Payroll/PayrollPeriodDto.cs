@@ -13,6 +13,8 @@ namespace HRManagement.DTOs.Payroll
         public int TotalEmployees { get; set; }
         public decimal TotalGrossPay { get; set; }
         public decimal TotalNetPay { get; set; }
+        public decimal TotalInsurance { get; set; }
+        public decimal TotalTax { get; set; }
         public DateTime? AggregatedDate { get; set; }
         public DateTime? CalculatedDate { get; set; }
         public DateTime? ApprovedDate { get; set; }

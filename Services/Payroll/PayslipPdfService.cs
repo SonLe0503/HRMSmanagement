@@ -1,3 +1,4 @@
+using HRManagement.DTOs.SystemSettings;
 using HRManagement.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -12,13 +13,16 @@ namespace HRManagement.Services.Payroll
     {
         public PayslipPdfService()
         {
-            // QuestPDF requires setting the license. 
-            // For community projects, it is free.
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
-        public byte[] GeneratePdf(PayrollRecord record, PayrollPeriod period)
+        public byte[] GeneratePdf(PayrollRecord record, PayrollPeriod period, CompanySettingsDto? company = null)
         {
+            var companyName = company?.CompanyName ?? "CÔNG TY CỔ PHẦN HR SYSTEM";
+            var address     = company?.Address ?? "";
+            var phone       = company?.Phone   ?? "";
+            var email       = company?.Email   ?? "";
+
             var document = Document.Create(container =>
             {
                 container.Page(page =>
@@ -34,9 +38,16 @@ namespace HRManagement.Services.Payroll
                         {
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("CÔNG TY CỔ PHẦN HR SYSTEM").Bold().FontSize(15).FontColor(Colors.Blue.Medium);
-                                c.Item().Text("Địa chỉ: Toà nhà Innovation, Quận 12, TP. Hồ Chí Minh");
-                                c.Item().Text("Điện thoại: (028) 1234 5678 | Email: hr@hrsystem.com");
+                                c.Item().Text(companyName).Bold().FontSize(15).FontColor(Colors.Blue.Medium);
+                                if (!string.IsNullOrWhiteSpace(address))
+                                    c.Item().Text($"Địa chỉ: {address}");
+                                var contact = string.Join(" | ", new[]
+                                {
+                                    string.IsNullOrWhiteSpace(phone) ? null : $"ĐT: {phone}",
+                                    string.IsNullOrWhiteSpace(email) ? null : $"Email: {email}"
+                                }.Where(x => x != null));
+                                if (!string.IsNullOrWhiteSpace(contact))
+                                    c.Item().Text(contact);
                             });
                         });
 
@@ -65,6 +76,17 @@ namespace HRManagement.Services.Payroll
                         });
 
                         col.Item().PaddingVertical(15);
+
+                        // Tính lại từ components — tránh dùng GrossPay/NetPay stale trong DB
+                        var salariedAmountCalc = record.WorkingDays > 0
+                            ? Math.Round(record.BaseSalary / record.WorkingDays * record.ActualWorkingDays, 0)
+                            : 0m;
+                        var grossPayCalc = salariedAmountCalc + record.TotalAllowances + record.OvertimePay + record.BonusAmount;
+                        var manualDeductionsSumCalc = record.PayrollDeductions
+                            .Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax")
+                            .Sum(d => d.Amount);
+                        var netPayCalc = grossPayCalc - record.InsuranceAmount - record.TaxAmount - manualDeductionsSumCalc;
+                        var totalDeductionsCalc = record.InsuranceAmount + record.TaxAmount + manualDeductionsSumCalc;
 
                         // 4. Bảng chi tiết thu nhập & khấu trừ
                         col.Item().Table(table =>
@@ -96,10 +118,8 @@ namespace HRManagement.Services.Payroll
 
                             // Nội dung 2: Lương ngày công & Thuế
                             var salariedText = $"Lương ngày công ({record.ActualWorkingDays}/{record.WorkingDays})";
-                            var salariedAmount = record.WorkingDays > 0 ? (record.BaseSalary / record.WorkingDays * record.ActualWorkingDays) : 0;
-                            
                             table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(salariedText);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(salariedAmount));
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(salariedAmountCalc));
 
                             var tax = record.PayrollDeductions.FirstOrDefault(d => d.DeductionType == "Tax");
                             table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text("Thuế TNCN");
@@ -143,9 +163,9 @@ namespace HRManagement.Services.Payroll
                             table.Footer(f =>
                             {
                                 f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG THU NHẬP").Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(record.GrossPay ?? 0m)).Bold();
+                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(grossPayCalc)).Bold();
                                 f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG KHẤU TRỪ").Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(record.TotalDeductions)).Bold();
+                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(totalDeductionsCalc)).Bold();
                             });
                         });
 
@@ -155,10 +175,10 @@ namespace HRManagement.Services.Payroll
                         col.Item().Background(Colors.Green.Lighten5).Padding(10).Border(1).BorderColor(Colors.Green.Medium).Row(row =>
                         {
                             row.RelativeItem().Text("THỰC LĨNH (NET PAY)").Bold().FontSize(13).FontColor(Colors.Green.Medium);
-                            row.RelativeItem().AlignRight().Text(FormatCurrency(record.NetPay ?? 0m)).Bold().FontSize(14).FontColor(Colors.Green.Darken2);
+                            row.RelativeItem().AlignRight().Text(FormatCurrency(netPayCalc)).Bold().FontSize(14).FontColor(Colors.Green.Darken2);
                         });
 
-                        col.Item().PaddingTop(5).Text($"Bằng chữ: {NumberToVietnameseText((long)(record.NetPay ?? 0m))}").Italic().FontSize(9);
+                        col.Item().PaddingTop(5).Text($"Bằng chữ: {NumberToVietnameseText((long)netPayCalc)}").Italic().FontSize(9);
 
                         // 6. Chữ ký
                         col.Item().PaddingTop(40).Row(row =>

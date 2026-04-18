@@ -219,7 +219,19 @@ namespace HRManagement.Services.Payroll
                 .Select(e => e.EmployeeId)
                 .ToListAsync();
 
-            return await CalculateBatchAsync(periodId, employees);
+            var results = await CalculateBatchAsync(periodId, employees);
+
+            // Cập nhật trạng thái kỳ lương → Calculated
+            // Dùng FindAsync (không Include) để tránh EF Core tracking conflict với PayrollRecords vừa được update
+            var period = await _context.PayrollPeriods.FindAsync(periodId);
+            if (period != null && period.Status != "Approved" && period.Status != "Closed")
+            {
+                period.Status = "Calculated";
+                period.CalculatedDate = DateTime.Now;
+                await _context.SaveChangesAsync();
+            }
+
+            return results;
         }
 
         public async Task<List<PayrollRecordDto>> CalculateBatchAsync(int periodId, List<int> employeeIds)
@@ -340,6 +352,26 @@ namespace HRManagement.Services.Payroll
             period.ApprovedBy = approvedByUserId;
             await _periodRepo.UpdateAsync(period);
 
+            // Tự động tạo phiếu lương cho toàn bộ nhân viên trong kỳ
+            var records = await _payrollRepo.GetByPeriodAsync(periodId);
+            foreach (var record in records)
+            {
+                var existing = await _context.Payslips
+                    .FirstOrDefaultAsync(p => p.PayrollRecordId == record.PayrollRecordId);
+                if (existing != null) continue; // Đã có rồi, bỏ qua
+
+                _context.Payslips.Add(new Payslip
+                {
+                    PayrollRecordId = record.PayrollRecordId,
+                    EmployeeId      = record.EmployeeId,
+                    PeriodId        = periodId,
+                    PayslipNumber   = $"PS-{period.Year}{period.Month:D2}-{record.PayrollRecordId:D5}",
+                    GeneratedDate   = DateTime.Now,
+                    IsViewed        = false,
+                });
+            }
+            await _context.SaveChangesAsync();
+
             return _mapper.Map<PayrollPeriodDto>(period);
         }
 
@@ -351,6 +383,36 @@ namespace HRManagement.Services.Payroll
             // Thuộc tính ApprovedBy trong PayrollRecord model nếu có
             await _payrollRepo.UpdateAsync(record);
             return _mapper.Map<PayrollRecordDto>(record);
+        }
+
+        public async Task<int> GeneratePayslipsForPeriodAsync(int periodId)
+        {
+            var period = await _periodRepo.GetByIdAsync(periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
+
+            var records = await _payrollRepo.GetByPeriodAsync(periodId);
+            int created = 0;
+
+            foreach (var record in records)
+            {
+                var existing = await _context.Payslips
+                    .FirstOrDefaultAsync(p => p.PayrollRecordId == record.PayrollRecordId);
+                if (existing != null) continue;
+
+                _context.Payslips.Add(new Payslip
+                {
+                    PayrollRecordId = record.PayrollRecordId,
+                    EmployeeId      = record.EmployeeId,
+                    PeriodId        = periodId,
+                    PayslipNumber   = $"PS-{period.Year}{period.Month:D2}-{record.PayrollRecordId:D5}",
+                    GeneratedDate   = DateTime.Now,
+                    IsViewed        = false,
+                });
+                created++;
+            }
+
+            await _context.SaveChangesAsync();
+            return created;
         }
 
         public async Task<PayslipDto> GeneratePayslipAsync(int payrollRecordId)
@@ -392,8 +454,28 @@ namespace HRManagement.Services.Payroll
                 .FirstOrDefaultAsync(p => p.PayslipId == payslipId)
                 ?? throw new KeyNotFoundException();
 
+            // Lấy thông tin công ty từ SystemSettings
+            var companySettings = new HRManagement.DTOs.SystemSettings.CompanySettingsDto
+            {
+                CompanyName = "CÔNG TY CỔ PHẦN HR SYSTEM",
+                Address = "",
+                Phone = "",
+                Email = ""
+            };
+            var settingKeys = new[] { "Company.Name", "Company.Address", "Company.Phone", "Company.Email" };
+            var rawSettings = await _context.SystemSettings
+                .Where(s => settingKeys.Contains(s.SettingKey))
+                .ToListAsync();
+            foreach (var s in rawSettings)
+            {
+                if (s.SettingKey == "Company.Name")    companySettings.CompanyName = s.SettingValue;
+                if (s.SettingKey == "Company.Address") companySettings.Address     = s.SettingValue;
+                if (s.SettingKey == "Company.Phone")   companySettings.Phone       = s.SettingValue;
+                if (s.SettingKey == "Company.Email")   companySettings.Email       = s.SettingValue;
+            }
+
             var pdfService = new PayslipPdfService();
-            return pdfService.GeneratePdf(payslip.PayrollRecord, payslip.Period);
+            return pdfService.GeneratePdf(payslip.PayrollRecord, payslip.Period, companySettings);
         }
 
         public async Task<byte[]> ExportPayrollExcelAsync(int periodId)
@@ -410,6 +492,7 @@ namespace HRManagement.Services.Payroll
             var payslips = await _context.Payslips
                 .Include(p => p.Period)
                 .Include(p => p.PayrollRecord)
+                    .ThenInclude(r => r.PayrollDeductions)
                 .Include(p => p.Employee)
                     .ThenInclude(e => e.Department)
                 .Include(p => p.Employee)

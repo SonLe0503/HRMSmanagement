@@ -243,6 +243,21 @@ namespace HRManagement.Controllers
         // PHIẾU LƯƠNG (PAYSLIPS)
         // ══════════════════════════════════════════════
 
+        [HttpPost("payslips/period/{periodId:int}/generate-all")]
+        [Authorize(Roles = "HR")]
+        public async Task<IActionResult> GeneratePayslipsForPeriod(int periodId)
+        {
+            try
+            {
+                var count = await _payrollService.GeneratePayslipsForPeriodAsync(periodId);
+                return Ok(new { message = $"Đã tạo {count} phiếu lương.", count });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("payslips/{recordId:int}/generate")]
         [Authorize(Roles = "HR")]
         public async Task<IActionResult> GeneratePayslip(int recordId)
