@@ -21,6 +21,13 @@ namespace HRManagement.Controllers
             return Ok(employees);
         }
 
+        [HttpGet("active")]
+        public async Task<IActionResult> GetActiveEmployees()
+        {
+            var employees = await _employeeService.GetActiveEmployeesAsync();
+            return Ok(employees);
+        }
+
         [HttpGet("approval-analysis")]
         [Authorize(Roles = "ADMIN,MANAGE")]
         public async Task<IActionResult> GetApprovalAnalysis()

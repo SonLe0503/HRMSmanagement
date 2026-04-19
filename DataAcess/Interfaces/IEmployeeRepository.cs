@@ -4,6 +4,7 @@ namespace HRManagement.DataAcess.Interfaces
     public interface IEmployeeRepository
     {
         Task<IEnumerable<Employee>> GetAllEmployeesAsync();
+        Task<IEnumerable<Employee>> GetActiveEmployeesAsync();
         Task<Employee?> GetEmployeeByIdAsync(int employeeId);
         Task<Employee> AddEmployeeAsync(Employee employee);
         Task<Employee> UpdateEmployeeAsync(Employee employee);

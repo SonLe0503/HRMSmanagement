@@ -31,6 +31,19 @@ namespace HRManagement.DataAcess.Implementations
                  .ToListAsync();
         }
 
+        public async Task<IEnumerable<Employee>> GetActiveEmployeesAsync()
+        {
+            return await _context.Employees
+                 .Where(e => e.EmploymentStatus == "Active")
+                 .Include(d => d.Department)
+                 .Include(p => p.Position)
+                 .Include(m => m.Manager)
+                 .Include(e => e.Users)
+                    .ThenInclude(u => u.UserRoles)
+                        .ThenInclude(ur => ur.Role)
+                 .ToListAsync();
+        }
+
         public async Task<Employee?> GetEmployeeByIdAsync(int employeeId)
         {
             return await _context.Employees
