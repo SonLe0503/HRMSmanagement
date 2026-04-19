@@ -1,4 +1,4 @@
-﻿using HRManagement.Models;
+using HRManagement.Models;
 
 namespace HRManagement.DataAcess.Interfaces
 {
@@ -22,12 +22,14 @@ namespace HRManagement.DataAcess.Interfaces
         Task<Shift?> GetShiftByIdAsync(int shiftId);
 
         Task<FaceProfile?> GetActiveFaceProfileByEmployeeIdAsync(int employeeId);
+        Task<List<(Employee Employee, FaceProfile? FaceProfile)>> GetAllEmployeesWithFaceProfileAsync();
         System.Threading.Tasks.Task AddFaceProfileAsync(FaceProfile faceProfile);
         System.Threading.Tasks.Task UpdateFaceProfileAsync(FaceProfile faceProfile);
 
         System.Threading.Tasks.Task AddFaceVerificationLogAsync(FaceVerificationLog log);
 
         Task<AttendanceRecord?> GetOpenAttendanceRecordAsync(int employeeId);
+        Task<AttendanceRecord?> GetLatestAttendanceRecordAsync(int employeeId);
 
         System.Threading.Tasks.Task SaveChangesAsync();
     }

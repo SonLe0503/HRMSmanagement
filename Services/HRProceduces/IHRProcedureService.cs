@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs;
+using HRManagement.DTOs;
 
 namespace HRManagement.Services.HRProceduces
 {
@@ -14,5 +14,7 @@ namespace HRManagement.Services.HRProceduces
         Task<HRProcedureResponseDto> ApproveProcedureAsync(int procedureId, ApproveHRProcedureDto approveDto);
         Task<HRProcedureResponseDto> RejectProcedureAsync(int procedureId, RejectHRProcedureDto rejectDto);
         Task<bool> DeleteProcedureAsync(int procedureId);
+        /// <summary>Phase 2: manually apply an Approved procedure whose EffectiveDate is today or earlier</summary>
+        Task<HRProcedureResponseDto> ApplyApprovedProcedureAsync(int procedureId, int? appliedBy = null);
     }
 }

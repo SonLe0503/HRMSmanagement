@@ -471,9 +471,9 @@ namespace HRManagement.Services.Evaluations
 
         #region Mapping
 
-        private async Task<EvaluationResponseDto> MapToResponseDto(Evaluation evaluation)
+        private Task<EvaluationResponseDto> MapToResponseDto(Evaluation evaluation)
         {
-            return new EvaluationResponseDto
+            return Task.FromResult(new EvaluationResponseDto
             {
                 EvaluationId = evaluation.EvaluationId,
                 CycleId = evaluation.CycleId,
@@ -493,7 +493,7 @@ namespace HRManagement.Services.Evaluations
                 OverallRating = evaluation.OverallRating,
                 SubmittedDate = evaluation.SubmittedDate,
                 AcknowledgedDate = evaluation.AcknowledgedDate
-            };
+            });
         }
 
         private EvaluationListDto MapToListDto(Evaluation evaluation)

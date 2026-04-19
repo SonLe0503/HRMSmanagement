@@ -70,7 +70,6 @@ namespace HRManagement.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-
         }
 
         [HttpGet("cycle/{cycleId}/preview")]
@@ -85,45 +84,37 @@ namespace HRManagement.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
-
         }
 
         [HttpGet("cycle/{cycleId}")]
         public async Task<ActionResult<IEnumerable<EvaluationListDto>>> GetEvaluationsByCycle(int cycleId)
         {
-
-                var evaluations = await _evaluationService.GetEvaluationsByCycleAsync(cycleId);
-                return Ok(evaluations);
-
+            var evaluations = await _evaluationService.GetEvaluationsByCycleAsync(cycleId);
+            return Ok(evaluations);
         }
 
         [HttpGet("employee/{employeeId}")]
         public async Task<ActionResult<IEnumerable<EvaluationListDto>>> GetEvaluationsByEmployee(int employeeId)
         {
-
-                var evaluations = await _evaluationService.GetEvaluationsByEmployeeAsync(employeeId);
-                return Ok(evaluations);
-
+            var evaluations = await _evaluationService.GetEvaluationsByEmployeeAsync(employeeId);
+            return Ok(evaluations);
         }
 
         [HttpGet("evaluator/{evaluatorId}")]
         public async Task<ActionResult<IEnumerable<EvaluationListDto>>> GetEvaluationsByEvaluator(int evaluatorId)
         {
-
-                var evaluations = await _evaluationService.GetEvaluationsByEvaluatorAsync(evaluatorId);
-                return Ok(evaluations);
-
+            var evaluations = await _evaluationService.GetEvaluationsByEvaluatorAsync(evaluatorId);
+            return Ok(evaluations);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<EvaluationResponseDto>> GetEvaluationById(int id)
         {
+            var evaluation = await _evaluationService.GetEvaluationByIdAsync(id);
+            if (evaluation == null)
+                return NotFound(new { message = "Evaluation not found." });
 
-                var evaluation = await _evaluationService.GetEvaluationByIdAsync(id);
-                if (evaluation == null)
-                    return NotFound(new { message = "Evaluation not found." });
-
-                return Ok(evaluation);
+            return Ok(evaluation);
         }
 
         [HttpPatch("{id}/evaluator")]
@@ -145,6 +136,5 @@ namespace HRManagement.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-
     }
 }

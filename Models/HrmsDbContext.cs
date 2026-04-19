@@ -120,13 +120,13 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
             entity.Property(e => e.OvertimeHours)
                 .HasDefaultValue(0m)
-                .HasColumnType("decimal(4, 2)");
+                .HasColumnType("decimal(6, 2)");
             entity.Property(e => e.Remarks).HasMaxLength(500);
             entity.Property(e => e.ShiftId).HasColumnName("ShiftID");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValue("Present");
-            entity.Property(e => e.WorkingHours).HasColumnType("decimal(4, 2)");
+            entity.Property(e => e.WorkingHours).HasColumnType("decimal(6, 2)");
 
             entity.HasOne(d => d.Employee).WithMany(p => p.AttendanceRecords)
                 .HasForeignKey(d => d.EmployeeId)
@@ -455,6 +455,16 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.NewPosition).WithMany(p => p.Hrprocedures)
                 .HasForeignKey(d => d.NewPositionId)
                 .HasConstraintName("FK_HRProcedures_NewPosition");
+
+            entity.HasOne(d => d.NewManager).WithMany()
+                .HasForeignKey(d => d.NewManagerId)
+                .HasConstraintName("FK_HRProcedures_NewManager")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.AppliedByNavigation).WithMany()
+                .HasForeignKey(d => d.AppliedBy)
+                .HasConstraintName("FK_HRProcedures_AppliedBy")
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<LeaveBalance>(entity =>
@@ -533,6 +543,10 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.LeaveRequestReviewedByNavigations)
                 .HasForeignKey(d => d.ReviewedBy)
                 .HasConstraintName("FK_LeaveRequests_ReviewedBy");
+
+            entity.HasOne(d => d.TargetApprover).WithMany()
+                .HasForeignKey(d => d.TargetApproverId)
+                .HasConstraintName("FK_LeaveRequests_TargetApprover");
         });
 
         modelBuilder.Entity<LeaveType>(entity =>
@@ -615,6 +629,10 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.OvertimeRequestReviewedByNavigations)
                 .HasForeignKey(d => d.ReviewedBy)
                 .HasConstraintName("FK_OvertimeRequests_ReviewedBy");
+
+            entity.HasOne(d => d.TargetApprover).WithMany()
+                .HasForeignKey(d => d.TargetApproverId)
+                .HasConstraintName("FK_OvertimeRequests_TargetApprover");
         });
 
         modelBuilder.Entity<PayrollAllowance>(entity =>

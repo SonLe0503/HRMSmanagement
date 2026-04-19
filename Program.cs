@@ -24,6 +24,8 @@ using HRManagement.Services.Evaluations;
 using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
+using HRManagement.Services.Backgrounds;
+using HRManagement.Services.Payroll;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +59,11 @@ builder.Services.AddScoped<IEvaluationRepository, EvaluationRepository>();
 builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
 builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
+builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
+
+// Payroll Repositories
+builder.Services.AddScoped<IPayrollRepository, PayrollRepository>();
+builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
 
 // Core Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -81,15 +88,23 @@ builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
 builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 
-// Specialized Services (New Structure)
+// Specialized Services (Evaluation, Analytics, etc.)
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
 builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
 builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
+builder.Services.AddScoped<ISubmitEvaluationService, SubmitEvaluationService>();
+builder.Services.AddScoped<IViewEvaluationResultService, ViewEvaluationResultService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+
+// Payroll Services
+builder.Services.AddScoped<TaxCalculationService>();
+builder.Services.AddScoped<IPayrollService, PayrollService>();
+
+builder.Services.AddHostedService<HRProcedureBackgroundService>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -141,6 +156,36 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
             )
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                var userIdStr = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var tokenLastLogin = principal?.FindFirst("LastLogin")?.Value;
+
+                if (string.IsNullOrEmpty(tokenLastLogin))
+                {
+                    context.Fail("Invalid or outdated token format. Please re-login.");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int userId))
+                {
+                    var dbContext = context.HttpContext.RequestServices.GetRequiredService<HrmsDbContext>();
+                    var user = await dbContext.Users.FindAsync(userId);
+                    
+                    if (user != null && user.LastLogin.HasValue)
+                    {
+                        var dbLastLogin = user.LastLogin.Value.ToString("yyyyMMddHHmmss");
+                        if (dbLastLogin != tokenLastLogin)
+                        {
+                            context.Fail("Concurrent login detected. Session is no longer valid.");
+                        }
+                    }
+                }
+            }
         };
     });
 

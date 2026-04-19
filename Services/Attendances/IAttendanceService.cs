@@ -1,4 +1,4 @@
-﻿using HRManagement.DTOs.Attendances;
+using HRManagement.DTOs.Attendances;
 
 namespace HRManagement.Services.Attendances
 {
@@ -21,5 +21,8 @@ namespace HRManagement.Services.Attendances
         Task UnlockAttendanceAsync(int attendanceId, int userId);
 
         Task<List<AttendanceLogResponseDto>> GetLogsAsync(int employeeId, DateOnly date);
+        Task<AttendanceResponseDto> SubmitExplanationAsync(int employeeId, int attendanceId, string message);
+        Task<AttendanceResponseDto> SubmitAbsentExplanationAsync(int employeeId, DateOnly date, string message);
+        Task<AttendanceResponseDto> ApproveExplanationAsync(int managerId, int attendanceId, ApproveExplanationDto dto);
     }
 }

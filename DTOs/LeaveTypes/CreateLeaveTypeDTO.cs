@@ -1,12 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs.LeaveTypes
 {
     public class CreateLeaveTypeDTO
     {
-        [Required]
         [MaxLength(50)]
-        public string LeaveTypeCode { get; set; } = null!;
+        public string? LeaveTypeCode { get; set; }
 
         [Required]
         [MaxLength(100)]

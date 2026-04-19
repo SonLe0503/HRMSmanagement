@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HRManagement.Models;
@@ -38,10 +38,14 @@ public partial class LeaveRequest
     public int? ApprovedBy { get; set; }
 
     public virtual User? ApprovedByNavigation { get; set; }
+    
+    public int? TargetApproverId { get; set; }
 
     public virtual Employee Employee { get; set; } = null!;
 
     public virtual LeaveType LeaveType { get; set; } = null!;
 
     public virtual User? ReviewedByNavigation { get; set; }
+    
+    public virtual User? TargetApprover { get; set; }
 }
