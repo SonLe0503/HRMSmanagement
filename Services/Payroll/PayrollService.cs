@@ -101,6 +101,34 @@ namespace HRManagement.Services.Payroll
             return summary;
         }
 
+        // ── Helper: load cấu hình tính lương từ SystemSettings ───────────────
+        private async Task<HRManagement.DTOs.SystemSettings.PayrollCalculationSettingsDto> LoadPayrollCalcSettingsAsync()
+        {
+            var keys = new[]
+            {
+                "Payroll.Calc.BhxhRate", "Payroll.Calc.BhytRate", "Payroll.Calc.BhtnRate",
+                "Payroll.Calc.InsuranceCap", "Payroll.Calc.InsuranceBaseMode", "Payroll.Calc.InsuranceFixedBase",
+                "Payroll.Calc.PersonalDeduction", "Payroll.Calc.DependentDeduction"
+            };
+            var rows = await _context.SystemSettings
+                .Where(s => keys.Contains(s.SettingKey))
+                .ToListAsync();
+
+            var cfg = new HRManagement.DTOs.SystemSettings.PayrollCalculationSettingsDto();
+            foreach (var s in rows)
+            {
+                if (s.SettingKey == "Payroll.Calc.BhxhRate"           && decimal.TryParse(s.SettingValue, out var v1)) cfg.BhxhRate            = v1;
+                if (s.SettingKey == "Payroll.Calc.BhytRate"           && decimal.TryParse(s.SettingValue, out var v2)) cfg.BhytRate            = v2;
+                if (s.SettingKey == "Payroll.Calc.BhtnRate"           && decimal.TryParse(s.SettingValue, out var v3)) cfg.BhtnRate            = v3;
+                if (s.SettingKey == "Payroll.Calc.InsuranceCap"       && decimal.TryParse(s.SettingValue, out var v4)) cfg.InsuranceCap        = v4;
+                if (s.SettingKey == "Payroll.Calc.InsuranceBaseMode")                                                  cfg.InsuranceBaseMode   = s.SettingValue ?? "Gross";
+                if (s.SettingKey == "Payroll.Calc.InsuranceFixedBase" && decimal.TryParse(s.SettingValue, out var v6)) cfg.InsuranceFixedBase  = v6;
+                if (s.SettingKey == "Payroll.Calc.PersonalDeduction"  && decimal.TryParse(s.SettingValue, out var v7)) cfg.PersonalDeduction   = v7;
+                if (s.SettingKey == "Payroll.Calc.DependentDeduction" && decimal.TryParse(s.SettingValue, out var v8)) cfg.DependentDeduction  = v8;
+            }
+            return cfg;
+        }
+
         // ── Tính lương ────────────────────────────────────────────────────────
         public async Task<PayrollRecordDto> CalculateForEmployeeAsync(int employeeId, int periodId)
         {
@@ -116,6 +144,9 @@ namespace HRManagement.Services.Payroll
                 .FirstOrDefaultAsync(e => e.EmployeeId == employeeId)
                 ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
 
+            // Load cấu hình tính lương từ SystemSettings (có fallback về mặc định)
+            var calcSettings = await LoadPayrollCalcSettingsAsync();
+
             // 1. Tính ngày công
             var workingDays = await CalculateAssignedWorkingDaysAsync(employeeId, period);
             var actualWorkingDays = await CalculateActualWorkingDaysAsync(employeeId, period);
@@ -127,7 +158,7 @@ namespace HRManagement.Services.Payroll
 
             // 3. Phụ cấp chính sách
             var allowances = await BuildAllowancesAsync(employee, period);
-            
+
             // 4. Lương OT
             var (overtimePay, otAllowances) = await CalculateOvertimeAsync(employeeId, period, baseSalary, workingDays);
 
@@ -136,17 +167,32 @@ namespace HRManagement.Services.Payroll
             var bonusAmount = existingRecord?.BonusAmount ?? 0m;
 
             // TotalAllowances chỉ gồm phụ cấp chính sách (KHÔNG gộp OT)
-            // OvertimePay lưu riêng để hiển thị tách biệt trên phiếu lương
             var policyAllowancesTotal = allowances.Sum(a => a.Amount);
             var grossPay = salariedAmount + policyAllowancesTotal + overtimePay + bonusAmount;
 
-            // 6. Bảo hiểm (10.5%)
-            var insuranceSalary = Math.Min(grossPay, 46_800_000m);
-            var insuranceAmount = Math.Round(insuranceSalary * 0.105m, 0);
+            // 6. Bảo hiểm — tỷ lệ và mức căn cứ lấy từ cấu hình
+            var insuranceRate = (calcSettings.BhxhRate + calcSettings.BhytRate + calcSettings.BhtnRate) / 100m;
+            decimal insuranceBase;
+            if (calcSettings.InsuranceBaseMode == "Fixed" && calcSettings.InsuranceFixedBase > 0)
+            {
+                // Công ty khai báo mức đóng BH cố định (không phụ thuộc lương thực tế)
+                insuranceBase = calcSettings.InsuranceFixedBase;
+            }
+            else
+            {
+                // Mặc định: dùng lương gộp, capped tại mức trần
+                insuranceBase = Math.Min(grossPay, calcSettings.InsuranceCap);
+            }
+            var insuranceAmount = Math.Round(insuranceBase * insuranceRate, 0);
 
-            // 7. Thuế TNCN
-            // Giả sử 0 người phụ thuộc cho đơn giản bước đầu
-            var taxResult = _taxService.Calculate(grossPay, numberOfDependents: 0);
+            // 7. Thuế TNCN — dùng cấu hình giảm trừ, truyền insuranceAmount đã tính để tránh tính lại
+            var taxResult = _taxService.Calculate(
+                grossPay,
+                numberOfDependents: 0,
+                isInsuranceApplicable: true,
+                insuranceAmount: insuranceAmount,
+                personalDeduction: calcSettings.PersonalDeduction,
+                dependentDeduction: calcSettings.DependentDeduction);
             var taxAmount = taxResult.TaxAmount;
 
             // 8. Khấu trừ thủ công (giữ nguyên nếu tính lại)
