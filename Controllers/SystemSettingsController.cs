@@ -107,6 +107,59 @@ namespace HRManagement.Controllers
             return Ok(new { message = "Cập nhật cấu hình kỳ lương thành công." });
         }
 
+        [HttpGet("payroll-calculation")]
+        [Authorize]
+        public async Task<IActionResult> GetPayrollCalculationSettings()
+        {
+            var keys = new[]
+            {
+                "Payroll.Calc.BhxhRate", "Payroll.Calc.BhytRate", "Payroll.Calc.BhtnRate",
+                "Payroll.Calc.InsuranceCap", "Payroll.Calc.InsuranceBaseMode", "Payroll.Calc.InsuranceFixedBase",
+                "Payroll.Calc.PersonalDeduction", "Payroll.Calc.DependentDeduction"
+            };
+            var settings = await _context.SystemSettings
+                .Where(s => keys.Contains(s.SettingKey))
+                .ToListAsync();
+
+            var dto = new PayrollCalculationSettingsDto(); // defaults already set
+            foreach (var s in settings)
+            {
+                if (s.SettingKey == "Payroll.Calc.BhxhRate"           && decimal.TryParse(s.SettingValue, out var v1)) dto.BhxhRate            = v1;
+                if (s.SettingKey == "Payroll.Calc.BhytRate"           && decimal.TryParse(s.SettingValue, out var v2)) dto.BhytRate            = v2;
+                if (s.SettingKey == "Payroll.Calc.BhtnRate"           && decimal.TryParse(s.SettingValue, out var v3)) dto.BhtnRate            = v3;
+                if (s.SettingKey == "Payroll.Calc.InsuranceCap"       && decimal.TryParse(s.SettingValue, out var v4)) dto.InsuranceCap        = v4;
+                if (s.SettingKey == "Payroll.Calc.InsuranceBaseMode")                                                  dto.InsuranceBaseMode   = s.SettingValue ?? "Gross";
+                if (s.SettingKey == "Payroll.Calc.InsuranceFixedBase" && decimal.TryParse(s.SettingValue, out var v6)) dto.InsuranceFixedBase  = v6;
+                if (s.SettingKey == "Payroll.Calc.PersonalDeduction"  && decimal.TryParse(s.SettingValue, out var v7)) dto.PersonalDeduction   = v7;
+                if (s.SettingKey == "Payroll.Calc.DependentDeduction" && decimal.TryParse(s.SettingValue, out var v8)) dto.DependentDeduction  = v8;
+            }
+            return Ok(dto);
+        }
+
+        [HttpPut("payroll-calculation")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> UpdatePayrollCalculationSettings([FromBody] PayrollCalculationSettingsDto dto)
+        {
+            if (dto.BhxhRate < 0 || dto.BhxhRate > 100) return BadRequest(new { message = "Tỷ lệ BHXH không hợp lệ." });
+            if (dto.BhytRate < 0 || dto.BhytRate > 100) return BadRequest(new { message = "Tỷ lệ BHYT không hợp lệ." });
+            if (dto.BhtnRate < 0 || dto.BhtnRate > 100) return BadRequest(new { message = "Tỷ lệ BHTN không hợp lệ." });
+            if (dto.InsuranceCap < 0)                   return BadRequest(new { message = "Mức trần bảo hiểm không hợp lệ." });
+            if (dto.InsuranceFixedBase < 0)             return BadRequest(new { message = "Mức lương căn cứ cố định không hợp lệ." });
+            if (dto.PersonalDeduction < 0)              return BadRequest(new { message = "Giảm trừ bản thân không hợp lệ." });
+            if (dto.DependentDeduction < 0)             return BadRequest(new { message = "Giảm trừ người phụ thuộc không hợp lệ." });
+
+            await UpdateOrInsertSetting("Payroll.Calc.BhxhRate",           dto.BhxhRate.ToString(),           "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.BhytRate",           dto.BhytRate.ToString(),           "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.BhtnRate",           dto.BhtnRate.ToString(),           "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.InsuranceCap",       dto.InsuranceCap.ToString(),       "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.InsuranceBaseMode",  dto.InsuranceBaseMode,             "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.InsuranceFixedBase", dto.InsuranceFixedBase.ToString(), "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.PersonalDeduction",  dto.PersonalDeduction.ToString(),  "Payroll");
+            await UpdateOrInsertSetting("Payroll.Calc.DependentDeduction", dto.DependentDeduction.ToString(), "Payroll");
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cập nhật cấu hình tính lương thành công." });
+        }
+
         [HttpGet("company")]
         [Authorize]
         public async Task<IActionResult> GetCompanySettings()
