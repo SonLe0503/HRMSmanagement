@@ -20,22 +20,55 @@ namespace HRManagement.Controllers
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateReport([FromBody] CompetencyReportFilterDTO filter)
         {
-            var result = await _competencyReportService.GenerateReportAsync(filter);
-            return Ok(result);
+            try
+            {
+                var result = await _competencyReportService.GenerateReportAsync(filter);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
 
         [HttpPost("drilldown")]
         public async Task<IActionResult> Drilldown([FromBody] CompetencyDrilldownRequestDTO request)
         {
-            var result = await _competencyReportService.GetDrilldownAsync(request);
-            return Ok(result);
+            try
+            {
+                var result = await _competencyReportService.GetDrilldownAsync(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
 
         [HttpPost("export")]
         public async Task<IActionResult> Export([FromBody] ExportCompetencyReportRequestDTO request)
         {
-            var result = await _competencyReportService.ExportReportAsync(request);
-            return File(result.FileContent, result.ContentType, result.FileName);
+            try
+            {
+                var result = await _competencyReportService.ExportReportAsync(request);
+                return File(result.FileContent, result.ContentType, result.FileName);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
     }
 }

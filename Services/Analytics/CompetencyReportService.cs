@@ -201,7 +201,7 @@ namespace HRManagement.Services.Analytics
             if (filter.Scope.Equals("Team", StringComparison.OrdinalIgnoreCase) && _currentUserService.EmployeeId.HasValue)
             {
                 var managerEmployeeId = _currentUserService.EmployeeId.Value;
-                query = query.Where(x => x.Evaluation.Employee.ManagerId == managerEmployeeId);
+                query = query.Where(x => x.Evaluation.PrimaryEvaluatorId == managerEmployeeId);
             }
 
             return query;
@@ -273,7 +273,7 @@ namespace HRManagement.Services.Analytics
             if (filter.Scope.Equals("Team", StringComparison.OrdinalIgnoreCase) && _currentUserService.EmployeeId.HasValue)
             {
                 var managerEmployeeId = _currentUserService.EmployeeId.Value;
-                query = query.Where(x => x.Evaluation.Employee.ManagerId == managerEmployeeId);
+                query = query.Where(x => x.Evaluation.PrimaryEvaluatorId == managerEmployeeId);
             }
 
             var data = await query.ToListAsync();
@@ -441,7 +441,8 @@ namespace HRManagement.Services.Analytics
             var role = _currentUserService.RoleName;
             var currentEmployeeId = _currentUserService.EmployeeId;
 
-            if (string.Equals(role, "Employee", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(role, "EMPLOYEE", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(role, "Employee", StringComparison.OrdinalIgnoreCase))
             {
                 if (!currentEmployeeId.HasValue)
                     throw new UnauthorizedAccessException("Current user is not linked to an employee.");
@@ -452,7 +453,8 @@ namespace HRManagement.Services.Analytics
                 if (filter.EmployeeId != currentEmployeeId.Value)
                     throw new UnauthorizedAccessException("Employee can only view their own report.");
             }
-            else if (string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(role, "MANAGE", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase))
             {
                 if (filter.Scope.Equals("Organization", StringComparison.OrdinalIgnoreCase))
                     throw new UnauthorizedAccessException("Manager cannot view organization report.");
@@ -468,7 +470,9 @@ namespace HRManagement.Services.Analytics
                         throw new UnauthorizedAccessException("You do not have permission to view this employee report.");
                 }
             }
-            else if (string.Equals(role, "HR Staff", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(role, "HR Staff", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

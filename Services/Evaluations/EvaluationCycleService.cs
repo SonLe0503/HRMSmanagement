@@ -19,6 +19,7 @@ namespace HRManagement.Services.Evaluations
         // Valid statuses
         private const string STATUS_DRAFT = "Draft";
         private const string STATUS_ACTIVE = "Active";
+        private const string STATUS_COMPLETED = "Completed";
         private const string STATUS_CLOSED = "Cancelled";
 
         public EvaluationCycleService(
@@ -172,7 +173,7 @@ namespace HRManagement.Services.Evaluations
                 throw new InvalidOperationException("Cycle is already active.");
             }
 
-            if (cycle.Status == STATUS_CLOSED)
+            if (cycle.Status == STATUS_CLOSED || cycle.Status == STATUS_COMPLETED)
             {
                 throw new InvalidOperationException("Cannot activate a closed cycle.");
             }
@@ -201,6 +202,12 @@ namespace HRManagement.Services.Evaluations
             return cycles.Select(MapToListDto).ToList();
         }
 
+        public async Task<IEnumerable<EvaluationCycleListDto>> GetCompletedCyclesAsync()
+        {
+            var cycles = await _cycleRepository.GetCompletedAsync();
+            return cycles.Select(MapToListDto).ToList();
+        }
+
         public async Task<EvaluationCycleResponseDto?> GetCycleByIdAsync(int cycleId)
         {
             var cycle = await _cycleRepository.GetByIdWithDetailsAsync(cycleId);
@@ -218,7 +225,7 @@ namespace HRManagement.Services.Evaluations
                 throw new KeyNotFoundException("Evaluation cycle not found.");
             }
 
-            if (cycle.Status == STATUS_CLOSED)
+            if (cycle.Status == STATUS_CLOSED || cycle.Status == STATUS_COMPLETED)
             {
                 throw new InvalidOperationException("Cannot update a closed cycle.");
             }
@@ -261,10 +268,10 @@ namespace HRManagement.Services.Evaluations
             if (cycle == null)
                 return false;
 
-            if (cycle.Status == STATUS_CLOSED)
+            if (cycle.Status == STATUS_CLOSED || cycle.Status == STATUS_COMPLETED)
                 return false;
 
-            cycle.Status = STATUS_CLOSED;
+            cycle.Status = STATUS_COMPLETED;
 
             await _cycleRepository.UpdateAsync(cycle);
 

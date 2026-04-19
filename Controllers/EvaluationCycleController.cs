@@ -87,6 +87,13 @@ namespace HRManagement.Controllers
             return Ok(cycles);
         }
 
+        [HttpGet("completed")]
+        public async Task<ActionResult<IEnumerable<EvaluationCycleListDto>>> GetCompletedCycles()
+        {
+            var cycles = await _evaluationCycleService.GetCompletedCyclesAsync();
+            return Ok(cycles);
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<EvaluationCycleResponseDto>> GetCycleById(int id)
         {           
