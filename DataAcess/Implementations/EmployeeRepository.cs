@@ -33,8 +33,9 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<IEnumerable<Employee>> GetActiveEmployeesAsync()
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             return await _context.Employees
-                 .Where(e => e.EmploymentStatus == "Active")
+                 .Where(e => e.EmploymentStatus == "Active" && e.JoinDate <= today)
                  .Include(d => d.Department)
                  .Include(p => p.Position)
                  .Include(m => m.Manager)

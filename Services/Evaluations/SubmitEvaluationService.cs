@@ -119,6 +119,17 @@ namespace HRManagement.Services.Evaluations
 
             ValidateManagerEvaluationCompleteness(dto, evaluation.Template.EvaluationCriteria.ToList());
 
+            // Calculate expected overall rating from manager ratings and weightages
+            decimal calculatedOverallRating = CalculateOverallRating(dto.Ratings, evaluation.Template.EvaluationCriteria.ToList());
+
+            // Validate that frontend calculation matches backend calculation (within tolerance)
+            if (Math.Abs((double)(dto.OverallRating.Value - calculatedOverallRating)) > 0.1)
+            {
+                throw new InvalidOperationException(
+                    $"Overall rating calculation mismatch. Expected: {calculatedOverallRating:F1}, Received: {dto.OverallRating:F1}. " +
+                    $"Please ensure the calculation is correct: Σ(managerRating × weightage/100)");
+            }
+
             foreach (var ratingDto in dto.Ratings)
             {
                 var existingRating = await _ratingRepository.GetByEvaluationAndCriteriaAsync(
@@ -354,6 +365,27 @@ namespace HRManagement.Services.Evaluations
             {
                 throw new InvalidOperationException("Overall rating is required.");
             }
+        }
+
+        private decimal CalculateOverallRating(List<CriterionRatingDto> ratings, List<EvaluationCriterion> criteria)
+        {
+            decimal totalScore = 0;
+
+            foreach (var rating in ratings)
+            {
+                var criterion = criteria.FirstOrDefault(c => c.CriteriaId == rating.CriteriaId);
+                if (criterion == null || !rating.ManagerRating.HasValue)
+                {
+                    continue; // Skip if criterion not found or no manager rating
+                }
+
+                decimal weightage = criterion.Weightage;
+                decimal managerRating = rating.ManagerRating.Value;
+
+                totalScore += managerRating * (weightage / 100m);
+            }
+
+            return Math.Round(totalScore, 1);
         }
 
         #endregion

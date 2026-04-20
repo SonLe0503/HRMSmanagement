@@ -325,6 +325,7 @@ namespace HRManagement.DTOs
         public int? SuggestedSecondaryEvaluatorId { get; set; }
         public string? SuggestedSecondaryEvaluatorName { get; set; }
         public bool HasDirectManager { get; set; }
+        public bool IsAssigned { get; set; }
         public string? Issue { get; set; }
     }
     public class AssignmentResultDto

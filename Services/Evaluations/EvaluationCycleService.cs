@@ -201,6 +201,12 @@ namespace HRManagement.Services.Evaluations
             return cycles.Select(MapToListDto).ToList();
         }
 
+        public async Task<IEnumerable<EvaluationCycleListDto>> GetActiveAndCompletedCyclesAsync()
+        {
+            var cycles = await _cycleRepository.GetActiveAndCompletedAsync();
+            return cycles.Select(MapToListDto).ToList();
+        }
+
         public async Task<EvaluationCycleResponseDto?> GetCycleByIdAsync(int cycleId)
         {
             var cycle = await _cycleRepository.GetByIdWithDetailsAsync(cycleId);

@@ -146,6 +146,19 @@ namespace HRManagement.Services.HRProceduces
             if (!await _hrProcedureRepository.EmployeeExistsAsync(createDto.EmployeeId))
                 throw new KeyNotFoundException("Employee not found.");
 
+            // Get employee to check status and join date
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(createDto.EmployeeId);
+            if (employee == null)
+                throw new KeyNotFoundException("Employee not found.");
+
+            // Check employee status
+            if (employee.EmploymentStatus != "Active")
+                throw new ArgumentException("Employee is not active.");
+
+            // Check join date
+            if (employee.JoinDate > createDto.EffectiveDate)
+                throw new ArgumentException("Cannot create procedure before join date.");
+
             if (createDto.EffectiveDate < DateOnly.FromDateTime(DateTime.UtcNow))
                 throw new ArgumentException("Effective date cannot be in the past.");
 

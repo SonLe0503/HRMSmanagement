@@ -53,6 +53,18 @@ namespace HRManagement.Services.Overtimes
                 return ServiceResult<string>.Fail("MSG-104", "Employee not found.");
             }
 
+            // Check employee status
+            if (employee.EmploymentStatus != "Active")
+            {
+                return ServiceResult<string>.Fail("MSG-EMP-01", "Employee is not active.");
+            }
+
+            // Check join date
+            if (employee.JoinDate > dto.OvertimeDate)
+            {
+                return ServiceResult<string>.Fail("MSG-EMP-02", "Cannot create overtime request before join date.");
+            }
+
             // 2. Fetch shift assignment for that date to determine OTType and Shift hours
             var shiftAssignment = await _context.ShiftAssignments
                 .Include(x => x.Shift)

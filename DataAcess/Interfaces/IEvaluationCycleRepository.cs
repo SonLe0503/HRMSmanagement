@@ -6,6 +6,7 @@ namespace HRManagement.DataAcess
     {
         Task<IEnumerable<EvaluationCycle>> GetAllAsync();
         Task<IEnumerable<EvaluationCycle>> GetActiveAsync();
+        Task<IEnumerable<EvaluationCycle>> GetActiveAndCompletedAsync();
         Task<EvaluationCycle?> GetByIdWithDetailsAsync(int cycleId);
         Task<EvaluationCycle?> GetByIdAsync(int cycleId);
         Task<EvaluationCycle> AddAsync(EvaluationCycle cycle);
