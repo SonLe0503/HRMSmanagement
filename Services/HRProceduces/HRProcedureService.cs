@@ -139,9 +139,9 @@ namespace HRManagement.Services.HRProceduces
         // ─────────────────────────────────────────
         public async Task<HRProcedureResponseDto> SubmitProcedureAsync(CreateHRProcedureDto createDto)
         {
-            var validTypes = new[] { "Appointment", "Transfer", "Promotion", "Resignation", "Termination" };
+            var validTypes = new[] { "Appointment", "Transfer", "Demotion", "Termination" };
             if (!validTypes.Contains(createDto.ProcedureType, StringComparer.OrdinalIgnoreCase))
-                throw new ArgumentException("Invalid procedure type. Allowed: Appointment, Transfer, Promotion, Resignation, Termination.");
+                throw new ArgumentException("Invalid procedure type. Allowed: Appointment, Transfer, Demotion, Termination.");
 
             if (!await _hrProcedureRepository.EmployeeExistsAsync(createDto.EmployeeId))
                 throw new KeyNotFoundException("Employee not found.");
@@ -168,9 +168,9 @@ namespace HRManagement.Services.HRProceduces
                 await ValidateNotNoOpAsync(createDto);
             }
 
-            // ── Phase 1: Promotion – bắt buộc NewPositionId ──────────────────
-            if (type.Equals("Promotion", StringComparison.OrdinalIgnoreCase) && !createDto.NewPositionId.HasValue)
-                throw new ArgumentException("Promotion requires NewPositionId.");
+            // ── Phase 1: Demotion – bắt buộc NewPositionId ──────────────────
+            if (type.Equals("Demotion", StringComparison.OrdinalIgnoreCase) && !createDto.NewPositionId.HasValue)
+                throw new ArgumentException("Demotion requires NewPositionId.");
 
             // ── Validate FK tồn tại ──────────────────────────────────────────
             if (createDto.NewDepartmentId.HasValue && !await _hrProcedureRepository.DepartmentExistsAsync(createDto.NewDepartmentId.Value))
@@ -227,8 +227,8 @@ namespace HRManagement.Services.HRProceduces
                     throw new ArgumentException("Transfer requires at least one of: NewDepartmentId, NewPositionId, NewManagerId, NewSalary.");
             }
 
-            if (type.Equals("Promotion", StringComparison.OrdinalIgnoreCase) && !updateDto.NewPositionId.HasValue)
-                throw new ArgumentException("Promotion requires NewPositionId.");
+            if (type.Equals("Demotion", StringComparison.OrdinalIgnoreCase) && !updateDto.NewPositionId.HasValue)
+                throw new ArgumentException("Demotion requires NewPositionId.");
 
             if (updateDto.NewManagerId.HasValue)
                 await ValidateNewManagerAsync(procedure.EmployeeId, updateDto.NewManagerId.Value);
@@ -414,16 +414,10 @@ namespace HRManagement.Services.HRProceduces
                     if (procedure.NewSalary.HasValue)       employee.BaseSalary   = procedure.NewSalary.Value;
                     break;
 
-                case "promotion":
+                case "demotion":
                     if (procedure.NewPositionId.HasValue) employee.PositionId = procedure.NewPositionId.Value;
                     if (procedure.NewSalary.HasValue)     employee.BaseSalary  = procedure.NewSalary.Value;
                     if (procedure.NewManagerId.HasValue)  employee.ManagerId   = procedure.NewManagerId.Value;
-                    break;
-
-                case "resignation":
-                    employee.EmploymentStatus = "Resignation";
-                    employee.ResignationDate  = procedure.EffectiveDate;
-                    await DeactivateUserAccountAsync(employee);
                     break;
 
                 case "termination":
@@ -439,9 +433,16 @@ namespace HRManagement.Services.HRProceduces
 
             // Tự động cấp/nâng cấp tài khoản nếu vị trí mới là cấp quản lý
             if (procedure.NewPositionId.HasValue &&
-                procedure.ProcedureType.ToLower() is "appointment" or "transfer" or "promotion")
+                procedure.ProcedureType.ToLower() is "appointment" or "transfer")
             {
                 await ProvisionUserAccountAsync(employee, procedure.NewPositionId.Value, procedure.ProcedureType);
+            }
+
+            // Giáng chức: gửi mail + hạ quyền về EMPLOYEE nếu vị trí mới là Level 1
+            if (procedure.NewPositionId.HasValue &&
+                procedure.ProcedureType.ToLower() is "demotion")
+            {
+                await HandleDemotionAccountAsync(employee, procedure.NewPositionId.Value, procedure.NewSalary);
             }
         }
 
@@ -550,8 +551,69 @@ namespace HRManagement.Services.HRProceduces
         // ─────────────────────────────────────────────────────────────────────
 
         /// <summary>
+        /// Xử lý tài khoản khi giáng chức:
+        /// - Luôn gửi email thông báo giáng chức cho nhân viên.
+        /// - Nếu vị trí mới là Level 1 (không phải quản lý), hạ role về EMPLOYEE.
+        /// </summary>
+        private async Task HandleDemotionAccountAsync(Employee employee, int newPositionId, decimal? newSalary)
+        {
+            var newPosition = await _context.Positions.FindAsync(newPositionId);
+            if (newPosition == null) return;
+
+            bool isDowngradeToEmployee = newPosition.Level < 2 && !newPosition.IsTopLevel;
+
+            if (isDowngradeToEmployee)
+            {
+                var employeeRole = await _context.Roles
+                    .FirstOrDefaultAsync(r => r.RoleName == "EMPLOYEE" && r.IsActive);
+
+                if (employeeRole != null)
+                {
+                    var existingUser = await _context.Users
+                        .Include(u => u.UserRoles)
+                        .FirstOrDefaultAsync(u => u.EmployeeId == employee.EmployeeId && u.IsActive);
+
+                    if (existingUser != null)
+                    {
+                        _context.UserRoles.RemoveRange(existingUser.UserRoles);
+                        _context.UserRoles.Add(new UserRole
+                        {
+                            UserId = existingUser.UserId,
+                            RoleId = employeeRole.RoleId
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+
+            var salaryLine = newSalary.HasValue
+                ? $"<li><b>Mức lương mới:</b> {newSalary.Value:N0} VND</li>"
+                : string.Empty;
+
+            var roleNote = isDowngradeToEmployee
+                ? "<p><b>Lưu ý:</b> Quyền hạn tài khoản của bạn đã được điều chỉnh về mức Nhân viên. Vui lòng đăng nhập lại để áp dụng.</p>"
+                : string.Empty;
+
+            var demotionBody = $@"
+                <h3>Thông báo: Quyết định Giáng chức</h3>
+                <p>Xin chào <b>{employee.FullName}</b>,</p>
+                <p>Bộ phận Nhân sự thông báo bạn có quyết định <b>Giáng chức</b> với các thông tin sau:</p>
+                <ul>
+                    <li><b>Vị trí mới:</b> {newPosition.PositionName}</li>
+                    {salaryLine}
+                </ul>
+                {roleNote}
+                <p>Nếu có thắc mắc, vui lòng liên hệ bộ phận Nhân sự.</p>";
+
+            await _emailService.SendAsync(
+                employee.Email,
+                "Thông báo quyết định Giáng chức",
+                demotionBody);
+        }
+
+        /// <summary>
         /// Tự động tạo tài khoản mới hoặc nâng cấp Role khi nhân viên được
-        /// thăng chức / bổ nhiệm / điều chuyển sang vị trí cấp quản lý
+        /// bổ nhiệm / điều chuyển sang vị trí cấp quản lý
         /// (Position.Level >= 2 hoặc IsTopLevel = true).
         /// </summary>
         private async Task ProvisionUserAccountAsync(Employee employee, int newPositionId, string procedureType)
@@ -694,7 +756,8 @@ namespace HRManagement.Services.HRProceduces
         {
             "appointment" => "Bổ nhiệm",
             "transfer"    => "Điều chuyển",
-            "promotion"   => "Thăng tiến",
+            "demotion"    => "Giáng chức",
+            "termination" => "Sa thải",
             _             => type
         };
     }

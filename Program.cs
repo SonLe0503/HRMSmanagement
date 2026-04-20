@@ -26,6 +26,7 @@ using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
 using HRManagement.Services.Backgrounds;
 using HRManagement.Services.Payroll;
+using HRManagement.Services.Resignations;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -99,6 +100,9 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+
+// Resignation Request
+builder.Services.AddScoped<IResignationRequestService, ResignationRequestService>();
 
 // Payroll Services
 builder.Services.AddScoped<TaxCalculationService>();

@@ -93,6 +93,8 @@ public partial class HrmsDbContext : DbContext
     public virtual DbSet<FaceProfile> FaceProfiles { get; set; }
     public virtual DbSet<FaceVerificationLog> FaceVerificationLogs { get; set; }
 
+    public virtual DbSet<ResignationRequest> ResignationRequests { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -1092,6 +1094,48 @@ public partial class HrmsDbContext : DbContext
             entity.HasOne(d => d.Shift).WithMany()
                 .HasForeignKey(d => d.ShiftId)
                 .HasConstraintName("FK_AttendanceLogs_Shifts");
+        });
+
+        modelBuilder.Entity<ResignationRequest>(entity =>
+        {
+            entity.HasKey(e => e.ResignationRequestId);
+
+            entity.HasIndex(e => e.RequestNumber).IsUnique();
+
+            entity.Property(e => e.RequestNumber).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
+            entity.Property(e => e.Reason).HasMaxLength(1000);
+            entity.Property(e => e.HandoverNote).HasMaxLength(2000);
+            entity.Property(e => e.RejectionReason).HasMaxLength(1000);
+            entity.Property(e => e.ReviewerComments).HasMaxLength(1000);
+            entity.Property(e => e.SubmittedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ReviewedDate).HasColumnType("datetime");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ResignationRequests_Employees");
+
+            entity.HasOne(d => d.HandoverToEmployee)
+                .WithMany()
+                .HasForeignKey(d => d.HandoverToEmployeeId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ResignationRequests_HandoverEmployee");
+
+            entity.HasOne(d => d.ReviewedByNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.ReviewedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ResignationRequests_ReviewedBy");
+
+            entity.HasOne(d => d.TargetApprover)
+                .WithMany()
+                .HasForeignKey(d => d.TargetApproverId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ResignationRequests_TargetApprover");
         });
 
         OnModelCreatingPartial(modelBuilder);
