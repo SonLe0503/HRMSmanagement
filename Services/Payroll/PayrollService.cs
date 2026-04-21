@@ -108,7 +108,8 @@ namespace HRManagement.Services.Payroll
             {
                 "Payroll.Calc.BhxhRate", "Payroll.Calc.BhytRate", "Payroll.Calc.BhtnRate",
                 "Payroll.Calc.InsuranceCap", "Payroll.Calc.InsuranceBaseMode", "Payroll.Calc.InsuranceFixedBase",
-                "Payroll.Calc.PersonalDeduction", "Payroll.Calc.DependentDeduction"
+                "Payroll.Calc.PersonalDeduction", "Payroll.Calc.DependentDeduction",
+                "Payroll.Calc.OtWeekdayMultiplier", "Payroll.Calc.OtWeekendMultiplier", "Payroll.Calc.OtHolidayMultiplier"
             };
             var rows = await _context.SystemSettings
                 .Where(s => keys.Contains(s.SettingKey))
@@ -117,14 +118,17 @@ namespace HRManagement.Services.Payroll
             var cfg = new HRManagement.DTOs.SystemSettings.PayrollCalculationSettingsDto();
             foreach (var s in rows)
             {
-                if (s.SettingKey == "Payroll.Calc.BhxhRate"           && decimal.TryParse(s.SettingValue, out var v1)) cfg.BhxhRate            = v1;
-                if (s.SettingKey == "Payroll.Calc.BhytRate"           && decimal.TryParse(s.SettingValue, out var v2)) cfg.BhytRate            = v2;
-                if (s.SettingKey == "Payroll.Calc.BhtnRate"           && decimal.TryParse(s.SettingValue, out var v3)) cfg.BhtnRate            = v3;
-                if (s.SettingKey == "Payroll.Calc.InsuranceCap"       && decimal.TryParse(s.SettingValue, out var v4)) cfg.InsuranceCap        = v4;
-                if (s.SettingKey == "Payroll.Calc.InsuranceBaseMode")                                                  cfg.InsuranceBaseMode   = s.SettingValue ?? "Gross";
-                if (s.SettingKey == "Payroll.Calc.InsuranceFixedBase" && decimal.TryParse(s.SettingValue, out var v6)) cfg.InsuranceFixedBase  = v6;
-                if (s.SettingKey == "Payroll.Calc.PersonalDeduction"  && decimal.TryParse(s.SettingValue, out var v7)) cfg.PersonalDeduction   = v7;
-                if (s.SettingKey == "Payroll.Calc.DependentDeduction" && decimal.TryParse(s.SettingValue, out var v8)) cfg.DependentDeduction  = v8;
+                if (s.SettingKey == "Payroll.Calc.BhxhRate"              && decimal.TryParse(s.SettingValue, out var v1))  cfg.BhxhRate             = v1;
+                if (s.SettingKey == "Payroll.Calc.BhytRate"              && decimal.TryParse(s.SettingValue, out var v2))  cfg.BhytRate             = v2;
+                if (s.SettingKey == "Payroll.Calc.BhtnRate"              && decimal.TryParse(s.SettingValue, out var v3))  cfg.BhtnRate             = v3;
+                if (s.SettingKey == "Payroll.Calc.InsuranceCap"          && decimal.TryParse(s.SettingValue, out var v4))  cfg.InsuranceCap         = v4;
+                if (s.SettingKey == "Payroll.Calc.InsuranceBaseMode")                                                       cfg.InsuranceBaseMode    = s.SettingValue ?? "Gross";
+                if (s.SettingKey == "Payroll.Calc.InsuranceFixedBase"    && decimal.TryParse(s.SettingValue, out var v6))  cfg.InsuranceFixedBase   = v6;
+                if (s.SettingKey == "Payroll.Calc.PersonalDeduction"     && decimal.TryParse(s.SettingValue, out var v7))  cfg.PersonalDeduction    = v7;
+                if (s.SettingKey == "Payroll.Calc.DependentDeduction"    && decimal.TryParse(s.SettingValue, out var v8))  cfg.DependentDeduction   = v8;
+                if (s.SettingKey == "Payroll.Calc.OtWeekdayMultiplier"   && decimal.TryParse(s.SettingValue, out var v9))  cfg.OtWeekdayMultiplier  = v9;
+                if (s.SettingKey == "Payroll.Calc.OtWeekendMultiplier"   && decimal.TryParse(s.SettingValue, out var v10)) cfg.OtWeekendMultiplier  = v10;
+                if (s.SettingKey == "Payroll.Calc.OtHolidayMultiplier"   && decimal.TryParse(s.SettingValue, out var v11)) cfg.OtHolidayMultiplier  = v11;
             }
             return cfg;
         }
@@ -160,7 +164,7 @@ namespace HRManagement.Services.Payroll
             var allowances = await BuildAllowancesAsync(employee, period);
 
             // 4. Lương OT
-            var (overtimePay, otAllowances) = await CalculateOvertimeAsync(employeeId, period, baseSalary, workingDays);
+            var (overtimePay, otAllowances) = await CalculateOvertimeAsync(employeeId, period, baseSalary, workingDays, calcSettings);
 
             // 5. Thưởng & Khấu trừ thủ công từ record cũ (nếu có)
             var existingRecord = await _payrollRepo.GetByEmployeeAndPeriodAsync(employeeId, periodId);
@@ -729,7 +733,8 @@ namespace HRManagement.Services.Payroll
         }
 
         private async Task<(decimal OvertimePay, List<PayrollAllowance> Details)>
-            CalculateOvertimeAsync(int employeeId, PayrollPeriod period, decimal baseSalary, decimal workingDays)
+            CalculateOvertimeAsync(int employeeId, PayrollPeriod period, decimal baseSalary, decimal workingDays,
+                HRManagement.DTOs.SystemSettings.PayrollCalculationSettingsDto cfg)
         {
             var overtimeRequests = await _context.OvertimeRequests
                 .Where(o => o.EmployeeId == employeeId
@@ -751,8 +756,8 @@ namespace HRManagement.Services.Payroll
             {
                 var rate = ot.OvertimeDate.DayOfWeek switch
                 {
-                    DayOfWeek.Saturday or DayOfWeek.Sunday => 2.0m,
-                    _ => 1.5m,
+                    DayOfWeek.Saturday or DayOfWeek.Sunday => cfg.OtWeekendMultiplier,
+                    _ => cfg.OtWeekdayMultiplier,
                 };
 
                 var otPay = Math.Round(hourlySalary * (decimal)ot.TotalHours * rate, 0);
