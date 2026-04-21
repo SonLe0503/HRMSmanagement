@@ -6,7 +6,7 @@ namespace HRManagement.DTOs
     {
         public string Email { get; set; } = null!;
         public int EmployeeId { get; set; }
-        public List<int> RoleIds { get; set; } = new();
+        public int RoleId { get; set; }
     }
 
     public class UpdateUserDTO
@@ -14,7 +14,7 @@ namespace HRManagement.DTOs
         public string Email { get; set; } = null!;
         public bool IsActive { get; set; }
         public int EmployeeId { get; set; }
-        public List<int> RoleIds { get; set; } = new();
+        public int RoleId { get; set; }
     }
 
     public class UserResponseDTO

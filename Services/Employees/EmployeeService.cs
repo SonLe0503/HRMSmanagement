@@ -197,6 +197,16 @@ namespace HRManagement.Services.Employees
 
             await _employeeRepository.UpdateEmployeeAsync(employee);
 
+            // Update associated user status
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.EmployeeId == id);
+            if (user != null)
+            {
+                user.IsActive = status == "Active";
+                user.ModifiedDate = DateTime.UtcNow;
+                user.ModifiedBy = modifiedBy;
+                await _context.SaveChangesAsync();
+            }
+
             return true;
         }
 
@@ -212,6 +222,7 @@ namespace HRManagement.Services.Employees
                 Phone = e.Phone,
                 Gender = e.Gender,
                 EmploymentStatus = e.EmploymentStatus,
+                JoinDate = e.JoinDate,
                 DepartmentName = e.Department?.DepartmentName ?? "N/A",
                 PositionName = e.Position?.PositionName ?? "N/A",
                 ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",
@@ -232,6 +243,7 @@ namespace HRManagement.Services.Employees
                 Phone = e.Phone,
                 Gender = e.Gender,
                 EmploymentStatus = e.EmploymentStatus,
+                JoinDate = e.JoinDate,
                 DepartmentName = e.Department?.DepartmentName ?? "N/A",
                 PositionName = e.Position?.PositionName ?? "N/A",
                 ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",

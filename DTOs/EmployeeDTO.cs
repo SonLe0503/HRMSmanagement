@@ -37,6 +37,7 @@ namespace HRManagement.DTOs
         public string? Phone { get; set; }     
         public string? Gender { get; set; }      
         public string EmploymentStatus { get; set; } = null!;
+        public DateOnly JoinDate { get; set; }
         public string DepartmentName { get; set; } = null!;
         public string PositionName { get; set; } = null!;
         public string? ManagerName { get; set; }

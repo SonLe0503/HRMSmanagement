@@ -9,10 +9,12 @@ namespace HRManagement.Services.Shifts
     {
         private readonly IShiftAssignmentRepository _shiftAssignmentRepository;
         private readonly IAttendanceRepository _attendanceRepository;
-        public ShiftAssignmentService(IShiftAssignmentRepository shiftAssignmentRepository, IAttendanceRepository attendanceRepository)
+        private readonly IEmployeeRepository _employeeRepository;
+        public ShiftAssignmentService(IShiftAssignmentRepository shiftAssignmentRepository, IAttendanceRepository attendanceRepository, IEmployeeRepository employeeRepository)
         {
             _shiftAssignmentRepository = shiftAssignmentRepository;
             _attendanceRepository = attendanceRepository;
+            _employeeRepository = employeeRepository;
         }
 
         public async System.Threading.Tasks.Task AssignShiftAsync(int managerId, AssignShiftDto dto)
@@ -24,7 +26,25 @@ namespace HRManagement.Services.Shifts
             if (shift == null || !shift.IsActive)
                 throw new InvalidOperationException("Ca làm việc không hợp lệ hoặc đã bị vô hiệu hóa.");
 
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(dto.EmployeeId);
+            if (employee == null)
+                throw new KeyNotFoundException("Nhân viên không tồn tại.");
+
+            if (employee.EmploymentStatus != "Active")
+                throw new InvalidOperationException("Nhân viên không có trạng thái hoạt động.");
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (employee.JoinDate > today)
+                throw new InvalidOperationException("Nhân viên chưa bắt đầu làm việc.");
+
             var datesToAssign = BuildDatesToAssign(dto);
+
+            var invalidDates = datesToAssign.Where(d => d < employee.JoinDate).ToList();
+            if (invalidDates.Any())
+            {
+                var invalidText = string.Join(", ", invalidDates.Select(d => d.ToString("yyyy-MM-dd")));
+                throw new InvalidOperationException($"Không thể phân ca trước ngày vào làm của nhân viên ({employee.JoinDate:yyyy-MM-dd}). Các ngày không hợp lệ: {invalidText}");
+            }
 
             if (!datesToAssign.Any())
                 throw new InvalidOperationException("Không có ngày nào hợp lệ để phân ca.");

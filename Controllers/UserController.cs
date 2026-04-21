@@ -89,7 +89,7 @@ namespace HRManagement.Controllers
             if (employee == null)
                 return BadRequest("Employee does not exist");
 
-            var roleValidation = await _userAccountValidationService.ValidateRoleSelectionAsync(dto.RoleIds);
+            var roleValidation = await _userAccountValidationService.ValidateRoleSelectionAsync(new List<int> { dto.RoleId });
             if (!roleValidation.IsValid)
                 return BadRequest(roleValidation.ErrorMessage);
 
@@ -198,7 +198,7 @@ namespace HRManagement.Controllers
             if (employeeAlreadyUsed)
                 return BadRequest("This employee is already linked to another account");
 
-            var roleValidation = await _userAccountValidationService.ValidateRoleSelectionAsync(dto.RoleIds);
+            var roleValidation = await _userAccountValidationService.ValidateRoleSelectionAsync(new List<int> { dto.RoleId });
             if (!roleValidation.IsValid)
                 return BadRequest(roleValidation.ErrorMessage);
 

@@ -29,6 +29,15 @@ namespace HRManagement.DataAcess.Implementations
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<EvaluationCycle>> GetActiveAndCompletedAsync()
+        {
+            return await _context.EvaluationCycles
+                .Include(c => c.Evaluations)
+                .Where(c => c.Status == "Active" || c.Status == "Completed")
+                .OrderByDescending(c => c.CreatedDate)
+                .ToListAsync();
+        }
+
         public async Task<EvaluationCycle?> GetByIdWithDetailsAsync(int cycleId)
         {
             return await _context.EvaluationCycles

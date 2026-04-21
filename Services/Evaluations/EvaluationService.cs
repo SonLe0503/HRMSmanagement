@@ -328,6 +328,12 @@ namespace HRManagement.Services.Evaluations
                     preview.Issue = "No direct manager assigned";
                 }
 
+                preview.IsAssigned = await _evaluationRepository.EmployeeHasEvaluationInCycleAsync(cycleId, employee.EmployeeId);
+                if (preview.IsAssigned)
+                {
+                    preview.Issue = "Đã phân công";
+                }
+
                 previews.Add(preview);
             }
 
@@ -415,10 +421,21 @@ namespace HRManagement.Services.Evaluations
         {
             // BR-36: Validate assignments
 
-            // Validate employee exists
+            // Validate employee exists and is eligible
             if (!await _employeeRepository.EmployeeExistsAsync(assignment.EmployeeId))
             {
                 throw new KeyNotFoundException($"Employee with ID {assignment.EmployeeId} not found.");
+            }
+
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(assignment.EmployeeId);
+            if (employee == null || employee.EmploymentStatus != "Active")
+            {
+                throw new InvalidOperationException("Cannot assign evaluation for inactive employee.");
+            }
+
+            if (employee.JoinDate > DateOnly.FromDateTime(DateTime.Today))
+            {
+                throw new InvalidOperationException("Cannot assign evaluation before employee join date.");
             }
 
             // Validate template exists and is active
@@ -454,10 +471,11 @@ namespace HRManagement.Services.Evaluations
         private async Task<List<Employee>> GetEmployeesInScopeAsync()
         {
             var allEmployees = await _employeeRepository.GetAllEmployeesAsync();
+            var today = DateOnly.FromDateTime(DateTime.Today);
 
-            // Return ALL active employees
+            // Return active employees who have already joined
             return allEmployees
-                .Where(e => e.EmploymentStatus == "Active")
+                .Where(e => e.EmploymentStatus == "Active" && e.JoinDate <= today)
                 .ToList();
         }
 

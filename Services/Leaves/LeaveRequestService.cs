@@ -40,6 +40,18 @@ namespace HRManagement.Services.Leaves
 
                 var employee = user.Employee;
 
+                // Check employee status
+                if (employee.EmploymentStatus != "Active")
+                {
+                    return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-EMP-01", "Employee is not active.");
+                }
+
+                // Check join date
+                if (employee.JoinDate > dto.StartDate)
+                {
+                    return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-EMP-02", "Cannot create leave request before join date.");
+                }
+
                 if (dto.StartDate > dto.EndDate)
                 {
                     return ServiceResult<LeaveRequestResponseDTO>.Fail("MSG-02", "Start date cannot be later than end date.");

@@ -43,14 +43,14 @@ namespace HRManagement.Services.Analytics
             if (!rawData.Any())
             {
                 response.HasEnoughData = false;
-                response.DisclaimerMessage = "No competency data found for the selected criteria.";
+                response.DisclaimerMessage = "Không có dữ liệu đánh giá để hiển thị cho bộ lọc đã chọn. Vui lòng đảm bảo: 1) Chọn đợt đánh giá đã hoàn thành, 2) Có dữ liệu đánh giá cho nhân viên/phòng ban trong phạm vi được chọn.";
                 await LogAuditAsync("SELECT", filter.CycleId ?? 0, filter);
                 return response;
             }
 
             if (rawData.Count < 5)
             {
-                response.DisclaimerMessage = "Insufficient data for analysis. Partial report is displayed.";
+                response.DisclaimerMessage = "Dữ liệu chưa đủ để phân tích. Báo cáo hiển thị dữ liệu một phần. Cần ít nhất 5 đợt đánh giá để phân tích đầy đủ.";
             }
 
             response.CompetencyProfiles = BuildCompetencyProfiles(rawData);
@@ -84,6 +84,8 @@ namespace HRManagement.Services.Analytics
 
         public async Task<CompetencyDrilldownResponseDTO> GetDrilldownAsync(CompetencyDrilldownRequestDTO request)
         {
+            var allowedCycleStatuses = new[] { "Active", "Completed" };
+            
             var query = _context.EvaluationRatings
                 .Include(x => x.Criteria)
                 .Include(x => x.Evaluation)
@@ -93,7 +95,7 @@ namespace HRManagement.Services.Analytics
                     .ThenInclude(e => e.Cycle)
                 .Where(x =>
                     x.CriteriaId == request.CriteriaId &&
-                    x.Evaluation.Cycle.Status == "Completed" &&
+                    allowedCycleStatuses.Contains(x.Evaluation.Cycle.Status) &&
                     (x.Evaluation.Status == "Completed" || x.Evaluation.Status == "Acknowledged"))
                 .AsQueryable();
 
@@ -171,6 +173,8 @@ namespace HRManagement.Services.Analytics
 
         private IQueryable<EvaluationRating> BuildBaseQuery(CompetencyReportFilterDTO filter)
         {
+            var allowedCycleStatuses = new[] { "Active", "Completed" };
+            
             var query = _context.EvaluationRatings
                 .Include(x => x.Criteria)
                 .Include(x => x.Evaluation)
@@ -179,7 +183,7 @@ namespace HRManagement.Services.Analytics
                 .Include(x => x.Evaluation)
                     .ThenInclude(e => e.Cycle)
                 .Where(x =>
-                    x.Evaluation.Cycle.Status == "Completed" &&
+                    allowedCycleStatuses.Contains(x.Evaluation.Cycle.Status) &&
                     (x.Evaluation.Status == "Completed" || x.Evaluation.Status == "Acknowledged"))
                 .AsQueryable();
 
@@ -218,17 +222,17 @@ namespace HRManagement.Services.Analytics
                 })
                 .Select(g =>
                 {
-                    var managerAvg = g.Where(x => x.ManagerRating.HasValue)
+                    var managerRatings = g.Where(x => x.ManagerRating.HasValue)
                         .Select(x => x.ManagerRating!.Value)
-                        .DefaultIfEmpty(0)
-                        .Average();
+                        .ToList();
 
-                    var hasSelf = g.Any(x => x.SelfRating.HasValue);
-                    decimal? selfAvg = hasSelf
-                        ? g.Where(x => x.SelfRating.HasValue)
-                            .Select(x => x.SelfRating!.Value)
-                            .Average()
-                        : null;
+                    var managerAvg = managerRatings.Any() ? managerRatings.Average() : 0;
+
+                    var selfRatings = g.Where(x => x.SelfRating.HasValue)
+                        .Select(x => x.SelfRating!.Value)
+                        .ToList();
+
+                    decimal? selfAvg = selfRatings.Any() ? selfRatings.Average() : null;
 
                     return new CompetencyReportItemDTO
                     {
@@ -237,7 +241,7 @@ namespace HRManagement.Services.Analytics
                         CriteriaCategory = g.Key.CriteriaCategory,
                         AverageManagerRating = Math.Round(managerAvg, 2),
                         AverageSelfRating = selfAvg.HasValue ? Math.Round(selfAvg.Value, 2) : null,
-                        Gap = Math.Round((selfAvg ?? 0) - managerAvg, 2)
+                        Gap = selfAvg.HasValue ? Math.Round(selfAvg.Value - managerAvg, 2) : 0
                     };
                 })
                 .OrderBy(x => x.CriteriaCategory)
@@ -247,6 +251,8 @@ namespace HRManagement.Services.Analytics
 
         private async Task<List<CompetencyTrendDTO>> BuildTrendAnalysisAsync(CompetencyReportFilterDTO filter)
         {
+            var allowedCycleStatuses = new[] { "Active", "Completed" };
+            
             var query = _context.EvaluationRatings
                 .Include(x => x.Criteria)
                 .Include(x => x.Evaluation)
@@ -254,7 +260,7 @@ namespace HRManagement.Services.Analytics
                 .Include(x => x.Evaluation)
                     .ThenInclude(e => e.Employee)
                 .Where(x =>
-                    x.Evaluation.Cycle.Status == "Completed" &&
+                    allowedCycleStatuses.Contains(x.Evaluation.Cycle.Status) &&
                     (x.Evaluation.Status == "Completed" || x.Evaluation.Status == "Acknowledged"))
                 .AsQueryable();
 
@@ -287,17 +293,17 @@ namespace HRManagement.Services.Analytics
                     Points = g.GroupBy(x => new { x.Evaluation.CycleId, x.Evaluation.Cycle.CycleName })
                         .Select(p =>
                         {
-                            var managerAvg = p.Where(x => x.ManagerRating.HasValue)
+                            var managerRatings = p.Where(x => x.ManagerRating.HasValue)
                                 .Select(x => x.ManagerRating!.Value)
-                                .DefaultIfEmpty(0)
-                                .Average();
+                                .ToList();
 
-                            var hasSelf = p.Any(x => x.SelfRating.HasValue);
-                            decimal? selfAvg = hasSelf
-                                ? p.Where(x => x.SelfRating.HasValue)
-                                    .Select(x => x.SelfRating!.Value)
-                                    .Average()
-                                : null;
+                            var managerAvg = managerRatings.Any() ? managerRatings.Average() : 0;
+
+                            var selfRatings = p.Where(x => x.SelfRating.HasValue)
+                                .Select(x => x.SelfRating!.Value)
+                                .ToList();
+
+                            decimal? selfAvg = selfRatings.Any() ? selfRatings.Average() : null;
 
                             return new CompetencyTrendPointDTO
                             {
@@ -315,11 +321,11 @@ namespace HRManagement.Services.Analytics
 
         private List<EmployeeComparisonDTO> BuildEmployeeComparisons(List<EvaluationRating> rawData)
         {
-            var teamAverage = Math.Round(
-                rawData.Where(x => x.ManagerRating.HasValue)
-                    .Select(x => x.ManagerRating!.Value)
-                    .DefaultIfEmpty(0)
-                    .Average(), 2);
+            var teamRatings = rawData.Where(x => x.ManagerRating.HasValue)
+                .Select(x => x.ManagerRating!.Value)
+                .ToList();
+
+            var teamAverage = teamRatings.Any() ? Math.Round(teamRatings.Average(), 2) : 0;
 
             return rawData
                 .GroupBy(x => new
@@ -429,27 +435,35 @@ namespace HRManagement.Services.Analytics
             {
                 var cycle = await _context.EvaluationCycles.FirstOrDefaultAsync(x => x.CycleId == filter.CycleId.Value);
                 if (cycle == null)
-                    throw new ArgumentException("Evaluation cycle not found.");
+                    throw new ArgumentException($"Evaluation cycle (ID: {filter.CycleId}) not found.");
 
-                if (cycle.Status != "Completed")
-                    throw new ArgumentException("Only completed evaluation cycles can be used.");
+                // Allow both Active and Completed cycles for competency report
+                var allowedStatuses = new[] { "Active", "Completed" };
+                if (!allowedStatuses.Contains(cycle.Status))
+                    throw new ArgumentException($"Competency report can only be generated for Active or Completed cycles. Current status: {cycle.Status}.");
             }
         }
 
         private async System.Threading.Tasks.Task CheckPermissionAsync(CompetencyReportFilterDTO filter)
         {
             var role = _currentUserService.RoleName;
-            var currentEmployeeId = _currentUserService.EmployeeId;
+            int currentEmployeeId;
+            
+            try
+            {
+                currentEmployeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
+            }
+            catch (Exception)
+            {
+                throw new UnauthorizedAccessException("Bạn chưa được liên kết với nhân viên. Vui lòng liên hệ quản trị viên.");
+            }
 
             if (string.Equals(role, "Employee", StringComparison.OrdinalIgnoreCase))
             {
-                if (!currentEmployeeId.HasValue)
-                    throw new UnauthorizedAccessException("Current user is not linked to an employee.");
-
                 if (!filter.Scope.Equals("Individual", StringComparison.OrdinalIgnoreCase))
                     throw new UnauthorizedAccessException("Employee can only view individual report.");
 
-                if (filter.EmployeeId != currentEmployeeId.Value)
+                if (filter.EmployeeId != currentEmployeeId)
                     throw new UnauthorizedAccessException("Employee can only view their own report.");
             }
             else if (string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase))
@@ -461,20 +475,21 @@ namespace HRManagement.Services.Analytics
                 {
                     var isSubordinate = await _context.Employees.AnyAsync(x =>
                         x.EmployeeId == filter.EmployeeId.Value &&
-                        currentEmployeeId.HasValue &&
-                        x.ManagerId == currentEmployeeId.Value);
+                        x.ManagerId == currentEmployeeId);
 
                     if (!isSubordinate && filter.EmployeeId != currentEmployeeId)
                         throw new UnauthorizedAccessException("You do not have permission to view this employee report.");
                 }
             }
-            else if (string.Equals(role, "HR Staff", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(role, "HR Staff", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
             else
             {
-                throw new UnauthorizedAccessException("Access denied.");
+                throw new UnauthorizedAccessException($"Access denied. Role: {role}");
             }
         }
 
