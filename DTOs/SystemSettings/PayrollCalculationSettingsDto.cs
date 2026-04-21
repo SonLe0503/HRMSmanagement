@@ -42,5 +42,15 @@ namespace HRManagement.DTOs.SystemSettings
 
         /// <summary>Giảm trừ mỗi người phụ thuộc (đồng/tháng). Mặc định: 4,400,000</summary>
         public decimal DependentDeduction { get; set; } = 4_400_000m;
+
+        // ── Hệ số lương tăng ca (OT) ──────────────────────────────────────────
+        /// <summary>Hệ số lương OT ngày làm việc thường. Mặc định: 1.5 (Điều 98.1a – BLLĐ 2019)</summary>
+        public decimal OtWeekdayMultiplier { get; set; } = 1.5m;
+
+        /// <summary>Hệ số lương OT ngày nghỉ hàng tuần (Thứ 7 & Chủ Nhật). Mặc định: 2.0 (Điều 98.1b – BLLĐ 2019)</summary>
+        public decimal OtWeekendMultiplier { get; set; } = 2.0m;
+
+        /// <summary>Hệ số lương OT ngày lễ, Tết. Mặc định: 3.0 (Điều 98.1c – BLLĐ 2019)</summary>
+        public decimal OtHolidayMultiplier { get; set; } = 3.0m;
     }
 }
