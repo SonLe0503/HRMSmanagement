@@ -570,7 +570,7 @@ namespace HRManagement.Services.Attendances
             }
 
             // 3. Generate virtual "Absent" records for shift days with no check-in and no leave
-            if (status == null)
+            if (status == null || status == "Absent")
             {
                 var today = DateOnly.FromDateTime(DateTime.Now);
                 foreach (var assignment in assignments)
@@ -610,7 +610,41 @@ namespace HRManagement.Services.Attendances
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(status))
+                result = result.Where(r => r.Status == status).ToList();
+
+            // Override IsLocked cho các bản ghi thuộc kỳ lương đã phê duyệt
+            await ApplyPayrollLockOverrideAsync(result);
+
             return result.OrderByDescending(r => r.AttendanceDate).ThenBy(r => r.EmployeeName).ToList();
+        }
+
+        private async System.Threading.Tasks.Task ApplyPayrollLockOverrideAsync(List<AttendanceResponseDto> records)
+        {
+            if (!records.Any()) return;
+
+            var approvedPeriods = await _context.PayrollPeriods
+                .Where(p => p.Status == "Approved" || p.Status == "Closed")
+                .Select(p => new { p.PeriodId, p.StartDate, p.EndDate })
+                .ToListAsync();
+
+            if (!approvedPeriods.Any()) return;
+
+            var employeeIds = records.Select(r => r.EmployeeId).Distinct().ToList();
+            var periodIds = approvedPeriods.Select(p => p.PeriodId).ToList();
+
+            var approvedPairs = await _context.PayrollRecords
+                .Where(r => periodIds.Contains(r.PeriodId) && employeeIds.Contains(r.EmployeeId))
+                .Select(r => new { r.PeriodId, r.EmployeeId })
+                .ToListAsync();
+
+            foreach (var rec in records.Where(r => r.IsLocked != true))
+            {
+                var inApproved = approvedPeriods.Any(p =>
+                    p.StartDate <= rec.AttendanceDate && p.EndDate >= rec.AttendanceDate &&
+                    approvedPairs.Any(e => e.PeriodId == p.PeriodId && e.EmployeeId == rec.EmployeeId));
+                if (inApproved) rec.IsLocked = true;
+            }
         }
 
         private static DateTime MaxDateTime(DateTime a, DateTime b) => a > b ? a : b;
@@ -623,10 +657,21 @@ namespace HRManagement.Services.Attendances
                 return null;
 
             var logs = await _attendanceRepository.GetLogsByEmployeeAndDateAsync(employeeId, date);
+            var dto = MapAttendance(attendance);
+
+            // Override IsLocked nếu thuộc kỳ lương đã phê duyệt
+            if (dto.IsLocked != true)
+            {
+                var inApproved = await _context.PayrollPeriods
+                    .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                                   p.StartDate <= date && p.EndDate >= date &&
+                                   _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == employeeId));
+                if (inApproved) dto.IsLocked = true;
+            }
 
             return new AttendanceDetailResponseDto
             {
-                Attendance = MapAttendance(attendance),
+                Attendance = dto,
                 Logs = logs.Select(MapLog).ToList()
             };
         }
@@ -727,6 +772,15 @@ namespace HRManagement.Services.Attendances
         {
             var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
+
+            var isPayrollLocked = await _context.PayrollPeriods
+                .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                               p.StartDate <= attendance.AttendanceDate &&
+                               p.EndDate >= attendance.AttendanceDate &&
+                               _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == attendance.EmployeeId));
+
+            if (isPayrollLocked)
+                throw new InvalidOperationException("Bản ghi này thuộc kỳ lương đã được phê duyệt, không thể mở khóa.");
 
             attendance.IsLocked = false;
             attendance.ModifiedDate = DateTime.Now;

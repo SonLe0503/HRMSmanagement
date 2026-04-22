@@ -94,6 +94,21 @@ namespace HRManagement.Controllers
             }
         }
 
+        [HttpPut("lock-approved-attendance")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> LockApprovedAttendance()
+        {
+            try
+            {
+                var count = await _payrollService.LockAttendanceForAllApprovedPeriodsAsync();
+                return Ok(new { message = $"Đã khóa {count} bản ghi chấm công thuộc các kỳ lương đã phê duyệt." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
         [HttpPut("periods/{periodId:int}/approve")]
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> ApprovePeriod(int periodId)
