@@ -115,7 +115,7 @@ namespace HRManagement.Services.Attendances
 
             if (attendance == null)
             {
-                bool validLoc = await IsValidLocation(dto.Latitude, dto.Longitude);
+                bool validLoc = await IsValidCheckIn(dto);
                 attendance = new AttendanceRecord
                 {
                     EmployeeId = employeeId,
@@ -148,7 +148,7 @@ namespace HRManagement.Services.Attendances
             }
             else
             {
-                bool validLoc = await IsValidLocation(dto.Latitude, dto.Longitude);
+                bool validLoc = await IsValidCheckIn(dto);
                 attendance.ShiftId = shift.ShiftId;
                 attendance.CheckInTime = now;
                 attendance.LateMinutes = lateMinutes;
@@ -297,7 +297,7 @@ namespace HRManagement.Services.Attendances
             attendance.CheckOutVerificationMethod = "Face";
             attendance.CheckOutVerified = true;
 
-            bool validLocOut = await IsValidLocation(dto.Latitude, dto.Longitude);
+            bool validLocOut = await IsValidCheckIn(dto);
             if (!validLocOut) attendance.ExplanationStatus = "Required";
 
             var workingHours = (decimal)(now - attendance.CheckInTime.Value).TotalHours;
@@ -1030,24 +1030,62 @@ namespace HRManagement.Services.Attendances
         {
             if (!lat.HasValue || !lon.HasValue) return false;
 
-            var companyLatStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyLat");
-            var companyLngStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyLng");
-            var companyRadiusStr = await _context.SystemSettings.FirstOrDefaultAsync(s => s.SettingKey == "CompanyRadius");
+            var settings = await _context.SystemSettings
+                .Where(s => s.SettingKey == "OfficeLatitude" || s.SettingKey == "OfficeLongitude" || s.SettingKey == "AttendanceAllowedRadius")
+                .ToListAsync();
 
-            if (companyLatStr == null || companyLngStr == null) return true; // Default to true if not configured
+            var latSetting = settings.FirstOrDefault(s => s.SettingKey == "OfficeLatitude");
+            var lngSetting = settings.FirstOrDefault(s => s.SettingKey == "OfficeLongitude");
+            var radSetting = settings.FirstOrDefault(s => s.SettingKey == "AttendanceAllowedRadius");
 
-            if (double.TryParse(companyLatStr.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLat) && 
-                double.TryParse(companyLngStr.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLng))
+            if (latSetting == null || lngSetting == null) return true;
+
+            if (double.TryParse(latSetting.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLat) &&
+                double.TryParse(lngSetting.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double cLng))
             {
-                double radius = 500;
-                if (companyRadiusStr != null && double.TryParse(companyRadiusStr.SettingValue, out double r))
+                double radius = 100;
+                if (radSetting != null && double.TryParse(radSetting.SettingValue, System.Globalization.CultureInfo.InvariantCulture, out double r))
                     radius = r;
 
-                var dist = CalculateDistance(cLat, cLng, lat.Value, lon.Value);
-                return dist <= radius;
+                return CalculateDistance(cLat, cLng, lat.Value, lon.Value) <= radius;
             }
 
             return true;
+        }
+
+        private async Task<bool> IsValidIp(string? ipAddress)
+        {
+            if (string.IsNullOrWhiteSpace(ipAddress)) return false;
+
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.SettingKey == "AllowedIpAddresses");
+
+            if (setting == null || string.IsNullOrWhiteSpace(setting.SettingValue)) return true;
+
+            var allowedIps = setting.SettingValue
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            return allowedIps.Any(ip => ip == ipAddress.Trim());
+        }
+
+        private async Task<bool> IsValidCheckIn(CheckInRequestDto dto)
+            => await IsValidCheckIn(dto.Latitude, dto.Longitude, dto.IpAddress);
+
+        private async Task<bool> IsValidCheckIn(CheckOutRequestDto dto)
+            => await IsValidCheckIn(dto.Latitude, dto.Longitude, dto.IpAddress);
+
+        private async Task<bool> IsValidCheckIn(double? latitude, double? longitude, string? ipAddress)
+        {
+            var methodSetting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.SettingKey == "CheckInMethod");
+            var method = methodSetting?.SettingValue ?? "Location";
+
+            return method switch
+            {
+                "IP"     => await IsValidIp(ipAddress),
+                "Either" => await IsValidLocation(latitude, longitude) || await IsValidIp(ipAddress),
+                _        => await IsValidLocation(latitude, longitude),
+            };
         }
 
     }
