@@ -3,8 +3,6 @@ using HRManagement.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using System;
-using System.Linq;
 using System.Globalization;
 
 namespace HRManagement.Services.Payroll
@@ -18,10 +16,27 @@ namespace HRManagement.Services.Payroll
 
         public byte[] GeneratePdf(PayrollRecord record, PayrollPeriod period, CompanySettingsDto? company = null)
         {
-            var companyName = company?.CompanyName ?? "CÔNG TY CỔ PHẦN HR SYSTEM";
-            var address     = company?.Address ?? "";
-            var phone       = company?.Phone   ?? "";
-            var email       = company?.Email   ?? "";
+            var address = company?.Address ?? "";
+
+            // ── Calculations ──────────────────────────────────────────────────
+            var salariedAmount = record.WorkingDays > 0
+                ? Math.Round(record.BaseSalary / record.WorkingDays * record.ActualWorkingDays, 0)
+                : 0m;
+            var grossPay = salariedAmount + record.TotalAllowances + record.OvertimePay + record.BonusAmount;
+            var manualDeductions = record.PayrollDeductions
+                .Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax")
+                .Sum(d => d.Amount);
+            var totalDeductions = record.InsuranceAmount + record.TaxAmount + manualDeductions;
+            var netPay = grossPay - totalDeductions;
+
+            var monthName   = new DateTime(2000, period.Month, 1).ToString("MMMM", CultureInfo.GetCultureInfo("en-US"));
+            var periodLabel = $"{monthName}-{period.Year}";
+            var dateFrom    = period.StartDate.ToString("MM/dd/yyyy");
+            var dateTo      = period.EndDate.ToString("MM/dd/yyyy");
+
+            var allowances      = record.PayrollAllowances.Where(a => a.AllowanceType != "Overtime").ToList();
+            var otherDeductions = record.PayrollDeductions
+                .Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax").ToList();
 
             var document = Document.Create(container =>
             {
@@ -33,167 +48,127 @@ namespace HRManagement.Services.Payroll
 
                     page.Content().Column(col =>
                     {
-                        // 1. Header: Công ty
-                        col.Item().Row(row =>
+                        // ── 1. Title ──────────────────────────────────────────
+                        col.Item().Text("Pay Slip").Bold().FontSize(22);
+                        col.Item().PaddingBottom(10)
+                            .Text($"Salary Slip of {record.Employee.FullName} for {periodLabel}")
+                            .FontSize(10);
+
+                        // ── 2. Employee info table ────────────────────────────
+                        col.Item().Border(1).BorderColor(Colors.Grey.Medium).Table(table =>
                         {
-                            row.RelativeItem().Column(c =>
+                            table.ColumnsDefinition(cols =>
                             {
-                                c.Item().Text(companyName).Bold().FontSize(15).FontColor(Colors.Blue.Medium);
-                                if (!string.IsNullOrWhiteSpace(address))
-                                    c.Item().Text($"Địa chỉ: {address}");
-                                var contact = string.Join(" | ", new[]
-                                {
-                                    string.IsNullOrWhiteSpace(phone) ? null : $"ĐT: {phone}",
-                                    string.IsNullOrWhiteSpace(email) ? null : $"Email: {email}"
-                                }.Where(x => x != null));
-                                if (!string.IsNullOrWhiteSpace(contact))
-                                    c.Item().Text(contact);
+                                cols.RelativeColumn(1.8f);
+                                cols.RelativeColumn(3.2f);
+                                cols.RelativeColumn(2f);
+                                cols.RelativeColumn(3f);
                             });
+
+                            InfoRow(table, "Name",      record.Employee.FullName,    "Designation", record.Employee.Position?.PositionName ?? "");
+                            InfoRow(table, "Address",   address,                     "",            "");
+                            InfoRow(table, "Email",     record.Employee.Email,       "Identification No", "");
+                            InfoRow(table, "Reference", $"SLIP/{record.PayrollRecordId:D3}", "Bank Account", "");
+
+                            // Last row — no bottom border
+                            table.Cell().Padding(5).Text("Date From").Bold();
+                            table.Cell().BorderRight(1).BorderColor(Colors.Grey.Lighten1).Padding(5).Text(dateFrom);
+                            table.Cell().Padding(5).Text("Date To").Bold();
+                            table.Cell().Padding(5).Text(dateTo);
                         });
 
-                        col.Item().PaddingVertical(8).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                        col.Item().PaddingTop(18);
 
-                        // 2. Tiêu đề phiếu lương
-                        col.Item().AlignCenter().PaddingVertical(10).Column(c =>
-                        {
-                            c.Item().AlignCenter().Text($"PHIẾU LƯƠNG THÁNG {period.Month}/{period.Year}").Bold().FontSize(16);
-                            c.Item().AlignCenter().Text($"Mã số phiếu: PS-{period.Year}{period.Month:D2}-{record.PayrollRecordId:D5}").FontSize(9).Italic();
-                        });
-
-                        // 3. Thông tin nhân viên
-                        col.Item().Background(Colors.Grey.Lighten4).Padding(10).Row(row =>
-                        {
-                            row.RelativeItem().Column(c =>
-                            {
-                                c.Item().Text(t => { t.Span("Họ và tên: ").Bold(); t.Span(record.Employee.FullName); });
-                                c.Item().Text(t => { t.Span("Phòng ban: ").Bold(); t.Span(record.Employee.Department?.DepartmentName ?? "N/A"); });
-                            });
-                            row.RelativeItem().Column(c =>
-                            {
-                                c.Item().Text(t => { t.Span("Mã nhân viên: ").Bold(); t.Span(record.Employee.EmployeeCode); });
-                                c.Item().Text(t => { t.Span("Chức vụ: ").Bold(); t.Span(record.Employee.Position?.PositionName ?? "N/A"); });
-                            });
-                        });
-
-                        col.Item().PaddingVertical(15);
-
-                        // Tính lại từ components — tránh dùng GrossPay/NetPay stale trong DB
-                        var salariedAmountCalc = record.WorkingDays > 0
-                            ? Math.Round(record.BaseSalary / record.WorkingDays * record.ActualWorkingDays, 0)
-                            : 0m;
-                        var grossPayCalc = salariedAmountCalc + record.TotalAllowances + record.OvertimePay + record.BonusAmount;
-                        var manualDeductionsSumCalc = record.PayrollDeductions
-                            .Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax")
-                            .Sum(d => d.Amount);
-                        var netPayCalc = grossPayCalc - record.InsuranceAmount - record.TaxAmount - manualDeductionsSumCalc;
-                        var totalDeductionsCalc = record.InsuranceAmount + record.TaxAmount + manualDeductionsSumCalc;
-
-                        // 4. Bảng chi tiết thu nhập & khấu trừ
+                        // ── 3. Details by Salary Rule Category ───────────────
+                        col.Item().PaddingBottom(4).Text("Details by Salary Rule Category").Bold().FontSize(13);
                         col.Item().Table(table =>
                         {
                             table.ColumnsDefinition(cols =>
                             {
-                                cols.RelativeColumn(3); // Diễn giải
-                                cols.RelativeColumn(2); // Số tiền thu nhập
-                                cols.RelativeColumn(3); // Diễn giải khấu trừ
-                                cols.RelativeColumn(2); // Số tiền khấu trừ
+                                cols.ConstantColumn(65);
+                                cols.RelativeColumn();
+                                cols.ConstantColumn(140);
                             });
 
-                            // Header Bảng
                             table.Header(h =>
                             {
-                                h.Cell().Background(Colors.Blue.Lighten4).Padding(5).Text("THU NHẬP (A)").Bold();
-                                h.Cell().Background(Colors.Blue.Lighten4).Padding(5).AlignRight().Text("SỐ TIỀN").Bold();
-                                h.Cell().Background(Colors.Red.Lighten4).Padding(5).Text("KHẤU TRỪ (B)").Bold();
-                                h.Cell().Background(Colors.Red.Lighten4).Padding(5).AlignRight().Text("SỐ TIỀN").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).Text("Code").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).Text("Salary Rule Category").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).AlignRight().Text("Total").Bold();
                             });
 
-                            // Nội dung 1: Lương cơ bản & Bảo hiểm
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text("Lương cơ bản");
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(record.BaseSalary));
-                            
-                            var insurance = record.PayrollDeductions.FirstOrDefault(d => d.DeductionType == "Insurance");
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text("Bảo hiểm (10.5%)");
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(insurance?.Amount ?? 0));
-
-                            // Nội dung 2: Lương ngày công & Thuế
-                            var salariedText = $"Lương ngày công ({record.ActualWorkingDays}/{record.WorkingDays})";
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(salariedText);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(salariedAmountCalc));
-
-                            var tax = record.PayrollDeductions.FirstOrDefault(d => d.DeductionType == "Tax");
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text("Thuế TNCN");
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text(FormatCurrency(tax?.Amount ?? 0));
-
-                            // Nội dung 3: Phụ cấp & Khấu trừ khác
-                            var allowances = record.PayrollAllowances.Where(a => a.AllowanceType != "Overtime").ToList();
-                            var deductions = record.PayrollDeductions.Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax").ToList();
-                            
-                            int maxRows = Math.Max(allowances.Count, deductions.Count);
-                            if (record.OvertimePay > 0) maxRows++;
-                            if (record.BonusAmount > 0) maxRows++;
-
-                            // Merge OT và Bonus vào hàng thu nhập
-                            int currentRow = 0;
-                            if (record.OvertimePay > 0) {
-                                table.Cell().Padding(5).Text("Lương làm thêm giờ");
-                                table.Cell().Padding(5).AlignRight().Text(FormatCurrency(record.OvertimePay));
-                                table.Cell().Padding(5).Text(""); table.Cell().Padding(5).Text("");
-                                currentRow++;
-                            }
-                            if (record.BonusAmount > 0) {
-                                table.Cell().Padding(5).Text("Thưởng / Bonus");
-                                table.Cell().Padding(5).AlignRight().Text(FormatCurrency(record.BonusAmount));
-                                table.Cell().Padding(5).Text(""); table.Cell().Padding(5).Text("");
-                                currentRow++;
-                            }
-
-                            for (int i = 0; i < Math.Max(allowances.Count, deductions.Count); i++)
-                            {
-                                var a = i < allowances.Count ? allowances[i] : null;
-                                var d = i < deductions.Count ? deductions[i] : null;
-
-                                table.Cell().Padding(5).Text(a?.AllowanceName ?? "");
-                                table.Cell().Padding(5).AlignRight().Text(a != null ? FormatCurrency(a.Amount) : "");
-                                table.Cell().Padding(5).Text(d?.DeductionName ?? "");
-                                table.Cell().Padding(5).AlignRight().Text(d != null ? FormatCurrency(d.Amount) : "");
-                            }
-
-                            // Footer Bảng: Tổng
-                            table.Footer(f =>
-                            {
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG THU NHẬP").Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(grossPayCalc)).Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("TỔNG KHẤU TRỪ").Bold();
-                                f.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text(FormatCurrency(totalDeductionsCalc)).Bold();
-                            });
+                            SalaryRuleRow(table, "BASIC", "Basic",          salariedAmount);
+                            SalaryRuleRow(table, "BASIC", "..Basic Salary", salariedAmount);
+                            SalaryRuleRow(table, "GROSS", "Gross",          grossPay);
+                            SalaryRuleRow(table, "GROSS", "..Gross",        grossPay);
+                            SalaryRuleRow(table, "NET",   "Net",            netPay);
+                            SalaryRuleRow(table, "NET",   "..Net Salary",   netPay);
                         });
 
-                        col.Item().PaddingVertical(15);
+                        col.Item().PaddingTop(18);
 
-                        // 5. Thực lĩnh (Net Pay)
-                        col.Item().Background(Colors.Green.Lighten5).Padding(10).Border(1).BorderColor(Colors.Green.Medium).Row(row =>
+                        // ── 4. Payslip Lines by Contribution Register ─────────
+                        col.Item().PaddingBottom(4).Text("Payslip Lines by Contribution Register").Bold().FontSize(13);
+                        col.Item().Table(table =>
                         {
-                            row.RelativeItem().Text("THỰC LĨNH (NET PAY)").Bold().FontSize(13).FontColor(Colors.Green.Medium);
-                            row.RelativeItem().AlignRight().Text(FormatCurrency(netPayCalc)).Bold().FontSize(14).FontColor(Colors.Green.Darken2);
+                            table.ColumnsDefinition(cols =>
+                            {
+                                cols.ConstantColumn(65);
+                                cols.RelativeColumn();
+                                cols.ConstantColumn(90);
+                                cols.ConstantColumn(120);
+                                cols.ConstantColumn(120);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).Text("Code").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).Text("Name").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).Text("Quantity/rate").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).AlignRight().Text("Amount").Bold();
+                                h.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).Padding(5).AlignRight().Text("Total").Bold();
+                            });
+
+                            // Basic salary
+                            ContribRow(table, "BASIC", $"Basic Salary ({record.ActualWorkingDays}/{record.WorkingDays} ngày)",
+                                "1.0", Fmt(salariedAmount), Fmt(salariedAmount));
+
+                            // Allowances
+                            foreach (var a in allowances)
+                                ContribRow(table, "ALLOW", a.AllowanceName, "1.0", Fmt(a.Amount), Fmt(a.Amount));
+
+                            // Overtime
+                            if (record.OvertimePay > 0)
+                                ContribRow(table, "OT", "Overtime Pay", "1.0", Fmt(record.OvertimePay), Fmt(record.OvertimePay));
+
+                            // Bonus
+                            if (record.BonusAmount > 0)
+                                ContribRow(table, "BONUS", "Bonus", "1.0", Fmt(record.BonusAmount), Fmt(record.BonusAmount));
+
+                            // Gross subtotal separator
+                            ContribRow(table, "", "", "0", "", Fmt(grossPay));
+
+                            // Insurance
+                            if (record.InsuranceAmount > 0)
+                                ContribRow(table, "INS", "Insurance (BHXH/BHYT/BHTN)", "1.0",
+                                    Fmt(record.InsuranceAmount), Fmt(record.InsuranceAmount));
+
+                            // Tax
+                            if (record.TaxAmount > 0)
+                                ContribRow(table, "TAX", "Personal Income Tax", "1.0",
+                                    Fmt(record.TaxAmount), Fmt(record.TaxAmount));
+
+                            // Other deductions
+                            foreach (var d in otherDeductions)
+                                ContribRow(table, "DED", d.DeductionName, "1.0", Fmt(d.Amount), Fmt(d.Amount));
+
+                            // Net Salary
+                            ContribRow(table, "NET", "Net Salary", "1.0",
+                                netPay.ToString("N0"), Fmt(netPay));
                         });
 
-                        col.Item().PaddingTop(5).Text($"Bằng chữ: {NumberToVietnameseText((long)netPayCalc)}").Italic().FontSize(9);
-
-                        // 6. Chữ ký
-                        col.Item().PaddingTop(40).Row(row =>
-                        {
-                            row.RelativeItem().AlignCenter().Column(c =>
-                            {
-                                c.Item().Text("Nhân viên xác nhận").Bold();
-                                c.Item().PaddingTop(40).Text("(Ký và ghi rõ họ tên)");
-                            });
-                            row.RelativeItem().AlignCenter().Column(c =>
-                            {
-                                c.Item().Text("Phòng Nhân sự").Bold();
-                                c.Item().PaddingTop(40).Text("(Ký và đóng dấu)");
-                            });
-                        });
+                        // ── 5. Authorized signature ───────────────────────────
+                        col.Item().PaddingTop(20).AlignRight().Text("Authorized signature").Bold();
                     });
 
                     page.Footer().AlignCenter().Text(x =>
@@ -207,19 +182,38 @@ namespace HRManagement.Services.Payroll
             return document.GeneratePdf();
         }
 
-        private string FormatCurrency(decimal amount)
+        // ── Helpers ────────────────────────────────────────────────────────────
+
+        private static void InfoRow(TableDescriptor table,
+            string label1, string value1, string label2, string value2)
         {
-            return amount.ToString("N0", new CultureInfo("vi-VN")) + " đ";
+            var borderColor = Colors.Grey.Lighten1;
+            table.Cell().BorderBottom(1).BorderColor(borderColor).Padding(5).Text(label1).Bold();
+            table.Cell().BorderBottom(1).BorderRight(1).BorderColor(borderColor).Padding(5).Text(value1);
+            table.Cell().BorderBottom(1).BorderColor(borderColor).Padding(5).Text(label2).Bold();
+            table.Cell().BorderBottom(1).BorderColor(borderColor).Padding(5).Text(value2);
         }
 
-        private string NumberToVietnameseText(long number)
+        private static void SalaryRuleRow(TableDescriptor table, string code, string name, decimal amount)
         {
-            if (number == 0) return "Không đồng";
-            if (number < 0) return "Âm " + NumberToVietnameseText(Math.Abs(number));
-
-            string[] units = { "", "mươi", "trăm", "nghìn", "mươi", "trăm", "triệu", "mươi", "trăm", "tỷ" };
-            // Simple implementation for demo
-            return $"{number:N0} đồng chẵn."; 
+            var border = Colors.Grey.Lighten2;
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).Text(code);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).Text(name);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).AlignRight().Text(Fmt(amount));
         }
+
+        private static void ContribRow(TableDescriptor table,
+            string code, string name, string qty, string amount, string total)
+        {
+            var border = Colors.Grey.Lighten2;
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).Text(code);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).Text(name);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).AlignRight().Text(qty);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).AlignRight().Text(amount);
+            table.Cell().BorderBottom(1).BorderColor(border).Padding(5).AlignRight().Text(total);
+        }
+
+        private static string Fmt(decimal amount)
+            => amount.ToString("N2", new CultureInfo("vi-VN")) + " đ";
     }
 }
