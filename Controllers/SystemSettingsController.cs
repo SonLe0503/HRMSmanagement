@@ -206,10 +206,10 @@ namespace HRManagement.Controllers
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> UpdateCompanySettings([FromBody] CompanySettingsDto dto)
         {
-            await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Address", dto.Address     ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Phone",   dto.Phone       ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Email",   dto.Email       ?? "", "Company");
+            await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "General");
+            await UpdateOrInsertSetting("Company.Address", dto.Address     ?? "", "General");
+            await UpdateOrInsertSetting("Company.Phone",   dto.Phone       ?? "", "General");
+            await UpdateOrInsertSetting("Company.Email",   dto.Email       ?? "", "General");
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật thông tin công ty thành công." });
         }
