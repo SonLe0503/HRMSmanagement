@@ -13,7 +13,7 @@ namespace HRManagement.Services.FaceVerifications
         private readonly FaceEmbeddingService _faceEmbeddingService;
         private readonly IWebHostEnvironment _env;
 
-        private const decimal MATCH_THRESHOLD = 0.363m;
+        private const decimal MATCH_THRESHOLD = 0.80m;
 
         public FaceVerificationService(
             IAttendanceRepository attendanceRepository,
@@ -171,7 +171,7 @@ namespace HRManagement.Services.FaceVerifications
                     ConfidenceScore = (decimal)similarity,
                     ThresholdUsed = MATCH_THRESHOLD,
                     LivenessPassed = null,
-                    FailureReason = isMatch ? null : "FaceNotMatched",
+                    FailureReason = isMatch ? null : $"FaceNotMatched (score={similarity:F4}, threshold={MATCH_THRESHOLD:F4})",
                     CapturedImagePath = capturedImagePath
                 };
 
