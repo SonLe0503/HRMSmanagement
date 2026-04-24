@@ -194,10 +194,10 @@ namespace HRManagement.Controllers
             };
             foreach (var s in settings)
             {
-                if (s.SettingKey == "Company.Name")    dto.CompanyName = s.SettingValue;
-                if (s.SettingKey == "Company.Address") dto.Address     = s.SettingValue;
-                if (s.SettingKey == "Company.Phone")   dto.Phone       = s.SettingValue;
-                if (s.SettingKey == "Company.Email")   dto.Email       = s.SettingValue;
+                if (s.SettingKey == "Company.Name")    dto.CompanyName = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Address") dto.Address     = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Phone")   dto.Phone       = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Email")   dto.Email       = s.SettingValue ?? "";
             }
             return Ok(dto);
         }
