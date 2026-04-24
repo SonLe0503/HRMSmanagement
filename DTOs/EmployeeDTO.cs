@@ -40,6 +40,7 @@ namespace HRManagement.DTOs
         public DateOnly JoinDate { get; set; }
         public string DepartmentName { get; set; } = null!;
         public string PositionName { get; set; } = null!;
+        public int? ManagerId { get; set; }
         public string? ManagerName { get; set; }
         public int? DepartmentId { get; set; }
         public string? RoleName { get; set; }

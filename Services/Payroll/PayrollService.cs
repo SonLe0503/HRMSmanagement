@@ -404,6 +404,19 @@ namespace HRManagement.Services.Payroll
 
             // Tự động tạo phiếu lương cho toàn bộ nhân viên trong kỳ
             var records = await _payrollRepo.GetByPeriodAsync(periodId);
+
+            // Khoá toàn bộ bản ghi chấm công trong kỳ lương này
+            var employeeIds = records.Select(r => r.EmployeeId).ToHashSet();
+            var attendanceToLock = await _context.AttendanceRecords
+                .Where(a => employeeIds.Contains(a.EmployeeId) &&
+                            a.AttendanceDate >= period.StartDate &&
+                            a.AttendanceDate <= period.EndDate)
+                .ToListAsync();
+            foreach (var att in attendanceToLock)
+            {
+                att.IsLocked = true;
+                att.ModifiedDate = DateTime.Now;
+            }
             foreach (var record in records)
             {
                 var existing = await _context.Payslips
@@ -423,6 +436,39 @@ namespace HRManagement.Services.Payroll
             await _context.SaveChangesAsync();
 
             return _mapper.Map<PayrollPeriodDto>(period);
+        }
+
+        public async Task<int> LockAttendanceForAllApprovedPeriodsAsync()
+        {
+            var approvedPeriods = await _context.PayrollPeriods
+                .Where(p => p.Status == "Approved" || p.Status == "Closed")
+                .ToListAsync();
+
+            int totalLocked = 0;
+            foreach (var period in approvedPeriods)
+            {
+                var employeeIds = await _context.PayrollRecords
+                    .Where(r => r.PeriodId == period.PeriodId)
+                    .Select(r => r.EmployeeId)
+                    .ToListAsync();
+
+                var toLock = await _context.AttendanceRecords
+                    .Where(a => employeeIds.Contains(a.EmployeeId) &&
+                                a.AttendanceDate >= period.StartDate &&
+                                a.AttendanceDate <= period.EndDate &&
+                                (a.IsLocked == null || a.IsLocked == false))
+                    .ToListAsync();
+
+                foreach (var att in toLock)
+                {
+                    att.IsLocked = true;
+                    att.ModifiedDate = DateTime.Now;
+                }
+                totalLocked += toLock.Count;
+            }
+
+            await _context.SaveChangesAsync();
+            return totalLocked;
         }
 
         public async Task<PayrollRecordDto> ApproveRecordAsync(int payrollRecordId, int approvedByUserId)

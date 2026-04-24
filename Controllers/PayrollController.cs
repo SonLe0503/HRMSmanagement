@@ -94,6 +94,21 @@ namespace HRManagement.Controllers
             }
         }
 
+        [HttpPut("lock-approved-attendance")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> LockApprovedAttendance()
+        {
+            try
+            {
+                var count = await _payrollService.LockAttendanceForAllApprovedPeriodsAsync();
+                return Ok(new { message = $"Đã khóa {count} bản ghi chấm công thuộc các kỳ lương đã phê duyệt." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
         [HttpPut("periods/{periodId:int}/approve")]
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> ApprovePeriod(int periodId)
@@ -282,7 +297,11 @@ namespace HRManagement.Controllers
         {
             try {
                 var pdfBytes = await _payrollService.GetPayslipPdfAsync(payslipId);
-                var record = await _payrollService.GetPayslipsByEmployeeAsync(0); // Dummy but maybe I should have a GetPayslipById
+                
+                if (pdfBytes == null || pdfBytes.Length == 0)
+                {
+                    return BadRequest(new { message = "Không thể tạo PDF" });
+                }
                 return File(pdfBytes, "application/pdf", $"payslip_{payslipId}.pdf");
             } catch (Exception ex) {
                 return NotFound(new { message = ex.Message });

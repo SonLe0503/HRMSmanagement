@@ -225,6 +225,7 @@ namespace HRManagement.Services.Employees
                 JoinDate = e.JoinDate,
                 DepartmentName = e.Department?.DepartmentName ?? "N/A",
                 PositionName = e.Position?.PositionName ?? "N/A",
+                ManagerId = e.ManagerId,
                 ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",
                 DepartmentId = e.DepartmentId,
                 RoleName = e.Users.FirstOrDefault()?.UserRoles.FirstOrDefault()?.Role.RoleName
@@ -238,7 +239,7 @@ namespace HRManagement.Services.Employees
             {
                 EmployeeId = e.EmployeeId,
                 EmployeeCode = e.EmployeeCode,
-                FullName = e.FullName, 
+                FullName = e.FullName,
                 Email = e.Email,
                 Phone = e.Phone,
                 Gender = e.Gender,
@@ -246,6 +247,7 @@ namespace HRManagement.Services.Employees
                 JoinDate = e.JoinDate,
                 DepartmentName = e.Department?.DepartmentName ?? "N/A",
                 PositionName = e.Position?.PositionName ?? "N/A",
+                ManagerId = e.ManagerId,
                 ManagerName = e.Manager == null ? null : $"{e.Manager.FirstName} {e.Manager.LastName}",
                 DepartmentId = e.DepartmentId,
                 RoleName = e.Users.FirstOrDefault()?.UserRoles.FirstOrDefault()?.Role.RoleName

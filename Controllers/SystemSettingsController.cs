@@ -24,7 +24,9 @@ namespace HRManagement.Controllers
         public async Task<IActionResult> GetLocationSettings()
         {
             var settings = await _context.SystemSettings
-                .Where(s => s.SettingKey == "OfficeLatitude" || s.SettingKey == "OfficeLongitude" || s.SettingKey == "AttendanceAllowedRadius")
+                .Where(s => s.SettingKey == "OfficeLatitude" || s.SettingKey == "OfficeLongitude" ||
+                            s.SettingKey == "AttendanceAllowedRadius" || s.SettingKey == "CheckInMethod" ||
+                            s.SettingKey == "AllowedIpAddresses")
                 .ToListAsync();
 
             var dto = new LocationSettingsDto();
@@ -33,6 +35,8 @@ namespace HRManagement.Controllers
                 if (s.SettingKey == "OfficeLatitude" && double.TryParse(s.SettingValue, out var lat)) dto.OfficeLatitude = lat;
                 if (s.SettingKey == "OfficeLongitude" && double.TryParse(s.SettingValue, out var lng)) dto.OfficeLongitude = lng;
                 if (s.SettingKey == "AttendanceAllowedRadius" && double.TryParse(s.SettingValue, out var rad)) dto.AttendanceAllowedRadius = rad;
+                if (s.SettingKey == "CheckInMethod") dto.CheckInMethod = s.SettingValue ?? "Location";
+                if (s.SettingKey == "AllowedIpAddresses") dto.AllowedIpAddresses = s.SettingValue;
             }
 
             return Ok(dto);
@@ -45,6 +49,8 @@ namespace HRManagement.Controllers
             await UpdateOrInsertSetting("OfficeLatitude", dto.OfficeLatitude.ToString(), "Attendance");
             await UpdateOrInsertSetting("OfficeLongitude", dto.OfficeLongitude.ToString(), "Attendance");
             await UpdateOrInsertSetting("AttendanceAllowedRadius", dto.AttendanceAllowedRadius.ToString(), "Attendance");
+            await UpdateOrInsertSetting("CheckInMethod", dto.CheckInMethod ?? "Location", "Attendance");
+            await UpdateOrInsertSetting("AllowedIpAddresses", dto.AllowedIpAddresses ?? "", "Attendance");
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật cấu hình vị trí điểm danh thành công." });
@@ -188,10 +194,10 @@ namespace HRManagement.Controllers
             };
             foreach (var s in settings)
             {
-                if (s.SettingKey == "Company.Name")    dto.CompanyName = s.SettingValue;
-                if (s.SettingKey == "Company.Address") dto.Address     = s.SettingValue;
-                if (s.SettingKey == "Company.Phone")   dto.Phone       = s.SettingValue;
-                if (s.SettingKey == "Company.Email")   dto.Email       = s.SettingValue;
+                if (s.SettingKey == "Company.Name")    dto.CompanyName = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Address") dto.Address     = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Phone")   dto.Phone       = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Email")   dto.Email       = s.SettingValue ?? "";
             }
             return Ok(dto);
         }
@@ -200,10 +206,10 @@ namespace HRManagement.Controllers
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> UpdateCompanySettings([FromBody] CompanySettingsDto dto)
         {
-            await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Address", dto.Address     ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Phone",   dto.Phone       ?? "", "Company");
-            await UpdateOrInsertSetting("Company.Email",   dto.Email       ?? "", "Company");
+            await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "General");
+            await UpdateOrInsertSetting("Company.Address", dto.Address     ?? "", "General");
+            await UpdateOrInsertSetting("Company.Phone",   dto.Phone       ?? "", "General");
+            await UpdateOrInsertSetting("Company.Email",   dto.Email       ?? "", "General");
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật thông tin công ty thành công." });
         }

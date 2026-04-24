@@ -366,7 +366,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{attendanceId:int}/lock")]
-        [Authorize]
+        [Authorize(Roles = "HR,ADMIN,MANAGE")]
         public async Task<IActionResult> Lock(int attendanceId)
         {
             try
@@ -402,7 +402,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{attendanceId:int}/unlock")]
-        [Authorize]
+        [Authorize(Roles = "HR,ADMIN,MANAGE")]
         public async Task<IActionResult> Unlock(int attendanceId)
         {
             try
