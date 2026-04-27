@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -18,7 +18,6 @@ public class FaceEmbeddingService
 
         if (!File.Exists(_yunetPath))
             throw new FileNotFoundException("YuNet model not found.", _yunetPath);
-
         if (!File.Exists(_sfacePath))
             throw new FileNotFoundException("SFace model not found.", _sfacePath);
     }
@@ -26,7 +25,6 @@ public class FaceEmbeddingService
     public float[] ExtractEmbedding(string imagePath)
     {
         using var image = Cv2.ImRead(imagePath);
-
         if (image.Empty())
             throw new Exception("Cannot read image.");
 
@@ -40,17 +38,22 @@ public class FaceEmbeddingService
             using var resizedFace = new Mat();
             Cv2.Resize(croppedFace, resizedFace, new OpenCvSharp.Size(112, 112));
 
-            var inputTensor = ConvertMatToTensor(resizedFace);
-
             using var session = new InferenceSession(_sfacePath);
 
+            var inputName  = session.InputMetadata.Keys.First();
+            var outputName = session.OutputMetadata.Keys.First();
+
+            var inputTensor = ConvertMatToTensor(resizedFace);
+
             var inputs = new List<NamedOnnxValue>
-        {
-            NamedOnnxValue.CreateFromTensor("data", inputTensor)
-        };
+            {
+                NamedOnnxValue.CreateFromTensor(inputName, inputTensor)
+            };
 
             using var results = session.Run(inputs);
-            var output = results.First(x => x.Name == "fc1").AsEnumerable<float>().ToArray();
+            var output = results.First(x => x.Name == outputName)
+                                .AsEnumerable<float>()
+                                .ToArray();
 
             return NormalizeVector(output);
         }
@@ -76,70 +79,59 @@ public class FaceEmbeddingService
         return faces.Row(0).Clone();
     }
 
-    private Mat CropFace(Mat image, Mat faceRow)
+    private static Mat CropFace(Mat image, Mat faceRow)
     {
         float x = faceRow.At<float>(0, 0);
         float y = faceRow.At<float>(0, 1);
         float w = faceRow.At<float>(0, 2);
         float h = faceRow.At<float>(0, 3);
 
-        int left = Math.Max(0, (int)x);
-        int top = Math.Max(0, (int)y);
-        int width = Math.Min(image.Width - left, (int)w);
-        int height = Math.Min(image.Height - top, (int)h);
+        int left   = Math.Max(0, (int)x);
+        int top    = Math.Max(0, (int)y);
+        int width  = Math.Min(image.Width  - left, (int)w);
+        int height = Math.Min(image.Height - top,  (int)h);
 
         if (width <= 0 || height <= 0)
             throw new Exception("Invalid face bounding box.");
 
-        var rect = new Rect(left, top, width, height);
-        return new Mat(image, rect).Clone();
+        return new Mat(image, new Rect(left, top, width, height)).Clone();
     }
 
-    private DenseTensor<float> ConvertMatToTensor(Mat image)
+    // SFace preprocessing: (pixel − 127.5) / 128, BGR channel order (as the model was exported).
+    private static DenseTensor<float> ConvertMatToTensor(Mat image)
     {
         if (image.Channels() != 3)
             throw new Exception("Image must have 3 channels.");
 
         var tensor = new DenseTensor<float>(new[] { 1, 3, 112, 112 });
 
-        for (int y = 0; y < 112; y++)
+        for (int row = 0; row < 112; row++)
         {
-            for (int x = 0; x < 112; x++)
+            for (int col = 0; col < 112; col++)
             {
-                Vec3b pixel = image.At<Vec3b>(y, x);
+                Vec3b pixel = image.At<Vec3b>(row, col);
 
-                float b = pixel.Item0 / 255.0f;
-                float g = pixel.Item1 / 255.0f;
-                float r = pixel.Item2 / 255.0f;
-
-                tensor[0, 0, y, x] = r;
-                tensor[0, 1, y, x] = g;
-                tensor[0, 2, y, x] = b;
+                // OpenCV stores pixels as BGR; keep that order for SFace ONNX
+                tensor[0, 0, row, col] = (pixel.Item0 - 127.5f) / 128.0f; // B
+                tensor[0, 1, row, col] = (pixel.Item1 - 127.5f) / 128.0f; // G
+                tensor[0, 2, row, col] = (pixel.Item2 - 127.5f) / 128.0f; // R
             }
         }
 
         return tensor;
     }
 
-    private float[] NormalizeVector(float[] vector)
+    private static float[] NormalizeVector(float[] vector)
     {
         float norm = 0f;
-        for (int i = 0; i < vector.Length; i++)
-        {
-            norm += vector[i] * vector[i];
-        }
-
+        foreach (var v in vector) norm += v * v;
         norm = (float)Math.Sqrt(norm);
-        if (norm < 1e-8f)
-            return vector;
+        if (norm < 1e-8f) return vector;
 
-        var normalized = new float[vector.Length];
+        var result = new float[vector.Length];
         for (int i = 0; i < vector.Length; i++)
-        {
-            normalized[i] = vector[i] / norm;
-        }
-
-        return normalized;
+            result[i] = vector[i] / norm;
+        return result;
     }
 
     public float CosineSimilarity(float[] a, float[] b)
@@ -147,13 +139,10 @@ public class FaceEmbeddingService
         if (a.Length != b.Length)
             throw new Exception("Vector length mismatch.");
 
-        float dot = 0f;
-        float normA = 0f;
-        float normB = 0f;
-
+        float dot = 0f, normA = 0f, normB = 0f;
         for (int i = 0; i < a.Length; i++)
         {
-            dot += a[i] * b[i];
+            dot  += a[i] * b[i];
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
