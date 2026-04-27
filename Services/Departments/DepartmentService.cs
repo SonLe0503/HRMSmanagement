@@ -58,16 +58,24 @@ namespace HRManagement.Services.Departments
             return true;
         }
 
+        private async Task<string> GenerateUniqueCodeAsync()
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            var random = new Random();
+            string code;
+            do
+            {
+                var suffix = new string(Enumerable.Range(0, 6).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+                code = $"DEP{suffix}";
+            } while (await _departmentRepository.DepartmentCodeExistsAsync(code));
+            return code;
+        }
+
         public async Task<DepartmentResponseDto> CreateDepartmentAsync(CreateDepartmentDto createDto)
         {
-            if (await _departmentRepository.DepartmentCodeExistsAsync(createDto.DepartmentCode))
-            {
-                throw new InvalidOperationException($"Department code '{createDto.DepartmentCode}' already exists.");
-            }
-
             var department = new Department
             {
-                DepartmentCode = createDto.DepartmentCode,
+                DepartmentCode = await GenerateUniqueCodeAsync(),
                 DepartmentName = createDto.DepartmentName,
                 Description = createDto.Description,
                 ManagerId = createDto.ManagerId,
@@ -160,12 +168,6 @@ namespace HRManagement.Services.Departments
                 throw new KeyNotFoundException("Department not found.");
             }
 
-            if (await _departmentRepository.DepartmentCodeExistsAsync(updateDto.DepartmentCode, departmentId))
-            {
-                throw new InvalidOperationException($"Department code '{updateDto.DepartmentCode}' already exists.");
-            }
-
-            department.DepartmentCode = updateDto.DepartmentCode;
             department.DepartmentName = updateDto.DepartmentName;
             department.Description = updateDto.Description;
             department.ManagerId = updateDto.ManagerId;

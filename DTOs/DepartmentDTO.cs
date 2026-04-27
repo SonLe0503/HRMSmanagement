@@ -5,10 +5,6 @@ namespace HRManagement.DTOs
     public class CreateDepartmentDto
     {
         [Required]
-        [MaxLength(20)]
-        public string DepartmentCode { get; set; } = null!;
-
-        [Required]
         [MaxLength(100)]
         public string DepartmentName { get; set; } = null!;
 
@@ -19,10 +15,6 @@ namespace HRManagement.DTOs
     }
     public class UpdateDepartmentDto
     {
-        [Required]
-        [MaxLength(20)]
-        public string DepartmentCode { get; set; } = null!;
-
         [Required]
         [MaxLength(100)]
         public string DepartmentName { get; set; } = null!;
