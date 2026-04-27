@@ -5,10 +5,6 @@ namespace HRManagement.DTOs
     public class CreatePositionDto
     {
         [Required]
-        [MaxLength(20)]
-        public string PositionCode { get; set; } = null!;
-
-        [Required]
         [MaxLength(100)]
         public string PositionName { get; set; } = null!;
 
@@ -22,10 +18,6 @@ namespace HRManagement.DTOs
     }
     public class UpdatePositionDto
     {
-        [Required]
-        [MaxLength(20)]
-        public string PositionCode { get; set; } = null!;
-
         [Required]
         [MaxLength(100)]
         public string PositionName { get; set; } = null!;

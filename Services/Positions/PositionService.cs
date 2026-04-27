@@ -14,16 +14,24 @@ namespace HRManagement.Services.Positions
             _positionRepository = positionRepository;
             _httpContextAccessor = httpContextAccessor;
         }
+        private async Task<string> GenerateUniqueCodeAsync()
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            var random = new Random();
+            string code;
+            do
+            {
+                var suffix = new string(Enumerable.Range(0, 6).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+                code = $"POS{suffix}";
+            } while (await _positionRepository.PositionCodeExistsAsync(code));
+            return code;
+        }
+
         public async Task<PositionResponseDto> CreatePositionAsync(CreatePositionDto createDto)
         {
-            if (await _positionRepository.PositionCodeExistsAsync(createDto.PositionCode))
-            {
-                throw new InvalidOperationException($"Position code '{createDto.PositionCode}' already exists.");
-            }
-
             var position = new Position
             {
-                PositionCode = createDto.PositionCode,
+                PositionCode = await GenerateUniqueCodeAsync(),
                 PositionName = createDto.PositionName,
                 Description = createDto.Description,
                 Level = createDto.Level,
@@ -117,12 +125,6 @@ namespace HRManagement.Services.Positions
                 throw new KeyNotFoundException("Position not found.");
             }
 
-            if (await _positionRepository.PositionCodeExistsAsync(updateDto.PositionCode, positionId))
-            {
-                throw new InvalidOperationException($"Position code '{updateDto.PositionCode}' already exists.");
-            }
-
-            position.PositionCode = updateDto.PositionCode;
             position.PositionName = updateDto.PositionName;
             position.Description = updateDto.Description;
             position.Level = updateDto.Level;
