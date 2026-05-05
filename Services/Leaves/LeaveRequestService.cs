@@ -655,7 +655,7 @@ namespace HRManagement.Services.Leaves
                         EndDate = x.EndDate,
                         NumberOfDays = x.NumberOfDays,
                         Status = x.Status,
-                        IsTopLevel = x.Employee.Position.IsTopLevel
+                        IsTopLevel = x.Employee.Position != null && x.Employee.Position.IsTopLevel
                     })
                     .ToListAsync();
 
@@ -714,7 +714,7 @@ namespace HRManagement.Services.Leaves
                     Reason = x.Reason,
                     Status = x.Status,
                     SubmittedDate = x.SubmittedDate,
-                    IsTopLevel = x.Employee.Position.IsTopLevel
+                    IsTopLevel = x.Employee.Position != null && x.Employee.Position.IsTopLevel
                 })
                 .OrderByDescending(x => x.SubmittedDate)
                 .ToListAsync();
