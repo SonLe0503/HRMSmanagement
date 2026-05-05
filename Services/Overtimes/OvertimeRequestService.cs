@@ -540,7 +540,7 @@ namespace HRManagement.Services.Overtimes
                     TaskDescription = x.TaskDescription,
                     Status = x.Status,
                     SubmittedDate = x.SubmittedDate,
-                    IsTopLevel = x.Employee.Position.IsTopLevel
+                    IsTopLevel = x.Employee.Position != null && x.Employee.Position.IsTopLevel
                 };
             }).ToList();
 
