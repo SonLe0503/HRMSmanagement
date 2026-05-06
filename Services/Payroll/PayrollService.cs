@@ -199,7 +199,17 @@ namespace HRManagement.Services.Payroll
                 dependentDeduction: calcSettings.DependentDeduction);
             var taxAmount = taxResult.TaxAmount;
 
-            // 8. Khấu trừ thủ công (giữ nguyên nếu tính lại)
+            // 8. Phụ cấp & khấu trừ thủ công (giữ nguyên nếu tính lại)
+            var manualAllowances = existingRecord?.PayrollAllowances
+                .Where(a => a.AllowanceType == "Manual")
+                .Select(a => new PayrollAllowance {
+                    AllowanceType = a.AllowanceType,
+                    AllowanceName = a.AllowanceName,
+                    Amount = a.Amount,
+                    Description = a.Description
+                })
+                .ToList() ?? new List<PayrollAllowance>();
+
             var manualDeductions = existingRecord?.PayrollDeductions
                 .Where(d => d.DeductionType != "Insurance" && d.DeductionType != "Tax")
                 .Select(d => new PayrollDeduction {
@@ -239,7 +249,7 @@ namespace HRManagement.Services.Payroll
                 await _context.SaveChangesAsync(); // Lưu để xóa triệt để trước khi add mới
             }
 
-            record.PayrollAllowances = allowances.Concat(otAllowances).ToList();
+            record.PayrollAllowances = allowances.Concat(otAllowances).Concat(manualAllowances).ToList();
             record.PayrollDeductions = manualDeductions;
             record.PayrollDeductions.Add(new PayrollDeduction
             {
