@@ -95,6 +95,8 @@ public partial class HrmsDbContext : DbContext
 
     public virtual DbSet<ResignationRequest> ResignationRequests { get; set; }
 
+    public virtual DbSet<PayrollFeedback> PayrollFeedbacks { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

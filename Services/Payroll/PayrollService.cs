@@ -61,7 +61,29 @@ namespace HRManagement.Services.Payroll
         {
             var period = await _periodRepo.GetByIdAsync(periodId)
                 ?? throw new KeyNotFoundException($"Không tìm thấy kỳ lương {periodId}.");
-            return _mapper.Map<PayrollPeriodDto>(period);
+
+            var dto = _mapper.Map<PayrollPeriodDto>(period);
+            dto.ReviewDeadline        = period.ReviewDeadline;
+            dto.ReviewDeadlineExpired = period.ReviewDeadline.HasValue && DateTime.Now > period.ReviewDeadline.Value;
+
+            var recordIds = period.PayrollRecords.Select(r => r.PayrollRecordId).ToList();
+            if (recordIds.Count > 0)
+            {
+                var feedbacks = await _context.PayrollFeedbacks
+                    .Where(f => recordIds.Contains(f.PayrollRecordId))
+                    .OrderByDescending(f => f.SubmittedAt)
+                    .ToListAsync();
+
+                var latestByRecord = feedbacks
+                    .GroupBy(f => f.PayrollRecordId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                dto.AgreedCount = latestByRecord.Values.Count(f => f.IsAgreed);
+                dto.AllAgreed   = latestByRecord.Count == recordIds.Count
+                                  && latestByRecord.Values.All(f => f.IsAgreed);
+            }
+
+            return dto;
         }
 
         public async Task<PayrollSummaryDto> GetPeriodSummaryAsync(int periodId)
@@ -829,6 +851,304 @@ namespace HRManagement.Services.Payroll
             }
 
             return (totalOt, details);
+        }
+
+        // ── UnderReview ────────────────────────────────────────────────────────
+
+        public async Task<PayrollPeriodDto> PublishForReviewAsync(int periodId, int reviewDays)
+        {
+            var period = await _periodRepo.GetByIdAsync(periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
+
+            if (period.Status != "Calculated")
+                throw new InvalidOperationException("Chỉ có thể gửi NV xem khi kỳ lương ở trạng thái Đã tính lương.");
+
+            period.Status         = "UnderReview";
+            period.ReviewDeadline = DateTime.Now.AddDays(reviewDays);
+            await _periodRepo.UpdateAsync(period);
+
+            var dto = _mapper.Map<PayrollPeriodDto>(period);
+            dto.ReviewDeadline        = period.ReviewDeadline;
+            dto.ReviewDeadlineExpired = false;
+            return dto;
+        }
+
+        public async Task<PayrollRecordDto> GetMyRecordInPeriodAsync(int userId, int periodId)
+        {
+            var employeeId = await _context.Users
+                .Where(u => u.UserId == userId && u.IsActive)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync()
+                ?? throw new InvalidOperationException("Tài khoản chưa liên kết nhân viên.");
+
+            var period = await _context.PayrollPeriods.FindAsync(periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
+
+            if (period.Status == "Open" || period.Status == "Aggregated" || period.Status == "Calculated")
+                throw new InvalidOperationException("Phiếu lương chưa được phát để xem.");
+
+            var record = await _context.PayrollRecords
+                .Include(r => r.PayrollAllowances)
+                .Include(r => r.PayrollDeductions)
+                .Include(r => r.Employee).ThenInclude(e => e.Department)
+                .Include(r => r.Employee).ThenInclude(e => e.Position)
+                .FirstOrDefaultAsync(r => r.EmployeeId == employeeId && r.PeriodId == periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy bản ghi lương của bạn trong kỳ này.");
+
+            var dto = _mapper.Map<PayrollRecordDto>(record);
+            dto.PeriodStatus = period.Status;
+            return dto;
+        }
+
+        public async Task<List<PayrollPeriodDto>> GetPeriodsForEmployeeAsync(int userId)
+        {
+            var employeeId = await _context.Users
+                .Where(u => u.UserId == userId && u.IsActive)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync();
+
+            if (employeeId == null) return new List<PayrollPeriodDto>();
+
+            var periodIds = await _context.PayrollRecords
+                .Where(r => r.EmployeeId == employeeId)
+                .Select(r => r.PeriodId)
+                .Distinct()
+                .ToListAsync();
+
+            var periods = await _context.PayrollPeriods
+                .Where(p => periodIds.Contains(p.PeriodId))
+                .OrderByDescending(p => p.Year).ThenByDescending(p => p.Month)
+                .ToListAsync();
+
+            return _mapper.Map<List<PayrollPeriodDto>>(periods);
+        }
+
+        public async Task<AttendanceSummaryDto> GetMyAttendanceSummaryAsync(int userId, int periodId)
+        {
+            var employeeId = await _context.Users
+                .Where(u => u.UserId == userId && u.IsActive)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync()
+                ?? throw new InvalidOperationException("Tài khoản chưa liên kết nhân viên.");
+
+            var period = await _context.PayrollPeriods.FindAsync(periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
+
+            var startDt = period.StartDate.ToDateTime(TimeOnly.MinValue);
+            var endDt   = period.EndDate.ToDateTime(TimeOnly.MaxValue);
+
+            // Attendance records
+            var attendanceRecords = await _context.AttendanceRecords
+                .Where(a => a.EmployeeId == employeeId
+                    && a.AttendanceDate >= period.StartDate
+                    && a.AttendanceDate <= period.EndDate)
+                .OrderBy(a => a.AttendanceDate)
+                .ToListAsync();
+
+            // Approved leave requests
+            var leaveRequests = await _context.LeaveRequests
+                .Include(l => l.LeaveType)
+                .Where(l => l.EmployeeId == employeeId
+                    && l.Status == "Approved"
+                    && l.StartDate <= period.EndDate
+                    && l.EndDate >= period.StartDate)
+                .OrderBy(l => l.StartDate)
+                .ToListAsync();
+
+            // Approved overtime requests
+            var overtimeRequests = await _context.OvertimeRequests
+                .Where(o => o.EmployeeId == employeeId
+                    && o.Status == "Approved"
+                    && o.OvertimeDate >= period.StartDate
+                    && o.OvertimeDate <= period.EndDate)
+                .OrderBy(o => o.OvertimeDate)
+                .ToListAsync();
+
+            int presentDays = attendanceRecords.Count(a => a.Status == "Present");
+            int lateDays    = attendanceRecords.Count(a => a.Status == "Late");
+            int absentDays  = attendanceRecords.Count(a => a.Status == "Absent" && a.ExplanationStatus != "Approved");
+            int explanationApprovedDays = attendanceRecords.Count(a => a.ExplanationStatus == "Approved");
+            decimal overtimeHours = overtimeRequests.Sum(o => o.TotalHours);
+
+            // Tính paid leave days (weekdays only, within period)
+            decimal paidLeaveDays = 0;
+            foreach (var leave in leaveRequests.Where(l => l.LeaveType?.IsPaid == true))
+            {
+                var s = leave.StartDate > period.StartDate ? leave.StartDate : period.StartDate;
+                var e = leave.EndDate < period.EndDate ? leave.EndDate : period.EndDate;
+                for (var d = s; d <= e; d = d.AddDays(1))
+                {
+                    if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday)
+                        paidLeaveDays++;
+                }
+            }
+
+            var shiftCount = await _context.ShiftAssignments
+                .Where(sa => sa.EmployeeId == employeeId
+                    && sa.AssignmentDate >= period.StartDate
+                    && sa.AssignmentDate <= period.EndDate)
+                .CountAsync();
+
+            var totalActualDays = (decimal)(presentDays + lateDays + explanationApprovedDays) + paidLeaveDays;
+
+            return new AttendanceSummaryDto
+            {
+                Records = attendanceRecords.Select(a => new AttendanceItemDto
+                {
+                    Date                 = a.AttendanceDate.ToString("yyyy-MM-dd"),
+                    Status               = a.Status ?? "",
+                    WorkingHours         = (decimal)(a.WorkingHours ?? 0),
+                    IsExplanationApproved = a.ExplanationStatus == "Approved",
+                }).ToList(),
+                ApprovedLeaves = leaveRequests.Select(l => new LeaveItemDto
+                {
+                    StartDate     = l.StartDate.ToString("yyyy-MM-dd"),
+                    EndDate       = l.EndDate.ToString("yyyy-MM-dd"),
+                    LeaveTypeName = l.LeaveType?.LeaveTypeName ?? "",
+                    IsPaid        = l.LeaveType?.IsPaid ?? false,
+                    Days          = (decimal)(l.EndDate.DayNumber - l.StartDate.DayNumber + 1),
+                }).ToList(),
+                ApprovedOvertime = overtimeRequests.Select(o => new OvertimeItemDto
+                {
+                    Date  = o.OvertimeDate.ToString("yyyy-MM-dd"),
+                    Hours = o.TotalHours,
+                }).ToList(),
+                Totals = new AttendanceTotalsDto
+                {
+                    PresentDays              = presentDays,
+                    LateDays                 = lateDays,
+                    AbsentDays               = absentDays,
+                    ExplanationApprovedDays  = explanationApprovedDays,
+                    PaidLeaveDays            = paidLeaveDays,
+                    OvertimeHours            = overtimeHours,
+                    TotalActualDays          = totalActualDays,
+                },
+            };
+        }
+
+        // ── Phản hồi phiếu lương ──────────────────────────────────────────────
+
+        public async Task<PayrollFeedbackDto> SubmitFeedbackAsync(int payrollRecordId, int userId, CreatePayrollFeedbackDto dto)
+        {
+            var employeeId = await _context.Users
+                .Where(u => u.UserId == userId && u.IsActive)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync()
+                ?? throw new InvalidOperationException("Tài khoản chưa liên kết nhân viên.");
+
+            var record = await _context.PayrollRecords
+                .Include(r => r.Period)
+                .FirstOrDefaultAsync(r => r.PayrollRecordId == payrollRecordId)
+                ?? throw new KeyNotFoundException("Không tìm thấy bản ghi lương.");
+
+            if (record.Period.Status != "UnderReview")
+                throw new InvalidOperationException("Chỉ có thể gửi phản hồi khi kỳ lương đang ở trạng thái Chờ xem xét.");
+
+            if (record.EmployeeId != employeeId)
+                throw new UnauthorizedAccessException("Bạn không có quyền gửi phản hồi cho bản ghi này.");
+
+            var feedback = new PayrollFeedback
+            {
+                PayrollRecordId = payrollRecordId,
+                EmployeeId      = employeeId,
+                Content         = dto.Content,
+                IsAgreed        = dto.IsAgreed,
+                SubmittedAt     = DateTime.Now,
+                Status          = dto.IsAgreed ? "Resolved" : "Pending",
+            };
+
+            _context.PayrollFeedbacks.Add(feedback);
+            await _context.SaveChangesAsync();
+
+            await _context.Entry(feedback).Reference(f => f.Employee).LoadAsync();
+            await _context.Entry(feedback.Employee).Reference(e => e.Department).LoadAsync();
+
+            return BuildFeedbackDto(feedback, record);
+        }
+
+        public async Task<List<PayrollFeedbackDto>> GetFeedbacksByPeriodAsync(int periodId)
+        {
+            var feedbacks = await _context.PayrollFeedbacks
+                .Include(f => f.Employee).ThenInclude(e => e.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
+                .Where(f => f.PayrollRecord.PeriodId == periodId)
+                .OrderBy(f => f.Status == "Pending" ? 0 : 1)
+                .ThenByDescending(f => f.SubmittedAt)
+                .ToListAsync();
+
+            return feedbacks.Select(f => BuildFeedbackDto(f, f.PayrollRecord)).ToList();
+        }
+
+        public async Task<PayrollFeedbackDto> ResolveFeedbackAsync(int feedbackId, int resolvedByUserId, ResolveFeedbackDto dto)
+        {
+            if (dto.Status != "Resolved" && dto.Status != "Dismissed")
+                throw new ArgumentException("Trạng thái không hợp lệ. Chỉ chấp nhận 'Resolved' hoặc 'Dismissed'.");
+
+            var feedback = await _context.PayrollFeedbacks
+                .Include(f => f.Employee).ThenInclude(e => e.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
+                .FirstOrDefaultAsync(f => f.FeedbackId == feedbackId)
+                ?? throw new KeyNotFoundException("Không tìm thấy phản hồi.");
+
+            feedback.Status          = dto.Status;
+            feedback.HrResponse      = dto.HrResponse;
+            feedback.ResolvedAt      = DateTime.Now;
+            feedback.ResolvedByUserId = resolvedByUserId;
+
+            await _context.SaveChangesAsync();
+
+            // Reload ResolvedByUser nếu chưa có
+            if (feedback.ResolvedByUser == null)
+                await _context.Entry(feedback).Reference(f => f.ResolvedByUser).LoadAsync();
+
+            return BuildFeedbackDto(feedback, feedback.PayrollRecord);
+        }
+
+        public async Task<List<PayrollFeedbackDto>> GetMyFeedbacksAsync(int userId)
+        {
+            var employeeId = await _context.Users
+                .Where(u => u.UserId == userId && u.IsActive)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync();
+
+            if (employeeId == null) return new List<PayrollFeedbackDto>();
+
+            var feedbacks = await _context.PayrollFeedbacks
+                .Include(f => f.Employee).ThenInclude(e => e.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
+                .Where(f => f.EmployeeId == employeeId)
+                .OrderByDescending(f => f.SubmittedAt)
+                .ToListAsync();
+
+            return feedbacks.Select(f => BuildFeedbackDto(f, f.PayrollRecord)).ToList();
+        }
+
+        private PayrollFeedbackDto BuildFeedbackDto(PayrollFeedback f, PayrollRecord record)
+        {
+            var resolvedByName = f.ResolvedByUser?.Employee?.FullName ?? f.ResolvedByUser?.Username;
+            return new PayrollFeedbackDto
+            {
+                FeedbackId      = f.FeedbackId,
+                PayrollRecordId = f.PayrollRecordId,
+                EmployeeId      = f.EmployeeId,
+                EmployeeName    = f.Employee?.FullName ?? "",
+                EmployeeCode    = f.Employee?.EmployeeCode ?? "",
+                DepartmentName  = f.Employee?.Department?.DepartmentName ?? "",
+                Content         = f.Content,
+                IsAgreed        = f.IsAgreed,
+                SubmittedAt     = f.SubmittedAt,
+                Status          = f.Status,
+                HrResponse      = f.HrResponse,
+                ResolvedAt      = f.ResolvedAt,
+                ResolvedByName  = resolvedByName,
+                NetPay          = record?.NetPay ?? 0,
+                PeriodLabel     = record?.Period != null
+                    ? $"Tháng {record.Period.Month}/{record.Period.Year}"
+                    : "",
+            };
         }
     }
 }
