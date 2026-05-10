@@ -665,11 +665,7 @@ namespace HRManagement.Services.Payroll
                 .Distinct()
                 .CountAsync();
 
-            if (assignedDays > 0)
-                return assignedDays;
-
-            // Fallback: đếm ngày T2–T6 nếu chưa có phân ca
-            return CalculateWeekdayCount(period.StartDate, period.EndDate);
+            return assignedDays;
         }
 
         /// <summary>
