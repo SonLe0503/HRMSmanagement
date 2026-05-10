@@ -4,6 +4,7 @@ using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRManagement.Migrations
 {
     [DbContext(typeof(HrmsDbContext))]
-    partial class HrmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260507170520_AddPayrollFeedback")]
+    partial class AddPayrollFeedback
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -425,9 +428,6 @@ namespace HRManagement.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<decimal?>("InsuranceSalary")
-                        .HasColumnType("decimal(18, 2)");
-
                     b.Property<DateOnly>("JoinDate")
                         .HasColumnType("date");
 
@@ -445,9 +445,6 @@ namespace HRManagement.Migrations
 
                     b.Property<DateTime?>("ModifiedDate")
                         .HasColumnType("datetime");
-
-                    b.Property<int>("NumberOfDependents")
-                        .HasColumnType("int");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
@@ -1510,6 +1507,7 @@ namespace HRManagement.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FeedbackId"));
 
                     b.Property<string>("Content")
+                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
@@ -1519,9 +1517,6 @@ namespace HRManagement.Migrations
                     b.Property<string>("HrResponse")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsAgreed")
-                        .HasColumnType("bit");
 
                     b.Property<int>("PayrollRecordId")
                         .HasColumnType("int");
@@ -1577,9 +1572,6 @@ namespace HRManagement.Migrations
 
                     b.Property<int>("Month")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("ReviewDeadline")
-                        .HasColumnType("datetime2");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");

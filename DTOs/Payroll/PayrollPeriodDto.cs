@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace HRManagement.DTOs.Payroll
@@ -9,7 +10,7 @@ namespace HRManagement.DTOs.Payroll
         public int Year { get; set; }
         public DateOnly StartDate { get; set; }
         public DateOnly EndDate { get; set; }
-        public string Status { get; set; }          // Open | Aggregated | Calculated | Approved | Closed
+        public string Status { get; set; } = "";  // Open | Aggregated | Calculated | UnderReview | Approved | Closed
         public int TotalEmployees { get; set; }
         public decimal TotalGrossPay { get; set; }
         public decimal TotalNetPay { get; set; }
@@ -19,6 +20,11 @@ namespace HRManagement.DTOs.Payroll
         public DateTime? CalculatedDate { get; set; }
         public DateTime? ApprovedDate { get; set; }
         public string? ApprovedByName { get; set; }
+        // UnderReview fields
+        public DateTime? ReviewDeadline { get; set; }
+        public bool ReviewDeadlineExpired { get; set; }
+        public bool AllAgreed { get; set; }
+        public int AgreedCount { get; set; }
     }
 
     public class CreatePayrollPeriodDto

@@ -45,6 +45,11 @@ namespace HRManagement.Mappers
             CreateMap<PayrollAllowance, PayrollAllowanceDto>();
             CreateMap<PayrollDeduction, PayrollDeductionDto>();
 
+            CreateMap<PayrollFeedback, PayrollFeedbackDto>()
+                .ForMember(d => d.IsAgreed, opt => opt.MapFrom(s => s.IsAgreed))
+                .ForMember(d => d.Content,  opt => opt.MapFrom(s => s.Content));
+
+
             CreateMap<Payslip, PayslipDto>()
                 .ForMember(d => d.EmployeeCode,   opt => opt.MapFrom(s => s.Employee.EmployeeCode))
                 .ForMember(d => d.EmployeeName,   opt => opt.MapFrom(s => s.Employee.FullName))

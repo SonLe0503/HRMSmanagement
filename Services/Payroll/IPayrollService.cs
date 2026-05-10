@@ -43,5 +43,17 @@ namespace HRManagement.Services.Payroll
 
         // --- Tính thuế ---
         Task<TaxCalculationResultDto> CalculateTaxAsync(TaxCalculationRequestDto request);
+
+        // --- UnderReview: Phát phiếu tạm cho NV xem ---
+        Task<PayrollPeriodDto> PublishForReviewAsync(int periodId, int reviewDays);
+        Task<PayrollRecordDto> GetMyRecordInPeriodAsync(int userId, int periodId);
+        Task<List<PayrollPeriodDto>> GetPeriodsForEmployeeAsync(int userId);
+        Task<AttendanceSummaryDto> GetMyAttendanceSummaryAsync(int userId, int periodId);
+
+        // --- Phản hồi phiếu lương ---
+        Task<PayrollFeedbackDto> SubmitFeedbackAsync(int payrollRecordId, int userId, CreatePayrollFeedbackDto dto);
+        Task<List<PayrollFeedbackDto>> GetFeedbacksByPeriodAsync(int periodId);
+        Task<PayrollFeedbackDto> ResolveFeedbackAsync(int feedbackId, int resolvedByUserId, ResolveFeedbackDto dto);
+        Task<List<PayrollFeedbackDto>> GetMyFeedbacksAsync(int userId);
     }
 }

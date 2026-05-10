@@ -45,6 +45,10 @@ public partial class Employee
 
     public decimal? BaseSalary { get; set; }
 
+    public decimal? InsuranceSalary { get; set; }
+
+    public int NumberOfDependents { get; set; } = 0;
+
     public DateTime CreatedDate { get; set; }
 
     public int? CreatedBy { get; set; }

@@ -12,6 +12,7 @@ namespace HRManagement.DTOs.Payroll
         public string DepartmentName { get; set; }
         public string PositionName { get; set; }
         public int PeriodId { get; set; }
+        public string PeriodStatus { get; set; }
 
         // Ngày công
         public decimal WorkingDays { get; set; }
