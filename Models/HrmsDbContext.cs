@@ -220,6 +220,7 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
             entity.Property(e => e.Address).HasMaxLength(255);
             entity.Property(e => e.BaseSalary).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.InsuranceSalary).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.City).HasMaxLength(50);
             entity.Property(e => e.Country).HasMaxLength(50);
             entity.Property(e => e.CreatedDate)

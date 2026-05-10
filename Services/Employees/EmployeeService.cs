@@ -131,6 +131,8 @@ namespace HRManagement.Services.Employees
                 EmploymentStatus = dto.EmploymentStatus,
                 EmploymentType = dto.EmploymentType,
                 BaseSalary = dto.BaseSalary,
+                InsuranceSalary = dto.InsuranceSalary,
+                NumberOfDependents = dto.NumberOfDependents,
                 CreatedDate = DateTime.UtcNow,
                 CreatedBy = createdBy
             };
@@ -161,6 +163,8 @@ namespace HRManagement.Services.Employees
                 EmploymentStatus = employee.EmploymentStatus,
                 EmploymentType = employee.EmploymentType,
                 BaseSalary = employee.BaseSalary,
+                InsuranceSalary = employee.InsuranceSalary,
+                NumberOfDependents = employee.NumberOfDependents,
             };
         }
 
@@ -283,6 +287,8 @@ namespace HRManagement.Services.Employees
                 EmploymentStatus = employee.EmploymentStatus,
                 EmploymentType = employee.EmploymentType,
                 BaseSalary = employee.BaseSalary,
+                InsuranceSalary = employee.InsuranceSalary,
+                NumberOfDependents = employee.NumberOfDependents,
             };
         }
 
@@ -376,6 +382,8 @@ namespace HRManagement.Services.Employees
             employee.EmploymentStatus = dto.EmploymentStatus;
             employee.EmploymentType = dto.EmploymentType;
             employee.BaseSalary = dto.BaseSalary;
+            employee.InsuranceSalary = dto.InsuranceSalary;
+            employee.NumberOfDependents = dto.NumberOfDependents;
             employee.ModifiedDate = DateTime.UtcNow;
             employee.ModifiedBy = GetCurrentUserId(dto.ModifiedBy);
 
@@ -405,6 +413,8 @@ namespace HRManagement.Services.Employees
                 EmploymentStatus = employee.EmploymentStatus,
                 EmploymentType = employee.EmploymentType,
                 BaseSalary = employee.BaseSalary,
+                InsuranceSalary = employee.InsuranceSalary,
+                NumberOfDependents = employee.NumberOfDependents,
             };
         }
         public async Task<IEnumerable<EmployeeApprovalAnalysisDto>> GetApprovalAnalysisAsync()

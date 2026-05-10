@@ -27,6 +27,8 @@ namespace HRManagement.DTOs
         public string EmploymentStatus { get; set; } = null!;
         public string EmploymentType { get; set; } = null!;
         public decimal? BaseSalary { get; set; }
+        public decimal? InsuranceSalary { get; set; }
+        public int NumberOfDependents { get; set; }
     }
     public class EmployeeResponseListDto
     {
@@ -98,6 +100,12 @@ namespace HRManagement.DTOs
         [Range(0, double.MaxValue)]
         public decimal? BaseSalary { get; set; }
 
+        [Range(0, double.MaxValue)]
+        public decimal? InsuranceSalary { get; set; }
+
+        [Range(0, 20)]
+        public int NumberOfDependents { get; set; } = 0;
+
         public int? CreatedBy { get; set; }
     }
     public class UpdateEmployeeDto
@@ -155,6 +163,12 @@ namespace HRManagement.DTOs
 
         [Range(0, double.MaxValue)]
         public decimal? BaseSalary { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal? InsuranceSalary { get; set; }
+
+        [Range(0, 20)]
+        public int NumberOfDependents { get; set; } = 0;
 
         public int? ModifiedBy { get; set; }
     }

@@ -196,30 +196,41 @@ namespace HRManagement.Services.Payroll
             var policyAllowancesTotal = allowances.Sum(a => a.Amount);
             var grossPay = salariedAmount + policyAllowancesTotal + overtimePay + bonusAmount;
 
-            // 6. Bảo hiểm — tỷ lệ và mức căn cứ lấy từ cấu hình
+            // 6 & 7. Bảo hiểm + Thuế TNCN
+            // Miễn BH và thuế khi:
+            //   - Được phân ca < 14 ngày (nhân viên mới vào/nghỉ giữa tháng)
+            //   - Hoặc vắng không lương >= 14 ngày (Điều 85 Luật BHXH 2014)
             var insuranceRate = (calcSettings.BhxhRate + calcSettings.BhytRate + calcSettings.BhtnRate) / 100m;
-            decimal insuranceBase;
-            if (calcSettings.InsuranceBaseMode == "Fixed" && calcSettings.InsuranceFixedBase > 0)
+            var unpaidAbsenceDays = workingDays - (int)Math.Floor(actualWorkingDays);
+            bool skipDeductions = workingDays < 14 || unpaidAbsenceDays >= 14;
+
+            decimal insuranceAmount;
+            decimal taxAmount;
+            int taxBracket = 0;
+            if (skipDeductions)
             {
-                // Công ty khai báo mức đóng BH cố định (không phụ thuộc lương thực tế)
-                insuranceBase = calcSettings.InsuranceFixedBase;
+                insuranceAmount = 0m;
+                taxAmount = 0m;
             }
             else
             {
-                // Mặc định: dùng lương gộp, capped tại mức trần
-                insuranceBase = Math.Min(grossPay, calcSettings.InsuranceCap);
-            }
-            var insuranceAmount = Math.Round(insuranceBase * insuranceRate, 0);
+                decimal insuranceBase;
+                if (employee.InsuranceSalary.HasValue && employee.InsuranceSalary.Value > 0)
+                    insuranceBase = Math.Min(employee.InsuranceSalary.Value, calcSettings.InsuranceCap);
+                else
+                    insuranceBase = Math.Min(employee.BaseSalary ?? 0m, calcSettings.InsuranceCap);
+                insuranceAmount = Math.Round(insuranceBase * insuranceRate, 0);
 
-            // 7. Thuế TNCN — dùng cấu hình giảm trừ, truyền insuranceAmount đã tính để tránh tính lại
-            var taxResult = _taxService.Calculate(
-                grossPay,
-                numberOfDependents: 0,
-                isInsuranceApplicable: true,
-                insuranceAmount: insuranceAmount,
-                personalDeduction: calcSettings.PersonalDeduction,
-                dependentDeduction: calcSettings.DependentDeduction);
-            var taxAmount = taxResult.TaxAmount;
+                var taxResult = _taxService.Calculate(
+                    grossPay,
+                    numberOfDependents: employee.NumberOfDependents,
+                    isInsuranceApplicable: true,
+                    insuranceAmount: insuranceAmount,
+                    personalDeduction: calcSettings.PersonalDeduction,
+                    dependentDeduction: calcSettings.DependentDeduction);
+                taxAmount = taxResult.TaxAmount;
+                taxBracket = taxResult.TaxBracket;
+            }
 
             // 8. Phụ cấp & khấu trừ thủ công (giữ nguyên nếu tính lại)
             var manualAllowances = existingRecord?.PayrollAllowances
@@ -276,13 +287,13 @@ namespace HRManagement.Services.Payroll
             record.PayrollDeductions.Add(new PayrollDeduction
             {
                 DeductionType = "Insurance",
-                DeductionName = "BHXH + BHYT + BHTN (10.5%)",
+                DeductionName = $"BHXH + BHYT + BHTN ({calcSettings.BhxhRate + calcSettings.BhytRate + calcSettings.BhtnRate}%)",
                 Amount = insuranceAmount,
             });
             record.PayrollDeductions.Add(new PayrollDeduction
             {
                 DeductionType = "Tax",
-                DeductionName = $"Thuế TNCN (Bậc {taxResult.TaxBracket})",
+                DeductionName = taxBracket > 0 ? $"Thuế TNCN (Bậc {taxBracket})" : "Thuế TNCN",
                 Amount = taxAmount,
             });
 
