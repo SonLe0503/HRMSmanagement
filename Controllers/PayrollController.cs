@@ -135,8 +135,18 @@ namespace HRManagement.Controllers
         [Authorize(Roles = "ADMIN,HR,MANAGE")]
         public async Task<IActionResult> GetRecordsByPeriod(int periodId)
         {
-            var records = await _payrollService.GetRecordsByPeriodAsync(periodId);
-            return Ok(records);
+            if (User.IsInRole("MANAGE"))
+            {
+                var employeeIdClaim = User.FindFirst("employeeId")?.Value;
+                if (int.TryParse(employeeIdClaim, out var managerEmployeeId))
+                {
+                    var records = await _payrollService.GetRecordsByPeriodAsync(periodId, managerEmployeeId);
+                    return Ok(records);
+                }
+            }
+
+            var allRecords = await _payrollService.GetRecordsByPeriodAsync(periodId);
+            return Ok(allRecords);
         }
 
         [HttpGet("records/detail/{recordId:int}")]

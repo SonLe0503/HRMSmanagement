@@ -346,9 +346,9 @@ namespace HRManagement.Services.Payroll
         }
 
         // ── Lấy dữ liệu ───────────────────────────────────────────────────────
-        public async Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId)
+        public async Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId, int? managerEmployeeId = null)
         {
-            var records = await _payrollRepo.GetByPeriodWithDetailsAsync(periodId);
+            var records = await _payrollRepo.GetByPeriodWithDetailsAsync(periodId, managerEmployeeId);
             return _mapper.Map<List<PayrollRecordDto>>(records);
         }
 
