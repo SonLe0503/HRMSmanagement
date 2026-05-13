@@ -10,7 +10,7 @@ namespace HRManagement.DataAcess.Interfaces
         Task<PayrollRecord?> GetByIdAsync(int payrollRecordId);
         Task<PayrollRecord?> GetByEmployeeAndPeriodAsync(int employeeId, int periodId);
         Task<List<PayrollRecord>> GetByPeriodAsync(int periodId);
-        Task<List<PayrollRecord>> GetByPeriodWithDetailsAsync(int periodId);  // Include Allowances, Deductions
+        Task<List<PayrollRecord>> GetByPeriodWithDetailsAsync(int periodId, int? managerEmployeeId = null);  // Include Allowances, Deductions
         Task<List<PayrollRecord>> GetByEmployeeAsync(int employeeId);
         Task<PayrollRecord> CreateAsync(PayrollRecord record);
         Task<PayrollRecord> UpdateAsync(PayrollRecord record);

@@ -18,7 +18,7 @@ namespace HRManagement.Services.Payroll
         Task<List<PayrollRecordDto>> CalculateBatchAsync(int periodId, List<int> employeeIds);
 
         // --- Lấy dữ liệu ---
-        Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId);
+        Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId, int? managerEmployeeId = null);
         Task<PayrollRecordDto> GetRecordByIdAsync(int payrollRecordId);
         Task<List<PayrollRecordDto>> GetRecordsByEmployeeAsync(int employeeId);
 

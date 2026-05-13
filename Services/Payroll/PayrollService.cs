@@ -346,9 +346,9 @@ namespace HRManagement.Services.Payroll
         }
 
         // ── Lấy dữ liệu ───────────────────────────────────────────────────────
-        public async Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId)
+        public async Task<List<PayrollRecordDto>> GetRecordsByPeriodAsync(int periodId, int? managerEmployeeId = null)
         {
-            var records = await _payrollRepo.GetByPeriodWithDetailsAsync(periodId);
+            var records = await _payrollRepo.GetByPeriodWithDetailsAsync(periodId, managerEmployeeId);
             return _mapper.Map<List<PayrollRecordDto>>(records);
         }
 
@@ -607,10 +607,10 @@ namespace HRManagement.Services.Payroll
                 .ToListAsync();
             foreach (var s in rawSettings)
             {
-                if (s.SettingKey == "Company.Name")    companySettings.CompanyName = s.SettingValue;
-                if (s.SettingKey == "Company.Address") companySettings.Address     = s.SettingValue;
-                if (s.SettingKey == "Company.Phone")   companySettings.Phone       = s.SettingValue;
-                if (s.SettingKey == "Company.Email")   companySettings.Email       = s.SettingValue;
+                if (s.SettingKey == "Company.Name")    companySettings.CompanyName = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Address") companySettings.Address     = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Phone")   companySettings.Phone       = s.SettingValue ?? "";
+                if (s.SettingKey == "Company.Email")   companySettings.Email       = s.SettingValue ?? "";
             }
 
             var pdfService = new PayslipPdfService();
@@ -1076,8 +1076,8 @@ namespace HRManagement.Services.Payroll
         public async Task<List<PayrollFeedbackDto>> GetFeedbacksByPeriodAsync(int periodId)
         {
             var feedbacks = await _context.PayrollFeedbacks
-                .Include(f => f.Employee).ThenInclude(e => e.Department)
-                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.Employee).ThenInclude(e => e!.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u!.Employee)
                 .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
                 .Where(f => f.PayrollRecord.PeriodId == periodId)
                 .OrderBy(f => f.Status == "Pending" ? 0 : 1)
@@ -1093,8 +1093,8 @@ namespace HRManagement.Services.Payroll
                 throw new ArgumentException("Trạng thái không hợp lệ. Chỉ chấp nhận 'Resolved' hoặc 'Dismissed'.");
 
             var feedback = await _context.PayrollFeedbacks
-                .Include(f => f.Employee).ThenInclude(e => e.Department)
-                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.Employee).ThenInclude(e => e!.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u!.Employee)
                 .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
                 .FirstOrDefaultAsync(f => f.FeedbackId == feedbackId)
                 ?? throw new KeyNotFoundException("Không tìm thấy phản hồi.");
@@ -1123,8 +1123,8 @@ namespace HRManagement.Services.Payroll
             if (employeeId == null) return new List<PayrollFeedbackDto>();
 
             var feedbacks = await _context.PayrollFeedbacks
-                .Include(f => f.Employee).ThenInclude(e => e.Department)
-                .Include(f => f.ResolvedByUser).ThenInclude(u => u.Employee)
+                .Include(f => f.Employee).ThenInclude(e => e!.Department)
+                .Include(f => f.ResolvedByUser).ThenInclude(u => u!.Employee)
                 .Include(f => f.PayrollRecord).ThenInclude(r => r.Period)
                 .Where(f => f.EmployeeId == employeeId)
                 .OrderByDescending(f => f.SubmittedAt)

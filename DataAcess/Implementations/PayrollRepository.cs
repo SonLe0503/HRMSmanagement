@@ -39,14 +39,23 @@ namespace HRManagement.DataAcess.Implementations
                 .OrderBy(r => r.Employee.FullName)
                 .ToListAsync();
 
-        public async Task<List<PayrollRecord>> GetByPeriodWithDetailsAsync(int periodId)
-            => await _context.PayrollRecords
-                .Where(r => r.PeriodId == periodId)
+        public async Task<List<PayrollRecord>> GetByPeriodWithDetailsAsync(int periodId, int? managerEmployeeId = null)
+        {
+            var query = _context.PayrollRecords
+                .Where(r => r.PeriodId == periodId);
+
+            if (managerEmployeeId.HasValue)
+            {
+                query = query.Where(r => r.Employee.ManagerId == managerEmployeeId.Value);
+            }
+
+            return await query
                 .Include(r => r.PayrollAllowances)
                 .Include(r => r.PayrollDeductions)
                 .Include(r => r.Employee).ThenInclude(e => e.Department)
                 .Include(r => r.Employee).ThenInclude(e => e.Position)
                 .ToListAsync();
+        }
 
         public async Task<List<PayrollRecord>> GetByEmployeeAsync(int employeeId)
             => await _context.PayrollRecords
