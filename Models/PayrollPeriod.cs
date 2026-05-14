@@ -27,6 +27,12 @@ public partial class PayrollPeriod
 
     public DateTime? ReviewDeadline { get; set; }
 
+    public string? RejectionReason { get; set; }
+
+    public int? RejectedBy { get; set; }
+
+    public DateTime? RejectedDate { get; set; }
+
     public virtual ICollection<PayrollRecord> PayrollRecords { get; set; } = new List<PayrollRecord>();
 
     public virtual ICollection<Payslip> Payslips { get; set; } = new List<Payslip>();

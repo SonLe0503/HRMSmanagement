@@ -31,6 +31,7 @@ namespace HRManagement.Services.Payroll
 
         // --- Phê duyệt ---
         Task<PayrollPeriodDto> ApprovePeriodAsync(int periodId, int approvedByUserId);
+        Task<PayrollPeriodDto> RejectPeriodAsync(int periodId, int rejectedByUserId, string reason);
         Task<PayrollRecordDto> ApproveRecordAsync(int payrollRecordId, int approvedByUserId);
         Task<int> LockAttendanceForAllApprovedPeriodsAsync();
 

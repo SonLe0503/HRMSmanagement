@@ -624,7 +624,7 @@ namespace HRManagement.Services.Attendances
             if (!records.Any()) return;
 
             var approvedPeriods = await _context.PayrollPeriods
-                .Where(p => p.Status == "Approved" || p.Status == "Closed")
+                .Where(p => p.Status == "Approved")
                 .Select(p => new { p.PeriodId, p.StartDate, p.EndDate })
                 .ToListAsync();
 
@@ -663,7 +663,7 @@ namespace HRManagement.Services.Attendances
             if (dto.IsLocked != true)
             {
                 var inApproved = await _context.PayrollPeriods
-                    .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                    .AnyAsync(p => p.Status == "Approved" &&
                                    p.StartDate <= date && p.EndDate >= date &&
                                    _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == employeeId));
                 if (inApproved) dto.IsLocked = true;
@@ -774,7 +774,7 @@ namespace HRManagement.Services.Attendances
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
 
             var isPayrollLocked = await _context.PayrollPeriods
-                .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                .AnyAsync(p => p.Status == "Approved" &&
                                p.StartDate <= attendance.AttendanceDate &&
                                p.EndDate >= attendance.AttendanceDate &&
                                _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == attendance.EmployeeId));
