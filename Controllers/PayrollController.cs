@@ -109,6 +109,29 @@ namespace HRManagement.Controllers
             }
         }
 
+        [HttpPut("periods/{periodId:int}/reject")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> RejectPeriod(int periodId, [FromBody] RejectPayrollPeriodDto dto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+                var period = await _payrollService.RejectPeriodAsync(periodId, userId, dto.Reason);
+                return Ok(period);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
         [HttpPut("periods/{periodId:int}/approve")]
         [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> ApprovePeriod(int periodId)

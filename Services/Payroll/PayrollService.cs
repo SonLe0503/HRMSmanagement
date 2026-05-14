@@ -161,7 +161,7 @@ namespace HRManagement.Services.Payroll
             var period = await _periodRepo.GetByIdAsync(periodId)
                 ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
 
-            if (period.Status == "Approved" || period.Status == "Closed")
+            if (period.Status == "Approved")
                 throw new InvalidOperationException("Kỳ lương đã được duyệt, không thể tính lại.");
 
             var employee = await _context.Employees
@@ -317,7 +317,7 @@ namespace HRManagement.Services.Payroll
             // Cập nhật trạng thái kỳ lương → Calculated
             // Dùng FindAsync (không Include) để tránh EF Core tracking conflict với PayrollRecords vừa được update
             var period = await _context.PayrollPeriods.FindAsync(periodId);
-            if (period != null && period.Status != "Approved" && period.Status != "Closed")
+            if (period != null && period.Status != "Approved")
             {
                 period.Status = "Calculated";
                 period.CalculatedDate = DateTime.Now;
@@ -481,10 +481,34 @@ namespace HRManagement.Services.Payroll
             return _mapper.Map<PayrollPeriodDto>(period);
         }
 
+        public async Task<PayrollPeriodDto> RejectPeriodAsync(int periodId, int rejectedByUserId, string reason)
+        {
+            var period = await _periodRepo.GetByIdAsync(periodId)
+                ?? throw new KeyNotFoundException("Không tìm thấy kỳ lương.");
+
+            if (period.Status != "UnderReview")
+                throw new InvalidOperationException("Chỉ có thể từ chối kỳ lương đang ở trạng thái Đang xem xét.");
+
+            period.Status          = "Rejected";
+            period.RejectionReason = reason;
+            period.RejectedBy      = rejectedByUserId;
+            period.RejectedDate    = DateTime.Now;
+            await _periodRepo.UpdateAsync(period);
+
+            var rejector = await _context.Users
+                .Include(u => u.Employee)
+                .FirstOrDefaultAsync(u => u.UserId == rejectedByUserId);
+            var dto = _mapper.Map<PayrollPeriodDto>(period);
+            dto.RejectedByName  = rejector?.Employee?.FullName ?? rejector?.Username;
+            dto.RejectionReason = reason;
+            dto.RejectedDate    = period.RejectedDate;
+            return dto;
+        }
+
         public async Task<int> LockAttendanceForAllApprovedPeriodsAsync()
         {
             var approvedPeriods = await _context.PayrollPeriods
-                .Where(p => p.Status == "Approved" || p.Status == "Closed")
+                .Where(p => p.Status == "Approved")
                 .ToListAsync();
 
             int totalLocked = 0;

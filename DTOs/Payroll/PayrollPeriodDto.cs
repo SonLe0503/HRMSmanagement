@@ -10,7 +10,7 @@ namespace HRManagement.DTOs.Payroll
         public int Year { get; set; }
         public DateOnly StartDate { get; set; }
         public DateOnly EndDate { get; set; }
-        public string Status { get; set; } = "";  // Open | Aggregated | Calculated | UnderReview | Approved | Closed
+        public string Status { get; set; } = "";  // Open | Aggregated | Calculated | UnderReview | Approved | Rejected
         public int TotalEmployees { get; set; }
         public decimal TotalGrossPay { get; set; }
         public decimal TotalNetPay { get; set; }
@@ -25,6 +25,17 @@ namespace HRManagement.DTOs.Payroll
         public bool ReviewDeadlineExpired { get; set; }
         public bool AllAgreed { get; set; }
         public int AgreedCount { get; set; }
+        // Rejection fields
+        public string? RejectionReason { get; set; }
+        public string? RejectedByName { get; set; }
+        public DateTime? RejectedDate { get; set; }
+    }
+
+    public class RejectPayrollPeriodDto
+    {
+        [Required]
+        [MinLength(1, ErrorMessage = "Lý do từ chối không được để trống.")]
+        public string Reason { get; set; } = "";
     }
 
     public class CreatePayrollPeriodDto

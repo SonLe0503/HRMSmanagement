@@ -1594,6 +1594,15 @@ namespace HRManagement.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("int");
 
+                    b.Property<int?>("RejectedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RejectedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string?>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("ReviewDeadline")
                         .HasColumnType("datetime2");
 

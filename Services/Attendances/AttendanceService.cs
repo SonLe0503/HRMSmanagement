@@ -437,30 +437,42 @@ namespace HRManagement.Services.Attendances
 
             var result = attendanceMap.Values.ToList();
 
-            // 3. Map Overtime Sync
-            foreach (var attendance in result)
-            {
-                var dayOts = approvedOts.Where(o => o.EmployeeId == attendance.EmployeeId && o.OvertimeDate == attendance.AttendanceDate).ToList();
-                if (!dayOts.Any() && !attendance.CheckInTime.HasValue) continue;
-
-                var assignment = assignments.FirstOrDefault(a => a.EmployeeId == attendance.EmployeeId && a.AssignmentDate == attendance.AttendanceDate);
-                var metrics = AttendanceHelper.CalculateOvertimeMetrics(attendance.CheckInTime, attendance.CheckOutTime, attendance.AttendanceDate, assignment?.Shift, dayOts);
-                
-                attendance.ActualOvertimeHours = metrics.ActualHours;
-                attendance.ApprovedOvertimeHours = metrics.ApprovedHours;
-                attendance.PayrollOvertimeHours = metrics.PayrollHours;
-                attendance.OvertimeHours = metrics.PayrollHours;
-            }
-
-            if (!string.IsNullOrWhiteSpace(status))
-                result = result.Where(r => r.Status == status).ToList();
-
             // Override IsLocked cho các bản ghi thuộc kỳ lương đã phê duyệt
-            await AttendanceHelper.ApplyPayrollLockOverrideAsync(_context, result);
+            await ApplyPayrollLockOverrideAsync(result);
 
             return result.OrderByDescending(r => r.AttendanceDate).ThenBy(r => r.EmployeeName).ToList();
         }
 
+        private async System.Threading.Tasks.Task ApplyPayrollLockOverrideAsync(List<AttendanceResponseDto> records)
+        {
+            if (!records.Any()) return;
+
+            var approvedPeriods = await _context.PayrollPeriods
+                .Where(p => p.Status == "Approved" || p.Status == "Closed")
+                .Select(p => new { p.PeriodId, p.StartDate, p.EndDate })
+                .ToListAsync();
+
+            if (!approvedPeriods.Any()) return;
+
+            var employeeIds = records.Select(r => r.EmployeeId).Distinct().ToList();
+            var periodIds = approvedPeriods.Select(p => p.PeriodId).ToList();
+
+            var approvedPairs = await _context.PayrollRecords
+                .Where(r => periodIds.Contains(r.PeriodId) && employeeIds.Contains(r.EmployeeId))
+                .Select(r => new { r.PeriodId, r.EmployeeId })
+                .ToListAsync();
+
+            foreach (var rec in records.Where(r => r.IsLocked != true))
+            {
+                var inApproved = approvedPeriods.Any(p =>
+                    p.StartDate <= rec.AttendanceDate && p.EndDate >= rec.AttendanceDate &&
+                    approvedPairs.Any(e => e.PeriodId == p.PeriodId && e.EmployeeId == rec.EmployeeId));
+                if (inApproved) rec.IsLocked = true;
+            }
+        }
+
+        private static DateTime MaxDateTime(DateTime a, DateTime b) => a > b ? a : b;
+        private static DateTime MinDateTime(DateTime a, DateTime b) => a < b ? a : b;
 
         public async Task<AttendanceDetailResponseDto?> GetAttendanceDetailAsync(int employeeId, DateOnly date)
         {
@@ -474,8 +486,11 @@ namespace HRManagement.Services.Attendances
             // Override IsLocked nếu thuộc kỳ lương đã phê duyệt
             if (dto.IsLocked != true)
             {
-                if (await AttendanceHelper.IsPayrollLockedAsync(_context, employeeId, date))
-                    dto.IsLocked = true;
+                var inApproved = await _context.PayrollPeriods
+                    .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                                   p.StartDate <= date && p.EndDate >= date &&
+                                   _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == employeeId));
+                if (inApproved) dto.IsLocked = true;
             }
 
             return new AttendanceDetailResponseDto
@@ -583,7 +598,13 @@ namespace HRManagement.Services.Attendances
             var attendance = await _attendanceRepository.GetAttendanceByIdAsync(attendanceId)
                 ?? throw new InvalidOperationException("Không tìm thấy bản ghi chấm công.");
 
-            if (await AttendanceHelper.IsPayrollLockedAsync(_context, attendance.EmployeeId, attendance.AttendanceDate))
+            var isPayrollLocked = await _context.PayrollPeriods
+                .AnyAsync(p => (p.Status == "Approved" || p.Status == "Closed") &&
+                               p.StartDate <= attendance.AttendanceDate &&
+                               p.EndDate >= attendance.AttendanceDate &&
+                               _context.PayrollRecords.Any(r => r.PeriodId == p.PeriodId && r.EmployeeId == attendance.EmployeeId));
+
+            if (isPayrollLocked)
                 throw new InvalidOperationException("Bản ghi này thuộc kỳ lương đã được phê duyệt, không thể mở khóa.");
 
             attendance.IsLocked = false;
