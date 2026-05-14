@@ -119,6 +119,10 @@ public partial class HrmsDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.EarlyLeaveMinutes).HasDefaultValue(0);
             entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
+            entity.Property(e => e.ExplanationLeaveTypeId).HasColumnName("ExplanationLeaveTypeID");
+            entity.Property(e => e.ExplanationRequestedCheckInTime).HasColumnType("time");
+            entity.Property(e => e.ExplanationRequestedCheckOutTime).HasColumnType("time");
+            entity.Property(e => e.ExplanationType).HasMaxLength(30);
             entity.Property(e => e.LateMinutes).HasDefaultValue(0);
             entity.Property(e => e.Location).HasMaxLength(100);
             entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
@@ -136,6 +140,10 @@ public partial class HrmsDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AttendanceRecords_Employees");
+
+            entity.HasOne(d => d.ExplanationLeaveType).WithMany()
+                .HasForeignKey(d => d.ExplanationLeaveTypeId)
+                .HasConstraintName("FK_AttendanceRecords_ExplanationLeaveTypes");
 
             entity.HasOne(d => d.Shift).WithMany(p => p.AttendanceRecords)
                 .HasForeignKey(d => d.ShiftId)
