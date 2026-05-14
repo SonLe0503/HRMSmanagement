@@ -16,6 +16,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.AttendanceDate == attendanceDate);
         }
@@ -24,6 +25,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .FirstOrDefaultAsync(a => a.AttendanceId == attendanceId);
         }
@@ -32,6 +34,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .Where(a => a.AttendanceDate == date)
                 .OrderBy(a => a.Employee.FullName)
@@ -42,6 +45,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             var query = _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .AsQueryable();
 
@@ -167,6 +171,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .Where(a => a.EmployeeId == employeeId
                             && a.CheckInTime.HasValue
@@ -180,6 +185,7 @@ namespace HRManagement.DataAcess.Implementations
         {
             return await _context.AttendanceRecords
                 .Include(a => a.Employee)
+                .Include(a => a.ExplanationLeaveType)
                 .Include(a => a.Shift)
                 .Where(a => a.EmployeeId == employeeId
                             && a.CheckInTime.HasValue)

@@ -4,6 +4,7 @@ using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRManagement.Migrations
 {
     [DbContext(typeof(HrmsDbContext))]
-    partial class HrmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513184146_ExtendAttendanceExplanationWorkflow")]
+    partial class ExtendAttendanceExplanationWorkflow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1593,15 +1596,6 @@ namespace HRManagement.Migrations
 
                     b.Property<int>("Month")
                         .HasColumnType("int");
-
-                    b.Property<int?>("RejectedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("RejectedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string?>("RejectionReason")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ReviewDeadline")
                         .HasColumnType("datetime2");

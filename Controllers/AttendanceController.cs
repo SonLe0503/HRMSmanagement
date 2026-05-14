@@ -470,7 +470,7 @@ namespace HRManagement.Controllers
             try
             {
                 var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-                var result = await _attendanceService.SubmitExplanationAsync(employeeId, attendanceId, dto.Message);
+                var result = await _attendanceService.SubmitExplanationAsync(employeeId, attendanceId, dto);
                 return Ok(new { message = "Đã gửi phiếu giải trình. Đang chờ Quản lý duyệt.", data = result });
             }
             catch (Exception ex)
@@ -488,7 +488,7 @@ namespace HRManagement.Controllers
             try
             {
                 var employeeId = await _currentUserService.GetCurrentEmployeeIdAsync();
-                var result = await _attendanceService.SubmitAbsentExplanationAsync(employeeId, dto.Date, dto.Message);
+                var result = await _attendanceService.SubmitAbsentExplanationAsync(employeeId, dto.Date, dto);
                 return Ok(new { message = "Đã gửi phiếu giải trình cho ngày vắng mặt. Đang chờ Quản lý duyệt.", data = result });
             }
             catch (Exception ex)

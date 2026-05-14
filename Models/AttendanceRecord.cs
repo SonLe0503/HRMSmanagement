@@ -47,6 +47,10 @@ public partial class AttendanceRecord
     public string? ExplanationMessage { get; set; }
     public string? ExplanationStatus { get; set; }
     public string? ExplanationResponse { get; set; }
+    public string? ExplanationType { get; set; }
+    public int? ExplanationLeaveTypeId { get; set; }
+    public TimeSpan? ExplanationRequestedCheckInTime { get; set; }
+    public TimeSpan? ExplanationRequestedCheckOutTime { get; set; }
 
     public string? Location { get; set; }
 
@@ -59,6 +63,7 @@ public partial class AttendanceRecord
     public int? ModifiedBy { get; set; }
 
     public virtual Employee Employee { get; set; } = null!;
+    public virtual LeaveType? ExplanationLeaveType { get; set; }
 
     public virtual Shift? Shift { get; set; }
 
