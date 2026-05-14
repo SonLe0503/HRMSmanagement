@@ -31,5 +31,17 @@ namespace HRManagement.DTOs.Attendances
         public string? ExplanationMessage { get; set; }
         public string? ExplanationStatus { get; set; }
         public string? ExplanationResponse { get; set; }
+        public string? ExplanationType { get; set; }
+        public int? ExplanationLeaveTypeId { get; set; }
+        public string? ExplanationLeaveTypeName { get; set; }
+        public TimeSpan? ExplanationRequestedCheckInTime { get; set; }
+        public TimeSpan? ExplanationRequestedCheckOutTime { get; set; }
+        public TimeSpan? ShiftStartTime { get; set; }
+        public TimeSpan? ShiftEndTime { get; set; }
+        public bool? ShiftIsOvernight { get; set; }
+        public DateTime? AllowedCheckInFrom { get; set; }
+        public DateTime? AllowedCheckInTo { get; set; }
+        public DateTime? AllowedCheckOutFrom { get; set; }
+        public DateTime? AllowedCheckOutTo { get; set; }
     }
 }
