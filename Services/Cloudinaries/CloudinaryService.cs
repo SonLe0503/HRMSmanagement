@@ -124,31 +124,85 @@ namespace HRManagement.Services.Cloudinaries
                 return result;
             }
 
-            public async Task<bool> DeleteFileAsync(string publicId)
+            public async Task<bool> DeleteFileAsync(string publicIdOrUrl)
             {
                 try
                 {
+                    if (string.IsNullOrEmpty(publicIdOrUrl))
+                        return false;
+
+                    string publicId;
+                    ResourceType resourceType;
+
+                    if (publicIdOrUrl.StartsWith("http://") || publicIdOrUrl.StartsWith("https://"))
+                    {
+                        (publicId, resourceType) = ExtractPublicIdFromUrl(publicIdOrUrl);
+                    }
+                    else
+                    {
+                        publicId = publicIdOrUrl;
+                        resourceType = ResourceType.Image;
+                    }
+
                     if (string.IsNullOrEmpty(publicId))
                         return false;
 
                     var deletionParams = new DeletionParams(publicId)
                     {
-                        ResourceType = ResourceType.Image
+                        ResourceType = resourceType
                     };
 
                     var result = await _cloudinary.DestroyAsync(deletionParams);
 
-                    if (result.Result == "not found")
+                    if (result.Result == "not found" && resourceType == ResourceType.Image)
                     {
                         deletionParams.ResourceType = ResourceType.Raw;
                         result = await _cloudinary.DestroyAsync(deletionParams);
                     }
+
                     return result.Result == "ok";
                 }
                 catch (Exception)
                 {
                     return false;
                 }
+            }
+
+            private (string publicId, ResourceType resourceType) ExtractPublicIdFromUrl(string url)
+            {
+                // URL: https://res.cloudinary.com/{cloud}/{resource_type}/upload/{version?}/{public_id}
+                var uri = new Uri(url);
+                var path = uri.AbsolutePath; // e.g. /cloudname/image/upload/v123/HRMS/folder/file.png
+
+                var uploadMarker = "/upload/";
+                var uploadIndex = path.IndexOf(uploadMarker, StringComparison.OrdinalIgnoreCase);
+                if (uploadIndex < 0)
+                    return (url, ResourceType.Image);
+
+                // Determine resource type from URL segment
+                var resourceType = path.Contains("/image/", StringComparison.OrdinalIgnoreCase)
+                    ? ResourceType.Image
+                    : ResourceType.Raw;
+
+                var afterUpload = path.Substring(uploadIndex + uploadMarker.Length);
+
+                // Skip version segment (e.g. "v1234567890/")
+                if (afterUpload.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                {
+                    var slashIdx = afterUpload.IndexOf('/');
+                    if (slashIdx > 0 && afterUpload.Substring(1, slashIdx - 1).All(char.IsDigit))
+                        afterUpload = afterUpload.Substring(slashIdx + 1);
+                }
+
+                // For images, Cloudinary PublicId excludes the file extension
+                if (resourceType == ResourceType.Image)
+                {
+                    var lastDot = afterUpload.LastIndexOf('.');
+                    if (lastDot > 0)
+                        afterUpload = afterUpload.Substring(0, lastDot);
+                }
+
+                return (afterUpload, resourceType);
             }
 
             public string GetOptimizedUrl(string publicId, string? fileType = null, int? width = null, int? height = null)

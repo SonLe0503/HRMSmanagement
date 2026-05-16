@@ -140,9 +140,9 @@ namespace HRManagement.Controllers
 
                 return Ok(new { message = "Document deleted successfully." });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest(new { message = "Error deleting document." });
+                return BadRequest(new { message = ex.Message });
             }
         }
 
