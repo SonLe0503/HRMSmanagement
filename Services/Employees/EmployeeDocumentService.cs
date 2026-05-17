@@ -2,7 +2,8 @@
 using HRManagement.DTOs;
 using HRManagement.Models;
 using HRManagement.Services.Cloudinaries;
-using System.Reflection.Metadata;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HRManagement.Services.Employees
 {
@@ -12,27 +13,24 @@ namespace HRManagement.Services.Employees
         private readonly ICloudinaryService _cloudinaryService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        public EmployeeDocumentService(IEmployeeDocumentRepository documentRepository,ICloudinaryService cloudinaryService, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
+        private readonly HrmsDbContext _context;
+
+        public EmployeeDocumentService(IEmployeeDocumentRepository documentRepository, ICloudinaryService cloudinaryService, IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, HrmsDbContext context)
         {
             _documentRepository = documentRepository;
             _cloudinaryService = cloudinaryService;
             _httpClientFactory = httpClientFactory;
             _httpContextAccessor = httpContextAccessor;
+            _context = context;
         }
         public async Task<bool> DeleteDocumentAsync(int documentId)
         {
             var document = await _documentRepository.GetDocumentByIdAsync(documentId);
             if (document == null)
-            {
                 return false;
-            }
-            var cloudinaryPublicId = document.FilePath;
-            var deleted = await _cloudinaryService.DeleteFileAsync(cloudinaryPublicId);
 
-            if (!deleted)
-            {
-                throw new InvalidOperationException("Failed to delete file from storage.");
-            }
+            // Attempt Cloudinary cleanup but do not block DB deletion if it fails
+            await _cloudinaryService.DeleteFileAsync(document.FilePath);
 
             return await _documentRepository.DeleteDocumentAsync(documentId);
         }
@@ -70,6 +68,10 @@ namespace HRManagement.Services.Employees
 
             
             var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath, document.FileType);
+            var uploaderName = await GetUploaderNameAsync(document.UploadedBy);
+            var modifierName = document.ModifiedBy.HasValue
+                ? await GetUploaderNameAsync(document.ModifiedBy.Value)
+                : null;
             return new EmployeeDocumentResponseDto
             {
                 DocumentId = document.DocumentId,
@@ -78,17 +80,17 @@ namespace HRManagement.Services.Employees
                 DocumentTitle = document.DocumentTitle,
                 DocumentCategory = document.DocumentCategory,
                 FileName = document.FileName,
-                FilePath = document.FilePath, 
+                FilePath = document.FilePath,
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 FileSizeFormatted = FormatFileSize(document.FileSize),
                 IsConfidential = document.IsConfidential,
                 UploadDate = document.UploadDate,
                 UploadedBy = document.UploadedBy,
-                UploadedByName = "System",
+                UploadedByName = uploaderName,
                 ModifiedDate = document.ModifiedDate,
                 ModifiedBy = document.ModifiedBy,
-                ModifiedByName = document.ModifiedBy.HasValue ? "System" : null
+                ModifiedByName = modifierName
             };
         }
 
@@ -98,38 +100,48 @@ namespace HRManagement.Services.Employees
         {
             var documents = await _documentRepository.GetDocumentsByCategoryAsync(employeeId, category);
 
-            return documents.Select(d => new EmployeeDocumentListDto
+            var result = new List<EmployeeDocumentListDto>();
+            foreach (var d in documents)
             {
-                DocumentId = d.DocumentId,
-                EmployeeId = d.EmployeeId,
-                DocumentTitle = d.DocumentTitle,
-                DocumentCategory = d.DocumentCategory,
-                FileName = d.FileName,
-                FileType = d.FileType,
-                FileSizeFormatted = FormatFileSize(d.FileSize),
-                IsConfidential = d.IsConfidential,
-                UploadDate = d.UploadDate,
-                UploadedByName = "System"
-            }).ToList();
+                result.Add(new EmployeeDocumentListDto
+                {
+                    DocumentId = d.DocumentId,
+                    EmployeeId = d.EmployeeId,
+                    DocumentTitle = d.DocumentTitle,
+                    DocumentCategory = d.DocumentCategory,
+                    FileName = d.FileName,
+                    FileType = d.FileType,
+                    FileSizeFormatted = FormatFileSize(d.FileSize),
+                    IsConfidential = d.IsConfidential,
+                    UploadDate = d.UploadDate,
+                    UploadedByName = await GetUploaderNameAsync(d.UploadedBy)
+                });
+            }
+            return result;
         }
 
         public async Task<IEnumerable<EmployeeDocumentListDto>> GetEmployeeDocumentsAsync(int employeeId)
         {
             var document = await _documentRepository.GetDocumentsByEmployeeIdAsync(employeeId);
-                
-            return document.Select(d => new EmployeeDocumentListDto
+
+            var result = new List<EmployeeDocumentListDto>();
+            foreach (var d in document)
             {
-                DocumentId = d.DocumentId,
-                EmployeeId = d.EmployeeId,
-                DocumentTitle = d.DocumentTitle,
-                DocumentCategory = d.DocumentCategory,
-                FileName = d.FileName,
-                FileType = d.FileType,
-                FileSizeFormatted = FormatFileSize(d.FileSize),
-                IsConfidential = d.IsConfidential,
-                UploadDate = d.UploadDate,
-                UploadedByName = "System"
-            });
+                result.Add(new EmployeeDocumentListDto
+                {
+                    DocumentId = d.DocumentId,
+                    EmployeeId = d.EmployeeId,
+                    DocumentTitle = d.DocumentTitle,
+                    DocumentCategory = d.DocumentCategory,
+                    FileName = d.FileName,
+                    FileType = d.FileType,
+                    FileSizeFormatted = FormatFileSize(d.FileSize),
+                    IsConfidential = d.IsConfidential,
+                    UploadDate = d.UploadDate,
+                    UploadedByName = await GetUploaderNameAsync(d.UploadedBy)
+                });
+            }
+            return result;
         }
 
         public async Task<EmployeeDocumentResponseDto?> UpdateDocumentAsync(int documentId, UpdateEmployeeDocumentDto updateDto)
@@ -139,7 +151,7 @@ namespace HRManagement.Services.Employees
                 return null;
             var validCategories = new[]
 {
-                "Contract","Certificate","Identification","Resume","Other"
+                "Contract","Certificate","ID","Insurance","Performance","Other"
             };
 
             if (!validCategories.Contains(updateDto.DocumentCategory))
@@ -158,7 +170,11 @@ namespace HRManagement.Services.Employees
             document.ModifiedBy = GetCurrentUserId();
 
             await _documentRepository.UpdateDocumentAsync(document);
-            var cloudinaryUrl = _cloudinaryService.GetOptimizedUrl(document.FilePath, document.FileType);
+            _cloudinaryService.GetOptimizedUrl(document.FilePath, document.FileType);
+            var uploaderName = await GetUploaderNameAsync(document.UploadedBy);
+            var modifierName = document.ModifiedBy.HasValue
+                ? await GetUploaderNameAsync(document.ModifiedBy.Value)
+                : null;
 
             return new EmployeeDocumentResponseDto
             {
@@ -168,17 +184,17 @@ namespace HRManagement.Services.Employees
                 DocumentTitle = document.DocumentTitle,
                 DocumentCategory = document.DocumentCategory,
                 FileName = document.FileName,
-                FilePath = document.FilePath, 
+                FilePath = document.FilePath,
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 FileSizeFormatted = FormatFileSize(document.FileSize),
                 IsConfidential = document.IsConfidential,
                 UploadDate = document.UploadDate,
                 UploadedBy = document.UploadedBy,
-                UploadedByName = "System",
+                UploadedByName = uploaderName,
                 ModifiedDate = document.ModifiedDate,
                 ModifiedBy = document.ModifiedBy,
-                ModifiedByName = document.ModifiedBy.HasValue ? "System" : null
+                ModifiedByName = modifierName
             };
         }
 
@@ -206,7 +222,7 @@ namespace HRManagement.Services.Employees
             }
             var validCategories = new[]
             {
-                "Contract","Certificate","Identification","Resume","Other"
+                "Contract","Certificate","ID","Insurance","Performance","Other"
             };
 
             if (!validCategories.Contains(uploadDto.DocumentCategory))
@@ -242,9 +258,10 @@ namespace HRManagement.Services.Employees
                 FileSize = (int)file.Length,
                 IsConfidential = uploadDto.IsConfidential,
                 UploadDate = DateTime.UtcNow,
-                UploadedBy = GetCurrentUserId()
+                UploadedBy = uploadedBy
             };
             await _documentRepository.AddDocumentAsync(document);
+            var uploaderName = await GetUploaderNameAsync(document.UploadedBy);
             return new EmployeeDocumentResponseDto
             {
                 DocumentId = document.DocumentId,
@@ -253,17 +270,17 @@ namespace HRManagement.Services.Employees
                 DocumentTitle = document.DocumentTitle,
                 DocumentCategory = document.DocumentCategory,
                 FileName = document.FileName,
-                FilePath = uploadResult.CheckUrl!, 
+                FilePath = uploadResult.CheckUrl!,
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 FileSizeFormatted = FormatFileSize(document.FileSize),
                 IsConfidential = document.IsConfidential,
                 UploadDate = document.UploadDate,
                 UploadedBy = document.UploadedBy,
-                UploadedByName = "System",
+                UploadedByName = uploaderName,
                 ModifiedDate = document.ModifiedDate,
                 ModifiedBy = document.ModifiedBy,
-                ModifiedByName = document.ModifiedBy.HasValue ? "System" : null
+                ModifiedByName = null
             };
         }
         private string FormatFileSize(long bytes)
@@ -298,12 +315,24 @@ namespace HRManagement.Services.Employees
         private int GetCurrentUserId()
         {
             var claim = _httpContextAccessor.HttpContext?
-                .User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
+                .User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
             if (int.TryParse(claim, out int userId))
                 return userId;
 
             return 0;
+        }
+
+        private async Task<string> GetUploaderNameAsync(int userId)
+        {
+            var user = await _context.Users
+                .Include(u => u.Employee)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            if (user?.Employee?.FullName != null)
+                return user.Employee.FullName;
+
+            return user?.Username ?? "System";
         }
     }
 
