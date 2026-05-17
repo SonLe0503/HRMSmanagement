@@ -495,6 +495,27 @@ namespace HRManagement.Services.Payroll
             period.RejectedDate    = DateTime.Now;
             await _periodRepo.UpdateAsync(period);
 
+            // Xoá toàn bộ feedback và payslip cũ để nhân viên feedback lại sau khi HR tính toán lại
+            var payrollRecordIds = await _context.PayrollRecords
+                .Where(r => r.PeriodId == periodId)
+                .Select(r => r.PayrollRecordId)
+                .ToListAsync();
+
+            if (payrollRecordIds.Any())
+            {
+                var oldFeedbacks = await _context.PayrollFeedbacks
+                    .Where(f => payrollRecordIds.Contains(f.PayrollRecordId))
+                    .ToListAsync();
+                _context.PayrollFeedbacks.RemoveRange(oldFeedbacks);
+
+                var oldPayslips = await _context.Payslips
+                    .Where(p => p.PeriodId == periodId)
+                    .ToListAsync();
+                _context.Payslips.RemoveRange(oldPayslips);
+
+                await _context.SaveChangesAsync();
+            }
+
             var rejector = await _context.Users
                 .Include(u => u.Employee)
                 .FirstOrDefaultAsync(u => u.UserId == rejectedByUserId);
