@@ -19,6 +19,7 @@ using HRManagement.Services.Overtimes;
 using HRManagement.Services.Positions;
 using HRManagement.Services.Shifts;
 using HRManagement.Services.Users;
+using HRManagement.Services.Tasks;
 using HRManagement.Services.Approvals;
 using HRManagement.Services.Evaluations;
 using HRManagement.Services.Analytics;
@@ -62,6 +63,11 @@ builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository
 builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
 builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
 
+// User, Auth & Task Repositories
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+
 // Payroll Repositories
 builder.Services.AddScoped<IPayrollRepository, PayrollRepository>();
 builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
@@ -85,6 +91,9 @@ builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IShiftAssignmentService, ShiftAssignmentService>();
 builder.Services.AddScoped<IOvertimeRequestService, OvertimeRequestService>();
 builder.Services.AddScoped<IUserAccountValidationService, UserAccountValidationService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
 builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
