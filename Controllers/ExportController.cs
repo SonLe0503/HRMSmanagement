@@ -7,7 +7,7 @@ namespace HRManagement.Controllers
 {
     [ApiController]
     [Route("api/reports")]
-    [Authorize]
+    [Authorize(Roles = "ADMIN,HR")]
     public class ExportController : ControllerBase
     {
         private readonly IExportService _exportService;
@@ -30,7 +30,7 @@ namespace HRManagement.Controllers
                 });
             }
 
-            // n?u g?i email thì không download
+            // n?u g?i email thï¿½ khï¿½ng download
             if (request.SendToEmail)
             {
                 return Ok(new

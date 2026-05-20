@@ -62,13 +62,9 @@ public partial class HrmsDbContext : DbContext
 
     public virtual DbSet<Payslip> Payslips { get; set; }
 
-    public virtual DbSet<Permission> Permissions { get; set; }
-
     public virtual DbSet<Position> Positions { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
-
-    public virtual DbSet<RolePermission> RolePermissions { get; set; }
 
     public virtual DbSet<Shift> Shifts { get; set; }
 
@@ -81,12 +77,6 @@ public partial class HrmsDbContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
-
-    public virtual DbSet<Workflow> Workflows { get; set; }
-
-    public virtual DbSet<WorkflowStage> WorkflowStages { get; set; }
-
-    public virtual DbSet<WorkflowStageApprover> WorkflowStageApprovers { get; set; }
 
     public virtual DbSet<AttendanceLog> AttendanceLogs { get; set; }
 
@@ -795,19 +785,6 @@ public partial class HrmsDbContext : DbContext
                 .HasConstraintName("FK_Payslips_Periods");
         });
 
-        modelBuilder.Entity<Permission>(entity =>
-        {
-            entity.HasKey(e => e.PermissionId).HasName("PK__Permissi__EFA6FB0F5E14C46D");
-
-            entity.HasIndex(e => e.PermissionCode, "UQ__Permissi__91FE5750BA312855").IsUnique();
-
-            entity.Property(e => e.PermissionId).HasColumnName("PermissionID");
-            entity.Property(e => e.Description).HasMaxLength(255);
-            entity.Property(e => e.Module).HasMaxLength(50);
-            entity.Property(e => e.PermissionCode).HasMaxLength(50);
-            entity.Property(e => e.PermissionName).HasMaxLength(100);
-        });
-
         modelBuilder.Entity<Position>(entity =>
         {
             entity.HasKey(e => e.PositionId).HasName("PK__Position__60BB9A59726208B5");
@@ -840,30 +817,6 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
             entity.Property(e => e.RoleName).HasMaxLength(50);
-        });
-
-        modelBuilder.Entity<RolePermission>(entity =>
-        {
-            entity.HasKey(e => e.RolePermissionId).HasName("PK__RolePerm__120F469AE264C887");
-
-            entity.HasIndex(e => new { e.RoleId, e.PermissionId }, "UQ_RolePermissions").IsUnique();
-
-            entity.Property(e => e.RolePermissionId).HasColumnName("RolePermissionID");
-            entity.Property(e => e.GrantedDate)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.PermissionId).HasColumnName("PermissionID");
-            entity.Property(e => e.RoleId).HasColumnName("RoleID");
-
-            entity.HasOne(d => d.Permission).WithMany(p => p.RolePermissions)
-                .HasForeignKey(d => d.PermissionId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RolePermissions_Permissions");
-
-            entity.HasOne(d => d.Role).WithMany(p => p.RolePermissions)
-                .HasForeignKey(d => d.RoleId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RolePermissions_Roles");
         });
 
         modelBuilder.Entity<Shift>(entity =>
@@ -1010,69 +963,6 @@ public partial class HrmsDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_UserRoles_Users");
-        });
-
-        modelBuilder.Entity<Workflow>(entity =>
-        {
-            entity.HasKey(e => e.WorkflowId).HasName("PK__Workflow__5704A64A3D49BE3D");
-
-            entity.HasIndex(e => e.WorkflowName, "UQ__Workflow__DC0E2DEB3E5F53DE").IsUnique();
-
-            entity.Property(e => e.WorkflowId).HasColumnName("WorkflowID");
-            entity.Property(e => e.CreatedDate)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.Description).HasMaxLength(500);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
-            entity.Property(e => e.WorkflowName).HasMaxLength(100);
-            entity.Property(e => e.WorkflowType).HasMaxLength(50);
-        });
-
-        modelBuilder.Entity<WorkflowStage>(entity =>
-        {
-            entity.HasKey(e => e.StageId).HasName("PK__Workflow__03EB7AF8A9676CB7");
-
-            entity.HasIndex(e => new { e.WorkflowId, e.StageOrder }, "UQ_WorkflowStages").IsUnique();
-
-            entity.Property(e => e.StageId).HasColumnName("StageID");
-            entity.Property(e => e.ApprovalType)
-                .HasMaxLength(20)
-                .HasDefaultValue("Single");
-            entity.Property(e => e.CreatedDate)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.StageName).HasMaxLength(100);
-            entity.Property(e => e.WorkflowId).HasColumnName("WorkflowID");
-
-            entity.HasOne(d => d.Workflow).WithMany(p => p.WorkflowStages)
-                .HasForeignKey(d => d.WorkflowId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_WorkflowStages_Workflows");
-        });
-
-        modelBuilder.Entity<WorkflowStageApprover>(entity =>
-        {
-            entity.HasKey(e => e.StageApproverId).HasName("PK__Workflow__78C865916C818D3D");
-
-            entity.Property(e => e.StageApproverId).HasColumnName("StageApproverID");
-            entity.Property(e => e.DynamicRule).HasMaxLength(100);
-            entity.Property(e => e.RoleId).HasColumnName("RoleID");
-            entity.Property(e => e.StageId).HasColumnName("StageID");
-            entity.Property(e => e.UserId).HasColumnName("UserID");
-
-            entity.HasOne(d => d.Role).WithMany(p => p.WorkflowStageApprovers)
-                .HasForeignKey(d => d.RoleId)
-                .HasConstraintName("FK_StageApprovers_Roles");
-
-            entity.HasOne(d => d.Stage).WithMany(p => p.WorkflowStageApprovers)
-                .HasForeignKey(d => d.StageId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_StageApprovers_Stages");
-
-            entity.HasOne(d => d.User).WithMany(p => p.WorkflowStageApprovers)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_StageApprovers_Users");
         });
 
         modelBuilder.Entity<AttendanceLog>(entity =>

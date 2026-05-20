@@ -21,9 +21,6 @@ public partial class Role
 
     public int? ModifiedBy { get; set; }
 
-    public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
-
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
-    public virtual ICollection<WorkflowStageApprover> WorkflowStageApprovers { get; set; } = new List<WorkflowStageApprover>();
 }

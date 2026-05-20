@@ -30,17 +30,6 @@ namespace HRManagement.Services.Exports
         public async Task<ExportResponseDTO> ExportAsync(ExportRequestDTO request)
         {
             int userId = _currentUserService.GetUserId();
-            Console.WriteLine($"USER ID FROM TOKEN: {userId}");
-
-            // Validate permission
-            if (!await HasExportPermissionAsync(userId))
-            {
-                return new ExportResponseDTO
-                {
-                    Success = false,
-                    Message = "MSG-82: Insufficient permissions."
-                };
-            }
 
             var data = await GetDataAsync(request);
 
@@ -102,17 +91,6 @@ namespace HRManagement.Services.Exports
                 ContentType = contentType,
                 Message = "Export generated successfully"
             };
-        }
-
-        private async Task<bool> HasExportPermissionAsync(int userId)
-        {
-            return await (
-                from ur in _context.UserRoles
-                join rp in _context.RolePermissions on ur.RoleId equals rp.RoleId
-                join p in _context.Permissions on rp.PermissionId equals p.PermissionId
-                where ur.UserId == userId && p.PermissionCode == "EXPORT"
-                select p
-            ).AnyAsync();
         }
 
         private async Task<List<Dictionary<string, object>>> GetDataAsync(ExportRequestDTO request)
