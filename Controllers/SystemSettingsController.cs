@@ -90,12 +90,17 @@ namespace HRManagement.Controllers
         [Authorize]
         public async Task<IActionResult> GetPayrollSettings()
         {
-            var setting = await _context.SystemSettings
-                .FirstOrDefaultAsync(s => s.SettingKey == "Payroll.CutOffDay");
+            var settings = await _context.SystemSettings
+                .Where(s => s.SettingKey == "Payroll.CutOffDay" || s.SettingKey == "Payroll.DefaultReviewWindowDays")
+                .ToListAsync();
+
+            var cutOff  = settings.FirstOrDefault(s => s.SettingKey == "Payroll.CutOffDay");
+            var review  = settings.FirstOrDefault(s => s.SettingKey == "Payroll.DefaultReviewWindowDays");
 
             var dto = new PayrollSettingsDto
             {
-                PayrollCutOffDay = setting != null && int.TryParse(setting.SettingValue, out var day) ? day : 1
+                PayrollCutOffDay        = cutOff != null && int.TryParse(cutOff.SettingValue, out var day) ? day : 1,
+                DefaultReviewWindowDays = review != null && int.TryParse(review.SettingValue, out var rw)  ? rw  : 5,
             };
 
             return Ok(dto);
@@ -108,7 +113,11 @@ namespace HRManagement.Controllers
             if (dto.PayrollCutOffDay < 1 || dto.PayrollCutOffDay > 28)
                 return BadRequest(new { message = "Ngày chốt lương phải từ 1 đến 28." });
 
-            await UpdateOrInsertSetting("Payroll.CutOffDay", dto.PayrollCutOffDay.ToString(), "Payroll");
+            if (dto.DefaultReviewWindowDays < 1 || dto.DefaultReviewWindowDays > 30)
+                return BadRequest(new { message = "Số ngày review phải từ 1 đến 30." });
+
+            await UpdateOrInsertSetting("Payroll.CutOffDay",                dto.PayrollCutOffDay.ToString(),        "Payroll");
+            await UpdateOrInsertSetting("Payroll.DefaultReviewWindowDays",  dto.DefaultReviewWindowDays.ToString(), "Payroll");
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật cấu hình kỳ lương thành công." });
         }

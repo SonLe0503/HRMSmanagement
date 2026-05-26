@@ -17,7 +17,9 @@ public partial class PayrollPeriod
 
     public string Status { get; set; } = null!;
 
-    public DateTime? AggregatedDate { get; set; }
+    public DateOnly AttendanceCutoffDate { get; set; }
+
+    public int ReviewWindowDays { get; set; }
 
     public DateTime? CalculatedDate { get; set; }
 

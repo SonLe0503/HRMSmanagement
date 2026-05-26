@@ -679,7 +679,6 @@ public partial class HrmsDbContext : DbContext
             entity.HasIndex(e => new { e.Month, e.Year }, "UQ_PayrollPeriods").IsUnique();
 
             entity.Property(e => e.PeriodId).HasColumnName("PeriodID");
-            entity.Property(e => e.AggregatedDate).HasColumnType("datetime");
             entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
             entity.Property(e => e.CalculatedDate).HasColumnType("datetime");
             entity.Property(e => e.Status)

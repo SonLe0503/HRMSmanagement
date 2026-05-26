@@ -366,17 +366,17 @@ namespace HRManagement.Controllers
         }
 
         // ══════════════════════════════════════════════
-        // UNDERREVIEW — PHÁT PHIẾU TẠM CHO NV XEM
+        // ATTENDANCE REVIEW
         // ══════════════════════════════════════════════
 
-        /// <summary>HR phát phiếu lương tạm: Calculated → UnderReview</summary>
-        [HttpPut("periods/{periodId:int}/publish")]
+        /// <summary>HR kích hoạt thủ công AttendanceReview (backup cho background service)</summary>
+        [HttpPut("periods/{periodId:int}/trigger-attendance-review")]
         [Authorize(Roles = "HR,ADMIN")]
-        public async Task<IActionResult> PublishForReview(int periodId, [FromBody] PublishForReviewDto dto)
+        public async Task<IActionResult> TriggerAttendanceReview(int periodId)
         {
             try
             {
-                var period = await _payrollService.PublishForReviewAsync(periodId, dto.ReviewDays);
+                var period = await _payrollService.TriggerAttendanceReviewAsync(periodId);
                 return Ok(period);
             }
             catch (Exception ex)
@@ -385,117 +385,7 @@ namespace HRManagement.Controllers
             }
         }
 
-        /// <summary>NV xem phiếu lương tạm của mình trong kỳ (UnderReview)</summary>
-        [HttpGet("records/my/{periodId:int}")]
-        [Authorize]
-        public async Task<IActionResult> GetMyRecordInPeriod(int periodId)
-        {
-            try
-            {
-                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
-
-                var record = await _payrollService.GetMyRecordInPeriodAsync(userId, periodId);
-                return Ok(record);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>Danh sách kỳ lương có record của NV hiện tại (để NV tự điều hướng)</summary>
-        [HttpGet("periods/my")]
-        [Authorize]
-        public async Task<IActionResult> GetMyPeriods()
-        {
-            try
-            {
-                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
-
-                var periods = await _payrollService.GetPeriodsForEmployeeAsync(userId);
-                return Ok(periods);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        // ══════════════════════════════════════════════
-        // PHẢN HỒI PHIẾU LƯƠNG (FEEDBACK)
-        // ══════════════════════════════════════════════
-
-        /// <summary>NV gửi phản hồi về phiếu lương tạm</summary>
-        [HttpPost("records/{recordId:int}/feedback")]
-        [Authorize]
-        public async Task<IActionResult> SubmitFeedback(int recordId, [FromBody] CreatePayrollFeedbackDto dto)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            try
-            {
-                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
-
-                var feedback = await _payrollService.SubmitFeedbackAsync(recordId, userId, dto);
-                return Ok(feedback);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return Forbid();
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>HR xem toàn bộ phản hồi của kỳ lương</summary>
-        [HttpGet("periods/{periodId:int}/feedbacks")]
-        [Authorize(Roles = "HR,ADMIN")]
-        public async Task<IActionResult> GetFeedbacksByPeriod(int periodId)
-        {
-            try
-            {
-                var feedbacks = await _payrollService.GetFeedbacksByPeriodAsync(periodId);
-                return Ok(feedbacks);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>HR xử lý phản hồi (Resolved / Dismissed)</summary>
-        [HttpPut("feedbacks/{feedbackId:int}/resolve")]
-        [Authorize(Roles = "HR,ADMIN")]
-        public async Task<IActionResult> ResolveFeedback(int feedbackId, [FromBody] ResolveFeedbackDto dto)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            try
-            {
-                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
-
-                var feedback = await _payrollService.ResolveFeedbackAsync(feedbackId, userId, dto);
-                return Ok(feedback);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>NV xem dữ liệu chấm công trong kỳ</summary>
+        /// <summary>NV xem bảng chấm công của mình trong kỳ (AttendanceReview)</summary>
         [HttpGet("records/my/{periodId:int}/attendance")]
         [Authorize]
         public async Task<IActionResult> GetMyAttendanceSummary(int periodId)
@@ -511,18 +401,18 @@ namespace HRManagement.Controllers
             catch (Exception ex)            { return BadRequest(new { message = ex.Message }); }
         }
 
-        /// <summary>NV xem lịch sử phản hồi của mình</summary>
-        [HttpGet("feedbacks/my")]
+        /// <summary>Danh sách kỳ lương của NV hiện tại</summary>
+        [HttpGet("periods/my")]
         [Authorize]
-        public async Task<IActionResult> GetMyFeedbacks()
+        public async Task<IActionResult> GetMyPeriods()
         {
             try
             {
                 var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
 
-                var feedbacks = await _payrollService.GetMyFeedbacksAsync(userId);
-                return Ok(feedbacks);
+                var periods = await _payrollService.GetPeriodsForEmployeeAsync(userId);
+                return Ok(periods);
             }
             catch (Exception ex)
             {
