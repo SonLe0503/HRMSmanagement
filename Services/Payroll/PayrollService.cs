@@ -163,6 +163,9 @@ namespace HRManagement.Services.Payroll
                 .FirstOrDefaultAsync(e => e.EmployeeId == employeeId)
                 ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
 
+            if (employee.JoinDate > period.EndDate)
+                throw new InvalidOperationException($"Nhân viên chưa gia nhập công ty trong kỳ lương này (Ngày vào làm: {employee.JoinDate:dd/MM/yyyy}).");
+
             // Load cấu hình tính lương từ SystemSettings (có fallback về mặc định)
             var calcSettings = await LoadPayrollCalcSettingsAsync();
 
@@ -310,7 +313,7 @@ namespace HRManagement.Services.Payroll
                 throw new InvalidOperationException("Chưa hết hạn review chấm công, chưa thể tính lương.");
 
             var employees = await _context.Employees
-                .Where(e => e.EmploymentStatus == "Active")
+                .Where(e => e.EmploymentStatus == "Active" && e.JoinDate <= period.EndDate)
                 .Select(e => e.EmployeeId)
                 .ToListAsync();
 
@@ -935,7 +938,7 @@ namespace HRManagement.Services.Payroll
         private async Task SendAttendanceReviewEmailsAsync(PayrollPeriod period)
         {
             var employees = await _context.Employees
-                .Where(e => e.EmploymentStatus == "Active" && e.Email != null)
+                .Where(e => e.EmploymentStatus == "Active" && e.JoinDate <= period.EndDate && e.Email != null)
                 .Select(e => new { e.EmployeeId, e.FullName, e.Email })
                 .ToListAsync();
 
@@ -1249,6 +1252,5 @@ namespace HRManagement.Services.Payroll
                 },
             };
         }
-
     }
 }
