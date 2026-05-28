@@ -118,6 +118,7 @@ builder.Services.AddScoped<TaxCalculationService>();
 builder.Services.AddScoped<IPayrollService, PayrollService>();
 
 builder.Services.AddHostedService<HRProcedureBackgroundService>();
+builder.Services.AddHostedService<PayrollAttendanceReviewService>();
 
 // CORS
 builder.Services.AddCors(options =>

@@ -10,6 +10,8 @@ namespace HRManagement.Mappers
         public PayrollProfile()
         {
             CreateMap<PayrollPeriod, PayrollPeriodDto>()
+                .ForMember(d => d.AttendanceCutoffDate, opt => opt.MapFrom(s => s.AttendanceCutoffDate))
+                .ForMember(d => d.ReviewWindowDays,     opt => opt.MapFrom(s => s.ReviewWindowDays))
                 .ForMember(d => d.TotalEmployees, opt => opt.MapFrom(s => s.PayrollRecords.Count))
                 // Tính từ components (không dùng GrossPay/NetPay nullable/stale trong DB)
                 .ForMember(d => d.TotalGrossPay,  opt => opt.MapFrom(s => s.PayrollRecords.Sum(r =>

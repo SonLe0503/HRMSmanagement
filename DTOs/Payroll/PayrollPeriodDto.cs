@@ -10,22 +10,19 @@ namespace HRManagement.DTOs.Payroll
         public int Year { get; set; }
         public DateOnly StartDate { get; set; }
         public DateOnly EndDate { get; set; }
-        public string Status { get; set; } = "";  // Open | Aggregated | Calculated | UnderReview | Approved | Rejected
+        public string Status { get; set; } = "";  // Open | AttendanceReview | Calculated | Approved | Rejected
+        public DateOnly AttendanceCutoffDate { get; set; }
+        public int ReviewWindowDays { get; set; }
         public int TotalEmployees { get; set; }
         public decimal TotalGrossPay { get; set; }
         public decimal TotalNetPay { get; set; }
         public decimal TotalInsurance { get; set; }
         public decimal TotalTax { get; set; }
-        public DateTime? AggregatedDate { get; set; }
         public DateTime? CalculatedDate { get; set; }
         public DateTime? ApprovedDate { get; set; }
         public string? ApprovedByName { get; set; }
-        // UnderReview fields
         public DateTime? ReviewDeadline { get; set; }
         public bool ReviewDeadlineExpired { get; set; }
-        public bool AllAgreed { get; set; }
-        public int AgreedCount { get; set; }
-        // Rejection fields
         public string? RejectionReason { get; set; }
         public string? RejectedByName { get; set; }
         public DateTime? RejectedDate { get; set; }
@@ -50,5 +47,12 @@ namespace HRManagement.DTOs.Payroll
 
         public DateOnly StartDate { get; set; }
         public DateOnly EndDate { get; set; }
+
+        [Required]
+        public DateOnly AttendanceCutoffDate { get; set; }
+
+        [Required]
+        [Range(1, 30)]
+        public int ReviewWindowDays { get; set; } = 5;
     }
 }
