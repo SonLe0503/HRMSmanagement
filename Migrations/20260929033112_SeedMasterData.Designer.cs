@@ -4,6 +4,7 @@ using HRManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRManagement.Migrations
 {
     [DbContext(typeof(HrmsDbContext))]
-    partial class HrmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929033112_SeedMasterData")]
+    partial class SeedMasterData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -623,6 +626,266 @@ namespace HRManagement.Migrations
                     b.HasIndex("EmployeeId");
 
                     b.ToTable("EmployeeDocuments");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.Evaluation", b =>
+                {
+                    b.Property<int>("EvaluationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("EvaluationID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EvaluationId"));
+
+                    b.Property<DateTime?>("AcknowledgedDate")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("AcknowledgementComments")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CycleId")
+                        .HasColumnType("int")
+                        .HasColumnName("CycleID");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("EmployeeID");
+
+                    b.Property<decimal?>("OverallRating")
+                        .HasColumnType("decimal(3, 2)");
+
+                    b.Property<int?>("PrimaryEvaluatorId")
+                        .HasColumnType("int")
+                        .HasColumnName("PrimaryEvaluatorID");
+
+                    b.Property<int?>("SecondaryEvaluatorId")
+                        .HasColumnType("int")
+                        .HasColumnName("SecondaryEvaluatorID");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Not Started");
+
+                    b.Property<DateTime?>("SubmittedDate")
+                        .HasColumnType("datetime");
+
+                    b.Property<int>("TemplateId")
+                        .HasColumnType("int")
+                        .HasColumnName("TemplateID");
+
+                    b.HasKey("EvaluationId")
+                        .HasName("PK__Evaluati__36AE68D3349E1779");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PrimaryEvaluatorId");
+
+                    b.HasIndex("SecondaryEvaluatorId");
+
+                    b.HasIndex("TemplateId");
+
+                    b.HasIndex(new[] { "CycleId", "EmployeeId" }, "UQ_Evaluations")
+                        .IsUnique();
+
+                    b.ToTable("Evaluations");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationCriterion", b =>
+                {
+                    b.Property<int>("CriteriaId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("CriteriaID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CriteriaId"));
+
+                    b.Property<string>("CriteriaCategory")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CriteriaName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TemplateId")
+                        .HasColumnType("int")
+                        .HasColumnName("TemplateID");
+
+                    b.Property<int>("Weightage")
+                        .HasColumnType("int");
+
+                    b.HasKey("CriteriaId")
+                        .HasName("PK__Evaluati__FE6ADB2D58C14D2A");
+
+                    b.HasIndex(new[] { "TemplateId", "DisplayOrder" }, "UQ_Criteria")
+                        .IsUnique();
+
+                    b.ToTable("EvaluationCriteria");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationCycle", b =>
+                {
+                    b.Property<int>("CycleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("CycleID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CycleId"));
+
+                    b.Property<string>("ApplicableDepartments")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<string>("CycleName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CycleType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateOnly>("EvaluationPeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("EvaluationPeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("ManagerEvaluationEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("ManagerEvaluationStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ReviewMeetingEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ReviewMeetingStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("SelfEvaluationEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("SelfEvaluationStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Draft");
+
+                    b.HasKey("CycleId")
+                        .HasName("PK__Evaluati__077B24D9A63CD15C");
+
+                    b.HasIndex(new[] { "CycleName" }, "UQ__Evaluati__E08EC4DB369895DC")
+                        .IsUnique();
+
+                    b.ToTable("EvaluationCycles");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationRating", b =>
+                {
+                    b.Property<int>("RatingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("RatingID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RatingId"));
+
+                    b.Property<int>("CriteriaId")
+                        .HasColumnType("int")
+                        .HasColumnName("CriteriaID");
+
+                    b.Property<int>("EvaluationId")
+                        .HasColumnType("int")
+                        .HasColumnName("EvaluationID");
+
+                    b.Property<string>("Evidence")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ManagerComments")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("ManagerRating")
+                        .HasColumnType("decimal(3, 2)");
+
+                    b.Property<string>("SelfComments")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("SelfRating")
+                        .HasColumnType("decimal(3, 2)");
+
+                    b.HasKey("RatingId")
+                        .HasName("PK__Evaluati__FCCDF85C69565A87");
+
+                    b.HasIndex("CriteriaId");
+
+                    b.HasIndex(new[] { "EvaluationId", "CriteriaId" }, "UQ_EvaluationRatings")
+                        .IsUnique();
+
+                    b.ToTable("EvaluationRatings");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationTemplate", b =>
+                {
+                    b.Property<int>("TemplateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("TemplateID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TemplateId"));
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("TemplateId")
+                        .HasName("PK__Evaluati__F87ADD07F22F93BD");
+
+                    b.HasIndex(new[] { "TemplateName" }, "UQ__Evaluati__A6C2DA66154EF91D")
+                        .IsUnique();
+
+                    b.ToTable("EvaluationTemplates");
                 });
 
             modelBuilder.Entity("HRManagement.Models.FaceProfile", b =>
@@ -2235,6 +2498,77 @@ namespace HRManagement.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("HRManagement.Models.Evaluation", b =>
+                {
+                    b.HasOne("HRManagement.Models.EvaluationCycle", "Cycle")
+                        .WithMany("Evaluations")
+                        .HasForeignKey("CycleId")
+                        .IsRequired()
+                        .HasConstraintName("FK_Evaluations_Cycles");
+
+                    b.HasOne("HRManagement.Models.Employee", "Employee")
+                        .WithMany("EvaluationEmployees")
+                        .HasForeignKey("EmployeeId")
+                        .IsRequired()
+                        .HasConstraintName("FK_Evaluations_Employees");
+
+                    b.HasOne("HRManagement.Models.Employee", "PrimaryEvaluator")
+                        .WithMany("EvaluationPrimaryEvaluators")
+                        .HasForeignKey("PrimaryEvaluatorId")
+                        .HasConstraintName("FK_Evaluations_PrimaryEvaluator");
+
+                    b.HasOne("HRManagement.Models.Employee", "SecondaryEvaluator")
+                        .WithMany("EvaluationSecondaryEvaluators")
+                        .HasForeignKey("SecondaryEvaluatorId")
+                        .HasConstraintName("FK_Evaluations_SecondaryEvaluator");
+
+                    b.HasOne("HRManagement.Models.EvaluationTemplate", "Template")
+                        .WithMany("Evaluations")
+                        .HasForeignKey("TemplateId")
+                        .IsRequired()
+                        .HasConstraintName("FK_Evaluations_Templates");
+
+                    b.Navigation("Cycle");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PrimaryEvaluator");
+
+                    b.Navigation("SecondaryEvaluator");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationCriterion", b =>
+                {
+                    b.HasOne("HRManagement.Models.EvaluationTemplate", "Template")
+                        .WithMany("EvaluationCriteria")
+                        .HasForeignKey("TemplateId")
+                        .IsRequired()
+                        .HasConstraintName("FK_EvaluationCriteria_Templates");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationRating", b =>
+                {
+                    b.HasOne("HRManagement.Models.EvaluationCriterion", "Criteria")
+                        .WithMany("EvaluationRatings")
+                        .HasForeignKey("CriteriaId")
+                        .IsRequired()
+                        .HasConstraintName("FK_EvaluationRatings_Criteria");
+
+                    b.HasOne("HRManagement.Models.Evaluation", "Evaluation")
+                        .WithMany("EvaluationRatings")
+                        .HasForeignKey("EvaluationId")
+                        .IsRequired()
+                        .HasConstraintName("FK_EvaluationRatings_Evaluations");
+
+                    b.Navigation("Criteria");
+
+                    b.Navigation("Evaluation");
+                });
+
             modelBuilder.Entity("HRManagement.Models.FaceProfile", b =>
                 {
                     b.HasOne("HRManagement.Models.Employee", "Employee")
@@ -2607,6 +2941,12 @@ namespace HRManagement.Migrations
 
                     b.Navigation("EmployeeDocuments");
 
+                    b.Navigation("EvaluationEmployees");
+
+                    b.Navigation("EvaluationPrimaryEvaluators");
+
+                    b.Navigation("EvaluationSecondaryEvaluators");
+
                     b.Navigation("Hrprocedures");
 
                     b.Navigation("InverseManager");
@@ -2624,6 +2964,28 @@ namespace HRManagement.Migrations
                     b.Navigation("ShiftAssignments");
 
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.Evaluation", b =>
+                {
+                    b.Navigation("EvaluationRatings");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationCriterion", b =>
+                {
+                    b.Navigation("EvaluationRatings");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationCycle", b =>
+                {
+                    b.Navigation("Evaluations");
+                });
+
+            modelBuilder.Entity("HRManagement.Models.EvaluationTemplate", b =>
+                {
+                    b.Navigation("EvaluationCriteria");
+
+                    b.Navigation("Evaluations");
                 });
 
             modelBuilder.Entity("HRManagement.Models.LeaveType", b =>

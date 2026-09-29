@@ -21,7 +21,6 @@ using HRManagement.Services.Shifts;
 using HRManagement.Services.Users;
 using HRManagement.Services.Tasks;
 using HRManagement.Services.Approvals;
-using HRManagement.Services.Evaluations;
 using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
@@ -57,11 +56,6 @@ builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
 builder.Services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
-builder.Services.AddScoped<IEvaluationRepository, EvaluationRepository>();
-builder.Services.AddScoped<IEvaluationTemplateRepository, EvaluationTemplateRepository>();
-builder.Services.AddScoped<IEvaluationCycleRepository, EvaluationCycleRepository>();
-builder.Services.AddScoped<IEvaluationCriteriaRepository, EvaluationCriteriaRepository>();
-builder.Services.AddScoped<IEvaluationRatingRepository, EvaluationRatingRepository>();
 
 // User, Auth & Task Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -98,16 +92,9 @@ builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
 builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 
-// Specialized Services (Evaluation, Analytics, etc.)
-builder.Services.AddScoped<IEvaluationService, EvaluationService>();
-builder.Services.AddScoped<IEvaluationTemplateService, EvaluationTemplateService>();
-builder.Services.AddScoped<IEvaluationCycleService, EvaluationCycleService>();
-builder.Services.AddScoped<IEvaluationCriteriaService, EvaluationCriteriaService>();
-builder.Services.AddScoped<ISubmitEvaluationService, SubmitEvaluationService>();
-builder.Services.AddScoped<IViewEvaluationResultService, ViewEvaluationResultService>();
+// Specialized Services (Analytics, etc.)
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
-builder.Services.AddScoped<ICompetencyReportService, CompetencyReportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 
 // Resignation Request

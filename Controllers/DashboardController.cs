@@ -140,16 +140,6 @@ namespace HRManagement.Controllers
 
             stats.PendingLeaveRequests = await _context.LeaveRequests.CountAsync(r => r.Status == "Pending");
 
-            // 3. Evaluations
-            stats.PendingEvaluations = await _context.Evaluations.CountAsync(e => e.Status == "Pending");
-            stats.CompletedEvaluations = await _context.Evaluations.CountAsync(e => e.Status == "Completed" && e.SubmittedDate >= start.ToDateTime(TimeOnly.MinValue));
-            
-            var completedEvaluations = await _context.Evaluations.Where(e => e.Status == "Completed" && e.OverallRating.HasValue).ToListAsync();
-            if (completedEvaluations.Any())
-            {
-                stats.AveragePerformanceScore = Math.Round((double)completedEvaluations.Average(e => e.OverallRating!.Value), 1);
-            }
-
             // 4. Upcoming Events
             var upcomingProbation = await _context.Employees
                 .Where(e => e.EmploymentStatus == "Active" && e.JoinDate.AddMonths(2) >= today && e.JoinDate.AddMonths(2) <= today.AddDays(30))
@@ -187,7 +177,7 @@ namespace HRManagement.Controllers
             // Recent Activities
             var recentActivities = await _context.AuditLogs
                 .Include(a => a.User)
-                .Where(a => a.TableName == "Employees" || a.TableName == "LeaveRequests" || a.TableName == "Evaluations")
+                .Where(a => a.TableName == "Employees" || a.TableName == "LeaveRequests")
                 .OrderByDescending(a => a.ActionDate)
                 .Take(5)
                 .Select(a => new RecentActivityDto
@@ -287,7 +277,6 @@ namespace HRManagement.Controllers
             {
                 result.TaskPerformance.CompletionRate = Math.Round((double)teamTasks.Count(t => t.Status == "Completed") / teamTasks.Count * 100, 1);
             }
-            result.TaskPerformance.PendingEvaluations = await _context.Evaluations.CountAsync(e => teamEmployeeIds.Contains(e.EmployeeId) && e.Status == "Pending");
 
             // 5. Action Summary
             result.ActionSummary.PendingLeaveApprovals = result.PendingLeaveRequests.Count;

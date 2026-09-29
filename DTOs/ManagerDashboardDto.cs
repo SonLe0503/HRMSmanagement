@@ -43,7 +43,6 @@ namespace HRManagement.DTOs
         public int ActiveTasks { get; set; }
         public int OverdueTasks { get; set; }
         public double CompletionRate { get; set; }
-        public int PendingEvaluations { get; set; }
     }
 
     public class RequestActionSummaryDto

@@ -65,12 +65,6 @@ public partial class Employee
 
     public virtual ICollection<EmployeeDocument> EmployeeDocuments { get; set; } = new List<EmployeeDocument>();
 
-    public virtual ICollection<Evaluation> EvaluationEmployees { get; set; } = new List<Evaluation>();
-
-    public virtual ICollection<Evaluation> EvaluationPrimaryEvaluators { get; set; } = new List<Evaluation>();
-
-    public virtual ICollection<Evaluation> EvaluationSecondaryEvaluators { get; set; } = new List<Evaluation>();
-
     public virtual ICollection<Hrprocedure> Hrprocedures { get; set; } = new List<Hrprocedure>();
 
     public virtual ICollection<Employee> InverseManager { get; set; } = new List<Employee>();

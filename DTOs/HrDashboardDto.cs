@@ -20,9 +20,6 @@ namespace HRManagement.DTOs
         public double OverallAttendanceRate { get; set; }
         public double AverageLeaveDays { get; set; }
         public int PendingLeaveRequests { get; set; }
-        public int PendingEvaluations { get; set; }
-        public int CompletedEvaluations { get; set; }
-        public double AveragePerformanceScore { get; set; }
     }
 
     public class UpcomingEventDto

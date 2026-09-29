@@ -68,10 +68,6 @@ namespace HRManagement.Services.Analytics
                             && o.OvertimeDate <= endDate)
                 .ToListAsync();
 
-            var evaluations = await _context.Evaluations
-                .Where(e => employeeIds.Contains(e.EmployeeId))
-                .ToListAsync();
-
             await _auditService.TrackAsync(userId, "SELECT", "Viewed workforce analytics");
 
             return new WorkforceAnalyticsResponseDTO
@@ -81,7 +77,7 @@ namespace HRManagement.Services.Analytics
                 HeadcountAnalytics = BuildHeadcountAnalytics(employees, startDate, endDate),
                 DemographicsAnalytics = BuildDemographicsAnalytics(employees, today),
                 AttritionAnalytics = BuildAttritionAnalytics(employees, startDate, endDate),
-                TalentAnalytics = BuildTalentAnalytics(employees, evaluations),
+                TalentAnalytics = BuildTalentAnalytics(),
                 EngagementProductivity = BuildEngagementAnalytics(attendanceRecords, leaveRequests, overtimeRequests)
             };
         }
@@ -327,21 +323,12 @@ namespace HRManagement.Services.Analytics
             };
         }
 
-        private TalentAnalyticsDTO BuildTalentAnalytics(List<Employee> employees, List<Evaluation> evaluations)
+        private TalentAnalyticsDTO BuildTalentAnalytics()
         {
-            var ratingDistribution = evaluations
-                .Where(e => e.OverallRating.HasValue)
-                .GroupBy(e => e.OverallRating)
-                .Select(g => new { Rating = g.Key, Count = g.Count() })
-                .Cast<object>()
-                .ToList();
-
-            int highPerformers = evaluations.Count(e => e.OverallRating.HasValue && e.OverallRating >= 4);
-
             return new TalentAnalyticsDTO
             {
-                PerformanceRatingDistribution = ratingDistribution,
-                HighPerformerCount = highPerformers,
+                PerformanceRatingDistribution = new List<object>(),
+                HighPerformerCount = 0,
                 PromotionRate = 0,
                 InternalMobilityPatterns = new List<object>(),
                 SkillGapAnalysis = new List<object>()
