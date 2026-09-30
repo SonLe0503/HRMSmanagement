@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs.SystemSettings;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -43,7 +44,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("location")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("SystemSettings.ManageGeneral")]
         public async Task<IActionResult> UpdateLocationSettings([FromBody] LocationSettingsDto dto)
         {
             await UpdateOrInsertSetting("OfficeLatitude", dto.OfficeLatitude.ToString(), "Attendance");
@@ -77,7 +78,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("approval")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("SystemSettings.ManageGeneral")]
         public async Task<IActionResult> UpdateApprovalSettings([FromBody] ApprovalSettingsDto dto)
         {
             await UpdateOrInsertSetting("Approval.TopLevelFallbackUserId", dto.TopLevelFallbackUserId?.ToString() ?? "", "Workflow");
@@ -107,7 +108,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("payroll")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("SystemSettings.ManagePayroll")]
         public async Task<IActionResult> UpdatePayrollSettings([FromBody] PayrollSettingsDto dto)
         {
             if (dto.PayrollCutOffDay < 1 || dto.PayrollCutOffDay > 28)
@@ -156,7 +157,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("payroll-calculation")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("SystemSettings.ManageAdvanced")]
         public async Task<IActionResult> UpdatePayrollCalculationSettings([FromBody] PayrollCalculationSettingsDto dto)
         {
             if (dto.BhxhRate < 0 || dto.BhxhRate > 100)         return BadRequest(new { message = "Tỷ lệ BHXH không hợp lệ." });
@@ -212,7 +213,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("company")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("SystemSettings.ManageAdvanced")]
         public async Task<IActionResult> UpdateCompanySettings([FromBody] CompanySettingsDto dto)
         {
             await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "General");

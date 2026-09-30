@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Services.Users;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,7 @@ namespace HRManagement.Controllers
             _userService = userService;
         }
 
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("User.View")]
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -25,7 +26,7 @@ namespace HRManagement.Controllers
             return Ok(users);
         }
 
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("User.View")]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
@@ -33,7 +34,7 @@ namespace HRManagement.Controllers
             return user is null ? NotFound() : Ok(user);
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("User.Manage")]
         [HttpPost]
         public async Task<IActionResult> CreateUser(CreateUserDTO dto)
         {
@@ -44,7 +45,7 @@ namespace HRManagement.Controllers
             return Ok(new { message = "User created successfully", username });
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("User.Manage")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(int id, UpdateUserDTO dto)
         {
@@ -57,7 +58,7 @@ namespace HRManagement.Controllers
             return Ok("User updated successfully");
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("User.Manage")]
         [HttpPatch("{id}/deactivate")]
         public async Task<IActionResult> DeactivateUser(int id)
         {
@@ -65,7 +66,7 @@ namespace HRManagement.Controllers
             return success ? Ok("User deactivated") : NotFound();
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("User.Manage")]
         [HttpPatch("{id}/activate")]
         public async Task<IActionResult> ActivateUser(int id)
         {

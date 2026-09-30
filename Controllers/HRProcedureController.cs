@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Services.HRProceduces;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("HRProcedure.Submit")]
         public async Task<ActionResult<HRProcedureResponseDto>> SubmitProcedure([FromBody] CreateHRProcedureDto createDto)
         {
             try
@@ -87,7 +88,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "ADMIN,MANAGE,HR")]
+        [RequirePermission("HRProcedure.Manage")]
         public async Task<ActionResult<HRProcedureResponseDto>> UpdateProcedure(
             int id,
             [FromBody] UpdateHRProcedureDto updateDto)
@@ -112,7 +113,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("{id}/approve")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("HRProcedure.Approve")]
         public async Task<ActionResult<HRProcedureResponseDto>> ApproveProcedure(
             int id,
             [FromBody] ApproveHRProcedureDto approveDto)
@@ -137,7 +138,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("{id}/reject")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("HRProcedure.Approve")]
         public async Task<ActionResult<HRProcedureResponseDto>> RejectProcedure(
             int id,
             [FromBody] RejectHRProcedureDto rejectDto)
@@ -166,7 +167,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "ADMIN,MANAGE,HR")]
+        [RequirePermission("HRProcedure.Manage")]
         public async Task<ActionResult> DeleteProcedure(int id)
         {
             var deleted = await _procedureService.DeleteProcedureAsync(id);
@@ -179,7 +180,7 @@ namespace HRManagement.Controllers
 
         /// <summary>Phase 2: Manually apply an Approved procedure (e.g. when EffectiveDate is reached)</summary>
         [HttpPost("{id}/apply")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("HRProcedure.Approve")]
         public async Task<ActionResult<HRProcedureResponseDto>> ApplyProcedure(int id)
         {
             try

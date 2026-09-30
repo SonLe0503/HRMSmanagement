@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace HRManagement.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "ADMIN,HR,MANAGER,MANAGE")]
+    [Authorize]
     public class DashboardController : ControllerBase
     {
         private readonly HrmsDbContext _context;
@@ -20,7 +21,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("admin-stats")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("Dashboard.Admin")]
         public async Task<IActionResult> GetAdminStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
@@ -104,7 +105,7 @@ namespace HRManagement.Controllers
             });
         }
         [HttpGet("hr-stats")]
-        [Authorize(Roles = "ADMIN,HR")]
+        [RequirePermission("Dashboard.Hr")]
         public async Task<IActionResult> GetHrStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
@@ -197,7 +198,7 @@ namespace HRManagement.Controllers
             });
         }
         [HttpGet("manager-stats")]
-        [Authorize(Roles = "MANAGE")]
+        [RequirePermission("Dashboard.Manager")]
         public async Task<IActionResult> GetManagerStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
         {
             var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");

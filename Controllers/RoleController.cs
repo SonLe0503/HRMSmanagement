@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -12,9 +13,11 @@ namespace HRManagement.Controllers
     public class RoleController : Controller
     {
         private readonly HrmsDbContext _context;
-        public RoleController(HrmsDbContext context)
+        private readonly IPermissionCache _permissionCache;
+        public RoleController(HrmsDbContext context, IPermissionCache permissionCache)
         {
             _context = context;
+            _permissionCache = permissionCache;
         }
         [Authorize(Roles = "ADMIN")]
         [HttpGet]
@@ -56,6 +59,7 @@ namespace HRManagement.Controllers
 
             return Ok(role);
         }
+        [Authorize(Roles = "ADMIN")]
         [HttpPost]
         public async Task<IActionResult> CreateRole(CreateRoleDTO dto)
         {
@@ -100,7 +104,69 @@ namespace HRManagement.Controllers
             role.ModifiedDate = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            _permissionCache.Invalidate();
             return Ok("Role status updated");
+        }
+
+        [Authorize(Roles = "ADMIN")]
+        [HttpGet("permissions")]
+        public async Task<IActionResult> GetPermissionCatalog()
+        {
+            var permissions = await _context.Permissions
+                .Where(p => p.IsActive)
+                .OrderBy(p => p.DisplayOrder)
+                .ThenBy(p => p.PermissionId)
+                .Select(p => new PermissionResponseDTO
+                {
+                    PermissionId = p.PermissionId,
+                    PermissionKey = p.PermissionKey,
+                    DisplayName = p.DisplayName,
+                    Category = p.Category,
+                    Description = p.Description,
+                    DisplayOrder = p.DisplayOrder
+                })
+                .ToListAsync();
+
+            return Ok(permissions);
+        }
+
+        [Authorize(Roles = "ADMIN")]
+        [HttpGet("{id}/permissions")]
+        public async Task<IActionResult> GetRolePermissions(int id)
+        {
+            if (!await _context.Roles.AnyAsync(r => r.RoleId == id))
+                return NotFound();
+
+            var keys = await _context.RolePermissions
+                .Where(rp => rp.RoleId == id)
+                .Select(rp => rp.Permission.PermissionKey)
+                .ToListAsync();
+
+            return Ok(keys);
+        }
+
+        [Authorize(Roles = "ADMIN")]
+        [HttpPut("{id}/permissions")]
+        public async Task<IActionResult> UpdateRolePermissions(int id, [FromBody] UpdateRolePermissionsDTO dto)
+        {
+            var role = await _context.Roles.FindAsync(id);
+            if (role == null)
+                return NotFound();
+
+            var permissionIds = await _context.Permissions
+                .Where(p => dto.PermissionKeys.Contains(p.PermissionKey))
+                .Select(p => p.PermissionId)
+                .ToListAsync();
+
+            var existing = _context.RolePermissions.Where(rp => rp.RoleId == id);
+            _context.RolePermissions.RemoveRange(existing);
+
+            foreach (var permissionId in permissionIds)
+                _context.RolePermissions.Add(new RolePermission { RoleId = id, PermissionId = permissionId });
+
+            await _context.SaveChangesAsync();
+            _permissionCache.Invalidate();
+            return Ok("Role permissions updated");
         }
 
     }

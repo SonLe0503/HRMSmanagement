@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.Configuration;
 using HRManagement.DataAcess;
 using HRManagement.DataAcess.Implementations;
@@ -21,7 +22,6 @@ using HRManagement.Services.Shifts;
 using HRManagement.Services.Users;
 using HRManagement.Services.Tasks;
 using HRManagement.Services.Approvals;
-using HRManagement.Services.Analytics;
 using HRManagement.Services.Audits;
 using HRManagement.Services.Exports;
 using HRManagement.Services.Backgrounds;
@@ -29,6 +29,7 @@ using HRManagement.Services.Payroll;
 using HRManagement.Services.Resignations;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -92,9 +93,8 @@ builder.Services.AddScoped<ITopLevelResolver, TopLevelResolver>();
 builder.Services.AddScoped<IApprovalRouteService, ApprovalRouteService>();
 builder.Services.AddScoped<FaceEmbeddingService>();
 
-// Specialized Services (Analytics, etc.)
+// Specialized Services
 builder.Services.AddScoped<IAuditService, AuditService>();
-builder.Services.AddScoped<IWorkforceAnalyticsService, WorkforceAnalyticsService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 
 // Resignation Request
@@ -192,6 +192,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddSingleton<IPermissionCache, PermissionCache>();
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // Controllers & JSON configuration
 builder.Services.AddControllers().AddJsonOptions(options =>

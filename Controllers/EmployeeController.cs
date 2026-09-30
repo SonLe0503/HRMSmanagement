@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Services.Employees;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,7 @@ namespace HRManagement.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class EmployeeController : ControllerBase
     {
         private readonly IEmployeeService _employeeService;
@@ -29,13 +31,14 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("approval-analysis")]
-        [Authorize(Roles = "ADMIN,MANAGE")]
+        [RequirePermission("Employee.Manage")]
         public async Task<IActionResult> GetApprovalAnalysis()
         {
             var analysis = await _employeeService.GetApprovalAnalysisAsync();
             return Ok(analysis);
         }
         [HttpPost]
+        [RequirePermission("Employee.Manage")]
         public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)
         {
             if (!ModelState.IsValid)
@@ -60,6 +63,7 @@ namespace HRManagement.Controllers
             }
         }
         [HttpPut("{id}")]
+        [RequirePermission("Employee.Manage")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeDto dto)
         {
             if (!ModelState.IsValid)
@@ -84,6 +88,7 @@ namespace HRManagement.Controllers
             }
         }
         [HttpPatch("{id}/status")]
+        [RequirePermission("Employee.Manage")]
         public async Task<IActionResult> UpdateStatus(
             int id,
             [FromQuery] string status,

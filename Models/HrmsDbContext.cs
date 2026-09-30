@@ -52,9 +52,17 @@ public partial class HrmsDbContext : DbContext
 
     public virtual DbSet<Payslip> Payslips { get; set; }
 
+    public virtual DbSet<Menu> Menus { get; set; }
+
+    public virtual DbSet<Permission> Permissions { get; set; }
+
     public virtual DbSet<Position> Positions { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
+
+    public virtual DbSet<RolePermission> RolePermissions { get; set; }
+
+    public virtual DbSet<RoleMenu> RoleMenus { get; set; }
 
     public virtual DbSet<Shift> Shifts { get; set; }
 
@@ -689,6 +697,80 @@ public partial class HrmsDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
             entity.Property(e => e.RoleName).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.HasKey(e => e.PermissionId);
+
+            entity.HasIndex(e => e.PermissionKey).IsUnique();
+
+            entity.Property(e => e.PermissionId).HasColumnName("PermissionID");
+            entity.Property(e => e.PermissionKey).HasMaxLength(100);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.Category).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<Menu>(entity =>
+        {
+            entity.HasKey(e => e.MenuId);
+
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => new { e.ParentId, e.DisplayOrder });
+
+            entity.Property(e => e.MenuId).HasColumnName("MenuID");
+            entity.Property(e => e.ParentId).HasColumnName("ParentID");
+            entity.Property(e => e.Code).HasMaxLength(100);
+            entity.Property(e => e.Title).HasMaxLength(200);
+            entity.Property(e => e.Route).HasMaxLength(300);
+            entity.Property(e => e.IconName).HasMaxLength(100);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+
+            entity.HasOne(d => d.Parent).WithMany(p => p.Children)
+                .HasForeignKey(d => d.ParentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_Menus_Parent");
+        });
+
+        modelBuilder.Entity<RoleMenu>(entity =>
+        {
+            entity.HasKey(e => new { e.RoleId, e.MenuId });
+
+            entity.Property(e => e.RoleId).HasColumnName("RoleID");
+            entity.Property(e => e.MenuId).HasColumnName("MenuID");
+
+            entity.HasOne(d => d.Role).WithMany(p => p.RoleMenus)
+                .HasForeignKey(d => d.RoleId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_RoleMenus_Roles");
+
+            entity.HasOne(d => d.Menu).WithMany(p => p.RoleMenus)
+                .HasForeignKey(d => d.MenuId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_RoleMenus_Menus");
+        });
+
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.HasKey(e => e.RolePermissionId);
+
+            entity.HasIndex(e => new { e.RoleId, e.PermissionId }, "UQ_RolePermissions").IsUnique();
+
+            entity.Property(e => e.RolePermissionId).HasColumnName("RolePermissionID");
+            entity.Property(e => e.RoleId).HasColumnName("RoleID");
+            entity.Property(e => e.PermissionId).HasColumnName("PermissionID");
+
+            entity.HasOne(d => d.Role).WithMany(p => p.RolePermissions)
+                .HasForeignKey(d => d.RoleId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_RolePermissions_Roles");
+
+            entity.HasOne(d => d.Permission).WithMany(p => p.RolePermissions)
+                .HasForeignKey(d => d.PermissionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_RolePermissions_Permissions");
         });
 
         modelBuilder.Entity<Shift>(entity =>

@@ -1,13 +1,13 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs;
 using HRManagement.Services.Exports;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRManagement.Controllers
 {
     [ApiController]
     [Route("api/reports")]
-    [Authorize(Roles = "ADMIN,HR")]
+    [RequirePermission("Reports.Export")]
     public class ExportController : ControllerBase
     {
         private readonly IExportService _exportService;

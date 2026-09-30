@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs.Payroll;
 using HRManagement.Services.Payroll;
 using Microsoft.AspNetCore.Authorization;
@@ -26,7 +27,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpGet("periods")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("Payroll.View")]
         public async Task<IActionResult> GetPeriods()
         {
             var periods = await _payrollService.GetAllPeriodsAsync();
@@ -34,7 +35,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> CreatePeriod([FromBody] CreatePayrollPeriodDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -50,7 +51,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("periods/{periodId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("Payroll.View")]
         public async Task<IActionResult> GetPeriodById(int periodId)
         {
             try
@@ -65,7 +66,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("periods/{periodId:int}/summary")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("Payroll.View")]
         public async Task<IActionResult> GetPeriodSummary(int periodId)
         {
             try
@@ -80,7 +81,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods/{periodId:int}/calculate")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> CalculateAll(int periodId)
         {
             try
@@ -95,7 +96,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("lock-approved-attendance")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("Payroll.Approve")]
         public async Task<IActionResult> LockApprovedAttendance()
         {
             try
@@ -110,7 +111,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("periods/{periodId:int}/reject")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("Payroll.Approve")]
         public async Task<IActionResult> RejectPeriod(int periodId, [FromBody] RejectPayrollPeriodDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -133,7 +134,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("periods/{periodId:int}/approve")]
-        [Authorize(Roles = "ADMIN")]
+        [RequirePermission("Payroll.Approve")]
         public async Task<IActionResult> ApprovePeriod(int periodId)
         {
             try
@@ -155,7 +156,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpGet("records/{periodId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("Payroll.View")]
         public async Task<IActionResult> GetRecordsByPeriod(int periodId)
         {
             if (User.IsInRole("MANAGE"))
@@ -173,7 +174,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpGet("records/detail/{recordId:int}")]
-        [Authorize(Roles = "ADMIN,HR,MANAGE")]
+        [RequirePermission("Payroll.View")]
         public async Task<IActionResult> GetRecord(int recordId)
         {
             try
@@ -196,7 +197,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("periods/{periodId:int}/calculate/{employeeId:int}")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> CalculateForEmployee(int periodId, int employeeId)
         {
             try
@@ -211,7 +212,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("records/{recordId:int}/bonus")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> UpdateBonus(int recordId, [FromBody] decimal bonusAmount)
         {
             try
@@ -226,7 +227,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("records/{recordId:int}/allowance")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> AddAllowance(int recordId, [FromBody] CreatePayrollAllowanceDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -242,7 +243,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("records/{recordId:int}/allowance/{allowanceId:int}")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> RemoveAllowance(int recordId, int allowanceId)
         {
             try
@@ -257,7 +258,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("records/{recordId:int}/deduction")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> AddDeduction(int recordId, [FromBody] CreatePayrollDeductionDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -273,7 +274,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpDelete("records/{recordId:int}/deduction/{deductionId:int}")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> RemoveDeduction(int recordId, int deductionId)
         {
             try
@@ -292,7 +293,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpPost("payslips/period/{periodId:int}/generate-all")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> GeneratePayslipsForPeriod(int periodId)
         {
             try
@@ -307,7 +308,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost("payslips/{recordId:int}/generate")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> GeneratePayslip(int recordId)
         {
             try {
@@ -346,7 +347,7 @@ namespace HRManagement.Controllers
         // ══════════════════════════════════════════════
 
         [HttpGet("export/{periodId:int}")]
-        [Authorize(Roles = "HR")]
+        [RequirePermission("Payroll.Process")]
         public async Task<IActionResult> ExportExcel(int periodId)
         {
             try {
@@ -371,7 +372,7 @@ namespace HRManagement.Controllers
 
         /// <summary>HR kích hoạt thủ công AttendanceReview (backup cho background service)</summary>
         [HttpPut("periods/{periodId:int}/trigger-attendance-review")]
-        [Authorize(Roles = "HR,ADMIN")]
+        [RequirePermission("Payroll.Process", "Payroll.Approve")]
         public async Task<IActionResult> TriggerAttendanceReview(int periodId)
         {
             try

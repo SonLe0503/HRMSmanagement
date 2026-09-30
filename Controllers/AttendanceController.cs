@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DTOs.Attendances;
 using HRManagement.Models;
 using HRManagement.Services.Attendances;
@@ -366,7 +367,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{attendanceId:int}/lock")]
-        [Authorize(Roles = "HR,ADMIN,MANAGE")]
+        [RequirePermission("Attendance.Manage")]
         public async Task<IActionResult> Lock(int attendanceId)
         {
             try
@@ -402,7 +403,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{attendanceId:int}/unlock")]
-        [Authorize(Roles = "HR,ADMIN,MANAGE")]
+        [RequirePermission("Attendance.Manage")]
         public async Task<IActionResult> Unlock(int attendanceId)
         {
             try
