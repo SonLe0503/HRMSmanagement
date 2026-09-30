@@ -111,11 +111,17 @@ builder.Services.AddHostedService<PayrollAttendanceReviewService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
-        policy.WithOrigins("http://localhost:5173", "https://app.peoplecore.tech")
-              .AllowAnyHeader()
+    {
+        // In development allow any origin so the client can be opened from other devices on the LAN.
+        if (builder.Environment.IsDevelopment())
+            policy.SetIsOriginAllowed(_ => true);
+        else
+            policy.WithOrigins("http://localhost:5173", "https://app.peoplecore.tech");
+
+        policy.AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials()
-              );
+              .AllowCredentials();
+    });
 });
 
 // Swagger/API Documentation
