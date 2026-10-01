@@ -16,6 +16,13 @@ namespace HRManagement.Controllers
     public class MenuController : ControllerBase
     {
         private const int MaxDepth = 3;
+
+        // Negative ids so they can never collide with stored menus
+        private static readonly List<MyMenuNodeDTO> SuperAdminMenu = new()
+        {
+            new() { MenuId = -1, Code = "platform.companies", Title = "Quản lý công ty", Route = "/superadmin/companies", IconName = "BankOutlined" },
+            new() { MenuId = -2, Code = "platform.menus", Title = "Cây menu hệ thống", Route = "/admin/manage-menu", IconName = "MenuOutlined" },
+        };
         private static readonly Regex CodePattern = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
 
         private readonly HrmsDbContext _context;
@@ -29,6 +36,10 @@ namespace HRManagement.Controllers
         [HttpGet("my")]
         public async Task<IActionResult> GetMyMenu()
         {
+            // SuperAdmin has no company roles, so its menu is fixed rather than stored in RoleMenus
+            if (User.IsInRole(PlatformRoles.SuperAdmin))
+                return Ok(SuperAdminMenu);
+
             var roleNames = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
             var grantedMenuIds = await _context.RoleMenus
@@ -59,15 +70,17 @@ namespace HRManagement.Controllers
             return Ok(Build(null));
         }
 
+        // The menu tree is shared by every company, so only the SuperAdmin may view or edit it.
+        // Company admins only choose which menus their own roles see (roles/{roleId} below).
         [HttpGet]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         public async Task<IActionResult> GetTree()
         {
             return Ok(await BuildAdminTreeAsync(null));
         }
 
         [HttpGet("{id:int}")]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         public async Task<IActionResult> GetById(int id)
         {
             var menu = await _context.Menus.AsNoTracking().Include(m => m.RoleMenus).FirstOrDefaultAsync(m => m.MenuId == id);
@@ -76,7 +89,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPost]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         public async Task<IActionResult> Create([FromBody] MenuWriteDTO dto)
         {
             var error = await ValidateAsync(dto, null);
@@ -94,7 +107,7 @@ namespace HRManagement.Controllers
         }
 
         [HttpPut("{id:int}")]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         public async Task<IActionResult> Update(int id, [FromBody] MenuWriteDTO dto)
         {
             var menu = await _context.Menus.FindAsync(id);
@@ -114,7 +127,7 @@ namespace HRManagement.Controllers
 
         /// <summary>Deletes the node together with all of its descendants.</summary>
         [HttpDelete("{id:int}")]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         public async Task<IActionResult> Delete(int id)
         {
             var all = await _context.Menus.ToListAsync();

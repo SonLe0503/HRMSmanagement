@@ -9,6 +9,7 @@ using HRManagement.Mappers;
 using HRManagement.Models;
 using HRManagement.Services.Attendances;
 using HRManagement.Services.Cloudinaries;
+using HRManagement.Services.Companies;
 using HRManagement.Services.CurrentUsers;
 using HRManagement.Services.Departments;
 using HRManagement.Services.Emails;
@@ -71,6 +72,7 @@ builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
 
 // Core Services
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
@@ -201,11 +203,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     var dbContext = context.HttpContext.RequestServices.GetRequiredService<HrmsDbContext>();
                     var user = await dbContext.Users.IgnoreQueryFilters()
                         .AsNoTracking()
+                        .Include(u => u.Company)
                         .FirstOrDefaultAsync(u => u.UserId == userId);
 
                     if (user == null || (user.CompanyId?.ToString() ?? "") != tokenCompanyId)
                     {
                         context.Fail("User no longer belongs to the company in this token.");
+                        return;
+                    }
+
+                    // A company locked by the SuperAdmin loses access immediately, not only at next login
+                    if (user.Company is { IsActive: false })
+                    {
+                        context.Fail("Company is locked.");
                         return;
                     }
 
@@ -262,6 +272,8 @@ if (app.Environment.IsDevelopment())
     // Hangfire dashboard: only exposed in development and only to requests from this machine
     app.UseHangfireDashboard("/hangfire");
 }
+
+await SuperAdminSeeder.EnsureAsync(app.Services, app.Configuration, app.Logger);
 
 var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 var jobOptions = new RecurringJobOptions { TimeZone = TimeZoneInfo.Local };

@@ -1,3 +1,4 @@
+using HRManagement.Authorization;
 using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.DTOs.Auths;
@@ -64,6 +65,10 @@ namespace HRManagement.Services.Users
 
             foreach (var userRole in user.UserRoles)
                 claims.Add(new Claim(ClaimTypes.Role, userRole.Role.RoleName));
+
+            // Tài khoản không thuộc công ty nào là tài khoản hệ thống
+            if (user.CompanyId == null)
+                claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.SuperAdmin));
 
             var token = GenerateJwtToken(claims);
             return (true, null, token);

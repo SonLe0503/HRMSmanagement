@@ -28,7 +28,9 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<User?> GetUserByIdAsync(int id)
         {
-            return await _context.Users.FirstOrDefaultAsync(u => u.UserId == id);
+            // Id comes from the caller's own validated token; bypassing the filter lets the
+            // SuperAdmin (no company) change its own password too
+            return await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.UserId == id);
         }
 
         public async Task<User?> GetUserByEmailOrUsernameAsync(string emailOrUsername)
