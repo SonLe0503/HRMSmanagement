@@ -21,8 +21,16 @@ namespace HRManagement.Controllers
         private static readonly List<MyMenuNodeDTO> SuperAdminMenu = new()
         {
             new() { MenuId = -1, Code = "platform.companies", Title = "Quản lý công ty", Route = "/superadmin/companies", IconName = "BankOutlined" },
-            new() { MenuId = -2, Code = "platform.menus", Title = "Cây menu hệ thống", Route = "/admin/manage-menu", IconName = "MenuOutlined" },
+            new() { MenuId = -2, Code = "platform.roles", Title = "Quản lý vai trò", Route = "/admin/manage-role", IconName = "SafetyOutlined" },
+            new() { MenuId = -3, Code = "platform.permissions", Title = "Phân quyền", Route = "/admin/manage-permission", IconName = "KeyOutlined" },
+            new() { MenuId = -4, Code = "platform.menus", Title = "Quản lý menu", Route = "/admin/manage-menu", IconName = "MenuOutlined" },
         };
+        // Screens that moved to the SuperAdmin: never shown in, or assignable to, a company role menu
+        private static readonly HashSet<string> PlatformMenuCodes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "system.roles", "system.permissions", "system.menus"
+        };
+
         private static readonly Regex CodePattern = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
 
         private readonly HrmsDbContext _context;
@@ -50,7 +58,7 @@ namespace HRManagement.Controllers
 
             var granted = grantedMenuIds.ToHashSet();
             var menus = await _context.Menus.AsNoTracking().Where(m => m.IsActive).ToListAsync();
-            var visible = menus.Where(m => granted.Contains(m.MenuId)).ToList();
+            var visible = menus.Where(m => granted.Contains(m.MenuId) && !PlatformMenuCodes.Contains(m.Code)).ToList();
             var byParent = visible.ToLookup(m => m.ParentId);
 
             List<MyMenuNodeDTO> Build(int? parentId) => byParent[parentId]
@@ -156,7 +164,8 @@ namespace HRManagement.Controllers
 
         /// <summary>Full tree with IsGranted flagged for the given role.</summary>
         [HttpGet("roles/{roleId:int}")]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
+        [SuperAdminCompanyScope]
         public async Task<IActionResult> GetMenusForRole(int roleId)
         {
             if (!await _context.Roles.AnyAsync(r => r.RoleId == roleId)) return NotFound();
@@ -165,15 +174,19 @@ namespace HRManagement.Controllers
 
         /// <summary>Replaces the full set of menu nodes a role can see.</summary>
         [HttpPut("roles/{roleId:int}")]
-        [RequirePermission("Menu.Manage")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
+        [SuperAdminCompanyScope]
         public async Task<IActionResult> UpdateMenusForRole(int roleId, [FromBody] UpdateRoleMenusDTO dto)
         {
             if (!await _context.Roles.AnyAsync(r => r.RoleId == roleId)) return NotFound();
 
-            var validIds = await _context.Menus
+            var validIds = (await _context.Menus
                 .Where(m => dto.MenuIds.Contains(m.MenuId))
+                .Select(m => new { m.MenuId, m.Code })
+                .ToListAsync())
+                .Where(m => !PlatformMenuCodes.Contains(m.Code))
                 .Select(m => m.MenuId)
-                .ToListAsync();
+                .ToList();
 
             var existing = await _context.RoleMenus.Where(rm => rm.RoleId == roleId).ToListAsync();
             var existingIds = existing.Select(rm => rm.MenuId).ToHashSet();
@@ -190,6 +203,9 @@ namespace HRManagement.Controllers
         private async Task<List<MenuAdminNodeDTO>> BuildAdminTreeAsync(int? grantedForRoleId)
         {
             var menus = await _context.Menus.AsNoTracking().ToListAsync();
+            // The per-role tree only offers menus a company role may actually get
+            if (grantedForRoleId.HasValue)
+                menus = menus.Where(m => !PlatformMenuCodes.Contains(m.Code)).ToList();
             var mappings = await _context.RoleMenus.AsNoTracking().ToListAsync();
             var rolesByMenu = mappings.ToLookup(rm => rm.MenuId, rm => rm.RoleId);
             var byParent = menus.ToLookup(m => m.ParentId);

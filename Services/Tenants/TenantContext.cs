@@ -1,3 +1,5 @@
+using HRManagement.Authorization;
+
 namespace HRManagement.Services.Tenants
 {
     /// <summary>
@@ -36,8 +38,21 @@ namespace HRManagement.Services.Tenants
 
         private int? ReadFromClaims()
         {
-            var value = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimType)?.Value;
-            return int.TryParse(value, out var companyId) ? companyId : null;
+            var http = _httpContextAccessor.HttpContext;
+            var value = http?.User?.FindFirst(ClaimType)?.Value;
+            if (int.TryParse(value, out var companyId))
+                return companyId;
+
+            // SuperAdmin has no company of its own; on opted-in endpoints it picks one via header
+            if (http != null
+                && http.User.IsInRole(PlatformRoles.SuperAdmin)
+                && http.GetEndpoint()?.Metadata.GetMetadata<SuperAdminCompanyScopeAttribute>() != null
+                && int.TryParse(http.Request.Headers[SuperAdminCompanyScopeAttribute.HeaderName], out var scopedCompanyId))
+            {
+                return scopedCompanyId;
+            }
+
+            return null;
         }
     }
 }

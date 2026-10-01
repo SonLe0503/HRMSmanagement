@@ -10,6 +10,9 @@ namespace HRManagement.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    // Roles and their permissions are configured by the SuperAdmin for a chosen company; company admins
+    // only read their roles (to assign them to accounts).
+    [SuperAdminCompanyScope]
     public class RoleController : Controller
     {
         private readonly HrmsDbContext _context;
@@ -19,7 +22,7 @@ namespace HRManagement.Controllers
             _context = context;
             _permissionCache = permissionCache;
         }
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN," + PlatformRoles.SuperAdmin)]
         [HttpGet]
         public async Task<IActionResult> GetRoles()
         {
@@ -39,7 +42,7 @@ namespace HRManagement.Controllers
 
             return Ok(roles);
         }
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN," + PlatformRoles.SuperAdmin)]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetRole(int id)
         {
@@ -59,7 +62,7 @@ namespace HRManagement.Controllers
 
             return Ok(role);
         }
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         [HttpPost]
         public async Task<IActionResult> CreateRole(CreateRoleDTO dto)
         {
@@ -79,7 +82,7 @@ namespace HRManagement.Controllers
 
             return Ok("Role created successfully");
         }
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> ChangeRoleStatus(int id, [FromQuery] bool isActive)
         {
@@ -108,7 +111,7 @@ namespace HRManagement.Controllers
             return Ok("Role status updated");
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         [HttpGet("permissions")]
         public async Task<IActionResult> GetPermissionCatalog()
         {
@@ -130,7 +133,7 @@ namespace HRManagement.Controllers
             return Ok(permissions);
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         [HttpGet("{id}/permissions")]
         public async Task<IActionResult> GetRolePermissions(int id)
         {
@@ -145,7 +148,7 @@ namespace HRManagement.Controllers
             return Ok(keys);
         }
 
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = PlatformRoles.SuperAdmin)]
         [HttpPut("{id}/permissions")]
         public async Task<IActionResult> UpdateRolePermissions(int id, [FromBody] UpdateRolePermissionsDTO dto)
         {
