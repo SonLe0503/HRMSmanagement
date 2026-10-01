@@ -16,7 +16,9 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<User?> GetUserForLoginAsync(string username)
         {
-            return await _context.Users
+            // Chưa đăng nhập nên chưa có công ty: bỏ filter, username là duy nhất toàn hệ thống
+            return await _context.Users.IgnoreQueryFilters()
+                .Include(u => u.Company)
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                 .Include(u => u.Employee)
@@ -32,7 +34,8 @@ namespace HRManagement.DataAcess.Implementations
         public async Task<User?> GetUserByEmailOrUsernameAsync(string emailOrUsername)
         {
             var input = emailOrUsername.Trim().ToLower();
-            return await _context.Users
+            // Quên mật khẩu chạy khi chưa đăng nhập: bỏ filter công ty
+            return await _context.Users.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u =>
                     u.Email.ToLower() == input || u.Username.ToLower() == input);
         }

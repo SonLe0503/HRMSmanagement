@@ -44,14 +44,16 @@ namespace HRManagement.DataAcess.Implementations
 
         public async Task<bool> ExistsByEmailAsync(string email, int? excludeUserId = null)
         {
-            return await _context.Users
+            // Email tài khoản là duy nhất toàn hệ thống, nên kiểm tra cả các công ty khác
+            return await _context.Users.IgnoreQueryFilters()
                 .AnyAsync(u => u.Email == email
                     && (excludeUserId == null || u.UserId != excludeUserId));
         }
 
         public async Task<bool> ExistsByUsernameAsync(string username)
         {
-            return await _context.Users.AnyAsync(u => u.Username == username);
+            // Username là duy nhất toàn hệ thống, nên kiểm tra cả các công ty khác
+            return await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username);
         }
 
         public async Task<User> AddAsync(User user)

@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HRManagement.Models;
 
-public class PayrollFeedback
+public partial class PayrollFeedback
 {
     [Key]
     public int FeedbackId { get; set; }

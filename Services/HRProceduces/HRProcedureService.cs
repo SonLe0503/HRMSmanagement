@@ -690,7 +690,7 @@ namespace HRManagement.Services.HRProceduces
                 var baseUsername = employee.EmployeeCode.ToLowerInvariant();
                 var username = baseUsername;
                 var suffix = 1;
-                while (await _context.Users.AnyAsync(u => u.Username == username))
+                while (await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username))
                     username = $"{baseUsername}{suffix++}";
 
                 var tempPassword = Guid.NewGuid().ToString("N")[..8];

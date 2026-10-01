@@ -28,6 +28,7 @@ using HRManagement.Services.Exports;
 using HRManagement.Services.Backgrounds;
 using HRManagement.Services.Payroll;
 using HRManagement.Services.Resignations;
+using HRManagement.Services.Tenants;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -69,6 +70,7 @@ builder.Services.AddScoped<IPayrollRepository, PayrollRepository>();
 builder.Services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
 
 // Core Services
+builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
@@ -184,7 +186,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var userIdStr = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 var tokenLastLogin = principal?.FindFirst("LastLogin")?.Value;
 
-                if (string.IsNullOrEmpty(tokenLastLogin))
+                var tokenCompanyId = principal?.FindFirst(TenantContext.ClaimType)?.Value;
+
+                // Tokens issued before multi-company support carry no company claim
+                if (string.IsNullOrEmpty(tokenLastLogin) || tokenCompanyId == null)
                 {
                     context.Fail("Invalid or outdated token format. Please re-login.");
                     return;
@@ -192,10 +197,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
                 if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int userId))
                 {
+                    // The request has no tenant yet at this point, so bypass the company filter
                     var dbContext = context.HttpContext.RequestServices.GetRequiredService<HrmsDbContext>();
-                    var user = await dbContext.Users.FindAsync(userId);
-                    
-                    if (user != null && user.LastLogin.HasValue)
+                    var user = await dbContext.Users.IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.UserId == userId);
+
+                    if (user == null || (user.CompanyId?.ToString() ?? "") != tokenCompanyId)
+                    {
+                        context.Fail("User no longer belongs to the company in this token.");
+                        return;
+                    }
+
+                    if (user.LastLogin.HasValue)
                     {
                         var dbLastLogin = user.LastLogin.Value.ToString("yyyyMMddHHmmss");
                         if (dbLastLogin != tokenLastLogin)

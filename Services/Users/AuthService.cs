@@ -2,6 +2,7 @@ using HRManagement.DataAcess.Interfaces;
 using HRManagement.DTOs;
 using HRManagement.DTOs.Auths;
 using HRManagement.Services.Emails;
+using HRManagement.Services.Tenants;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -38,6 +39,9 @@ namespace HRManagement.Services.Users
             if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 return (false, "Mật khẩu không đúng", null);
 
+            if (user.Company is { IsActive: false })
+                return (false, "Công ty của bạn đã bị tạm khóa trên hệ thống", null);
+
             var now = DateTime.UtcNow;
             user.LastLogin = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second);
             await _authRepository.SaveChangesAsync();
@@ -51,7 +55,8 @@ namespace HRManagement.Services.Users
                 new("EmployeeID", user.EmployeeId?.ToString() ?? ""),
                 new("IsTopLevel", (user.Employee?.Position?.IsTopLevel ?? false).ToString().ToLower()),
                 new("PositionName", user.Employee?.Position?.PositionName ?? ""),
-                new("LastLogin", lastLoginStr)
+                new("LastLogin", lastLoginStr),
+                new(TenantContext.ClaimType, user.CompanyId?.ToString() ?? "")
             };
 
             if (user.EmployeeId.HasValue)

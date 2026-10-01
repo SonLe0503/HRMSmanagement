@@ -1,3 +1,4 @@
+using HRManagement.Services.Tenants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -7,14 +8,26 @@ namespace HRManagement.Models;
 
 public partial class HrmsDbContext : DbContext
 {
+    private readonly ITenantContext? _tenant;
+
     public HrmsDbContext()
     {
     }
 
-    public HrmsDbContext(DbContextOptions<HrmsDbContext> options)
+    [ActivatorUtilitiesConstructor]
+    public HrmsDbContext(DbContextOptions<HrmsDbContext> options, ITenantContext tenant)
         : base(options)
     {
+        _tenant = tenant;
     }
+
+    /// <summary>
+    /// Công ty hiện tại; global query filter đọc giá trị này mỗi lần truy vấn.
+    /// Null thì mọi bảng thuộc công ty đều trả về rỗng.
+    /// </summary>
+    public int? CurrentCompanyId => _tenant?.CompanyId;
+
+    public virtual DbSet<Company> Companies { get; set; }
 
     public virtual DbSet<AttendanceRecord> AttendanceRecords { get; set; }
 
@@ -169,7 +182,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.DepartmentId).HasName("PK__Departme__B2079BCDDFB6E623");
 
-            entity.HasIndex(e => e.DepartmentCode, "UQ__Departme__6EA8896D0227EAE3").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.DepartmentCode }, "UQ__Departme__6EA8896D0227EAE3").IsUnique();
 
             entity.Property(e => e.DepartmentId).HasColumnName("DepartmentID");
             entity.Property(e => e.CreatedDate)
@@ -209,9 +222,9 @@ public partial class HrmsDbContext : DbContext
 
             entity.HasIndex(e => e.EmploymentStatus, "IX_Employees_Status");
 
-            entity.HasIndex(e => e.EmployeeCode, "UQ__Employee__1F642548E0EDEFF5").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.EmployeeCode }, "UQ__Employee__1F642548E0EDEFF5").IsUnique();
 
-            entity.HasIndex(e => e.Email, "UQ__Employee__A9D105349FE0388B").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.Email }, "UQ__Employee__A9D105349FE0388B").IsUnique();
 
             entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
             entity.Property(e => e.Address).HasMaxLength(255);
@@ -259,7 +272,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.ContractId).HasName("PK__Employee__C90D34098EDB2497");
 
-            entity.HasIndex(e => e.ContractNumber, "UQ__Employee__C51D43DADFFA6EF0").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.ContractNumber }, "UQ__Employee__C51D43DADFFA6EF0").IsUnique();
 
             entity.Property(e => e.ContractId).HasColumnName("ContractID");
             entity.Property(e => e.ContractNumber).HasMaxLength(50);
@@ -307,7 +320,7 @@ public partial class HrmsDbContext : DbContext
 
             entity.ToTable("HRProcedures");
 
-            entity.HasIndex(e => e.ProcedureNumber, "UQ__HRProced__AA41A753D36A3E49").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.ProcedureNumber }, "UQ__HRProced__AA41A753D36A3E49").IsUnique();
 
             entity.Property(e => e.ProcedureId).HasColumnName("ProcedureID");
             entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
@@ -391,7 +404,7 @@ public partial class HrmsDbContext : DbContext
 
             entity.HasIndex(e => e.Status, "IX_LeaveRequests_Status");
 
-            entity.HasIndex(e => e.RequestNumber, "UQ__LeaveReq__9ADA6BE0F25CECE0").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.RequestNumber }, "UQ__LeaveReq__9ADA6BE0F25CECE0").IsUnique();
 
             entity.Property(e => e.LeaveRequestId).HasColumnName("LeaveRequestID");
             entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
@@ -437,7 +450,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.LeaveTypeId).HasName("PK__LeaveTyp__43BE8FF4F7AA7C4D");
 
-            entity.HasIndex(e => e.LeaveTypeCode, "UQ__LeaveTyp__A264FAEECF215F7C").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.LeaveTypeCode }, "UQ__LeaveTyp__A264FAEECF215F7C").IsUnique();
 
             entity.Property(e => e.LeaveTypeId).HasColumnName("LeaveTypeID");
             entity.Property(e => e.CreatedDate)
@@ -484,7 +497,7 @@ public partial class HrmsDbContext : DbContext
 
             entity.HasIndex(e => e.Status, "IX_OvertimeRequests_Status");
 
-            entity.HasIndex(e => e.RequestNumber, "UQ__Overtime__9ADA6BE0AE2DCA21").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.RequestNumber }, "UQ__Overtime__9ADA6BE0AE2DCA21").IsUnique();
 
             entity.Property(e => e.OvertimeRequestId).HasColumnName("OvertimeRequestID");
             entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
@@ -557,7 +570,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.PeriodId).HasName("PK__PayrollP__E521BB362CCDBB5F");
 
-            entity.HasIndex(e => new { e.Month, e.Year }, "UQ_PayrollPeriods").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.Month, e.Year }, "UQ_PayrollPeriods").IsUnique();
 
             entity.Property(e => e.PeriodId).HasColumnName("PeriodID");
             entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
@@ -571,7 +584,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.PolicyId).HasName("PK__PayrollP__2E133944C0C8A2B6");
 
-            entity.HasIndex(e => e.PolicyName, "UQ__PayrollP__251851158851FA7E").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.PolicyName }, "UQ__PayrollP__251851158851FA7E").IsUnique();
 
             entity.Property(e => e.PolicyId).HasColumnName("PolicyID");
             entity.Property(e => e.ApplicableEmployeeGroup).HasMaxLength(100);
@@ -634,7 +647,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.PayslipId).HasName("PK__Payslips__6EDC7142D154B313");
 
-            entity.HasIndex(e => e.PayslipNumber, "UQ__Payslips__38A71BAD66586385").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.PayslipNumber }, "UQ__Payslips__38A71BAD66586385").IsUnique();
 
             entity.Property(e => e.PayslipId).HasColumnName("PayslipID");
             entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
@@ -669,7 +682,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.PositionId).HasName("PK__Position__60BB9A59726208B5");
 
-            entity.HasIndex(e => e.PositionCode, "UQ__Position__83745B02ABEA23B6").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.PositionCode }, "UQ__Position__83745B02ABEA23B6").IsUnique();
 
             entity.Property(e => e.PositionId).HasColumnName("PositionID");
             entity.Property(e => e.CreatedDate)
@@ -687,7 +700,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE3A81AE763D");
 
-            entity.HasIndex(e => e.RoleName, "UQ__Roles__8A2B6160EED0EB46").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.RoleName }, "UQ__Roles__8A2B6160EED0EB46").IsUnique();
 
             entity.Property(e => e.RoleId).HasColumnName("RoleID");
             entity.Property(e => e.CreatedDate)
@@ -777,7 +790,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.ShiftId).HasName("PK__Shifts__C0A838E11F3BCF8E");
 
-            entity.HasIndex(e => e.ShiftCode, "UQ__Shifts__9377D5623409151A").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.ShiftCode }, "UQ__Shifts__9377D5623409151A").IsUnique();
 
             entity.Property(e => e.ShiftId).HasColumnName("ShiftID");
             entity.Property(e => e.CreatedDate)
@@ -821,7 +834,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.SettingId).HasName("PK__SystemSe__54372AFD0CC988E3");
 
-            entity.HasIndex(e => e.SettingKey, "UQ__SystemSe__01E719AD19FD850C").IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.SettingKey }, "UQ__SystemSe__01E719AD19FD850C").IsUnique();
 
             entity.Property(e => e.SettingId).HasColumnName("SettingID");
             entity.Property(e => e.Description).HasMaxLength(500);
@@ -955,7 +968,7 @@ public partial class HrmsDbContext : DbContext
         {
             entity.HasKey(e => e.ResignationRequestId);
 
-            entity.HasIndex(e => e.RequestNumber).IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.RequestNumber }).IsUnique();
 
             entity.Property(e => e.RequestNumber).HasMaxLength(30).IsRequired();
             entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
@@ -993,7 +1006,108 @@ public partial class HrmsDbContext : DbContext
                 .HasConstraintName("FK_ResignationRequests_TargetApprover");
         });
 
+        modelBuilder.Entity<Company>(entity =>
+        {
+            entity.HasKey(e => e.CompanyId);
+
+            entity.HasIndex(e => e.CompanyCode).IsUnique();
+
+            entity.Property(e => e.CompanyId).HasColumnName("CompanyID");
+            entity.Property(e => e.CompanyCode).HasMaxLength(20);
+            entity.Property(e => e.CompanyName).HasMaxLength(200);
+            entity.Property(e => e.TaxCode).HasMaxLength(20);
+            entity.Property(e => e.Email).HasMaxLength(100);
+            entity.Property(e => e.Phone).HasMaxLength(20);
+            entity.Property(e => e.Address).HasMaxLength(255);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(e => e.CompanyId).HasColumnName("CompanyID");
+
+            entity.HasOne(d => d.Company).WithMany()
+                .HasForeignKey(d => d.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_Users_Companies");
+
+            entity.HasQueryFilter(u => CurrentCompanyId != null && u.CompanyId == CurrentCompanyId);
+        });
+
+        // Junction tables have no CompanyId of their own: filter them through their owning role / user
+        modelBuilder.Entity<RolePermission>()
+            .HasQueryFilter(rp => CurrentCompanyId != null && rp.Role.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<RoleMenu>()
+            .HasQueryFilter(rm => CurrentCompanyId != null && rm.Role.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<UserRole>()
+            .HasQueryFilter(ur => CurrentCompanyId != null && ur.User.CompanyId == CurrentCompanyId);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                     .Where(t => typeof(ICompanyScoped).IsAssignableFrom(t.ClrType))
+                     .ToList())
+        {
+            ConfigureCompanyScopedMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, new object[] { modelBuilder });
+        }
+
         OnModelCreatingPartial(modelBuilder);
+    }
+
+    private static readonly System.Reflection.MethodInfo ConfigureCompanyScopedMethod =
+        typeof(HrmsDbContext).GetMethod(nameof(ConfigureCompanyScoped),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+    private void ConfigureCompanyScoped<TEntity>(ModelBuilder modelBuilder) where TEntity : class, ICompanyScoped
+    {
+        var entity = modelBuilder.Entity<TEntity>();
+
+        entity.Property(e => e.CompanyId).HasColumnName("CompanyID");
+
+        entity.HasOne<Company>().WithMany()
+            .HasForeignKey(e => e.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName($"FK_{entity.Metadata.GetTableName()}_Companies");
+
+        entity.HasQueryFilter(e => CurrentCompanyId != null && e.CompanyId == CurrentCompanyId);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AssignCompanyToNewEntities();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AssignCompanyToNewEntities();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Bản ghi mới tự nhận công ty hiện tại, nên service không phải gán CompanyId.
+    /// Không có công ty thì từ chối lưu để không tạo ra dữ liệu "mồ côi".
+    /// </summary>
+    private void AssignCompanyToNewEntities()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Added)
+                continue;
+
+            if (entry.Entity is ICompanyScoped scoped && scoped.CompanyId == 0)
+            {
+                scoped.CompanyId = CurrentCompanyId
+                    ?? throw new InvalidOperationException(
+                        $"Không xác định được công ty khi tạo {entry.Metadata.ClrType.Name}.");
+            }
+            else if (entry.Entity is User user && user.CompanyId == null && CurrentCompanyId != null)
+            {
+                user.CompanyId = CurrentCompanyId;
+            }
+        }
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

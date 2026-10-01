@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using HRManagement.Services.Tenants;
 using Microsoft.AspNetCore.Authorization;
 
 namespace HRManagement.Authorization
@@ -19,7 +20,10 @@ namespace HRManagement.Authorization
             if (roleNames.Count == 0)
                 return;
 
-            var granted = await _permissionCache.GetPermissionKeysAsync(roleNames);
+            if (!int.TryParse(context.User.FindFirst(TenantContext.ClaimType)?.Value, out var companyId))
+                return;
+
+            var granted = await _permissionCache.GetPermissionKeysAsync(companyId, roleNames);
 
             if (requirement.Keys.Any(granted.Contains))
                 context.Succeed(requirement);
