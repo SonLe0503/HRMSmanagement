@@ -1,3 +1,4 @@
+using Hangfire;
 using HRManagement.Authorization;
 using HRManagement.Configuration;
 using HRManagement.DataAcess;
@@ -72,7 +73,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
+// Email: services enqueue through QueuedEmailService; Hangfire runs EmailService (SMTP) in the background
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<IEmailService, QueuedEmailService>();
 builder.Services.AddScoped<IHRProcedureService, HRProcedureService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IPositionService, PositionService>();
@@ -104,8 +107,16 @@ builder.Services.AddScoped<IResignationRequestService, ResignationRequestService
 builder.Services.AddScoped<TaxCalculationService>();
 builder.Services.AddScoped<IPayrollService, PayrollService>();
 
-builder.Services.AddHostedService<HRProcedureBackgroundService>();
-builder.Services.AddHostedService<PayrollAttendanceReviewService>();
+// Background jobs (Hangfire, stored in the same SQL Server database under the HangFire schema)
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("MyCnn")));
+builder.Services.AddHangfireServer();
+
+builder.Services.AddScoped<HRProcedureBackgroundService>();
+builder.Services.AddScoped<PayrollAttendanceReviewService>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -233,7 +244,17 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Hangfire dashboard: only exposed in development and only to requests from this machine
+    app.UseHangfireDashboard("/hangfire");
 }
+
+var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+var jobOptions = new RecurringJobOptions { TimeZone = TimeZoneInfo.Local };
+recurringJobs.AddOrUpdate<HRProcedureBackgroundService>(
+    HRProcedureBackgroundService.JobId, job => job.ApplyPendingProceduresAsync(), "*/5 * * * *", jobOptions);
+recurringJobs.AddOrUpdate<PayrollAttendanceReviewService>(
+    PayrollAttendanceReviewService.JobId, job => job.TriggerDuePeriodReviewsAsync(), Cron.Hourly(), jobOptions);
 
 app.MapControllers();
 app.Run();

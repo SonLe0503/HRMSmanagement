@@ -1,3 +1,4 @@
+using Hangfire;
 using HRManagement.Models;
 using HRManagement.Services.Payroll;
 using Microsoft.EntityFrameworkCore;
@@ -5,49 +6,37 @@ using Task = System.Threading.Tasks.Task;
 
 namespace HRManagement.Services.Backgrounds
 {
-    public class PayrollAttendanceReviewService : BackgroundService
+    /// <summary>
+    /// Job định kỳ (Hangfire, mỗi giờ): tự chuyển kỳ lương sang giai đoạn xem xét chấm công
+    /// khi đến AttendanceCutoffDate.
+    /// </summary>
+    public class PayrollAttendanceReviewService
     {
-        private readonly IServiceScopeFactory _scopeFactory;
+        public const string JobId = "trigger-payroll-attendance-review";
+
+        private readonly HrmsDbContext _context;
+        private readonly IPayrollService _payrollService;
         private readonly ILogger<PayrollAttendanceReviewService> _logger;
 
-        public PayrollAttendanceReviewService(IServiceScopeFactory scopeFactory, ILogger<PayrollAttendanceReviewService> logger)
+        public PayrollAttendanceReviewService(
+            HrmsDbContext context,
+            IPayrollService payrollService,
+            ILogger<PayrollAttendanceReviewService> logger)
         {
-            _scopeFactory = scopeFactory;
+            _context = context;
+            _payrollService = payrollService;
             _logger = logger;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        // Job chạy lại sau 1 giờ nên không cần retry; không cho 2 lần chạy chồng nhau (tránh gửi email trùng).
+        [AutomaticRetry(Attempts = 0)]
+        [DisableConcurrentExecution(timeoutInSeconds: 60)]
+        public async Task TriggerDuePeriodReviewsAsync()
         {
-            _logger.LogInformation("Payroll Attendance Review Service started.");
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await TriggerDuePeriodReviewsAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in PayrollAttendanceReviewService.");
-                }
-
-                // Chạy mỗi 1 giờ — đủ sát mà không bắn email nhiều lần trong ngày
-                await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
-            }
-
-            _logger.LogInformation("Payroll Attendance Review Service stopped.");
-        }
-
-        private async Task TriggerDuePeriodReviewsAsync()
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<HrmsDbContext>();
-            var payrollService = scope.ServiceProvider.GetRequiredService<IPayrollService>();
-
             var today = DateOnly.FromDateTime(DateTime.Today);
 
             // Tìm các kỳ lương Open có AttendanceCutoffDate = hôm nay
-            var duePeriodIds = await context.PayrollPeriods
+            var duePeriodIds = await _context.PayrollPeriods
                 .Where(p => p.Status == "Open" && p.AttendanceCutoffDate == today)
                 .Select(p => p.PeriodId)
                 .ToListAsync();
@@ -58,7 +47,7 @@ namespace HRManagement.Services.Backgrounds
             {
                 try
                 {
-                    await payrollService.TriggerAttendanceReviewAsync(periodId);
+                    await _payrollService.TriggerAttendanceReviewAsync(periodId);
                     _logger.LogInformation("Triggered attendance review for period {PeriodId}.", periodId);
                 }
                 catch (Exception ex)
