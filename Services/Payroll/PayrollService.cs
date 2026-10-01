@@ -645,25 +645,10 @@ namespace HRManagement.Services.Payroll
                 .FirstOrDefaultAsync(p => p.PayslipId == payslipId)
                 ?? throw new KeyNotFoundException();
 
-            // Lấy thông tin công ty từ SystemSettings
-            var companySettings = new HRManagement.DTOs.SystemSettings.CompanySettingsDto
-            {
-                CompanyName = "CÔNG TY CỔ PHẦN HR SYSTEM",
-                Address = "",
-                Phone = "",
-                Email = ""
-            };
-            var settingKeys = new[] { "Company.Name", "Company.Address", "Company.Phone", "Company.Email" };
-            var rawSettings = await _context.SystemSettings
-                .Where(s => settingKeys.Contains(s.SettingKey))
-                .ToListAsync();
-            foreach (var s in rawSettings)
-            {
-                if (s.SettingKey == "Company.Name")    companySettings.CompanyName = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Address") companySettings.Address     = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Phone")   companySettings.Phone       = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Email")   companySettings.Email       = s.SettingValue ?? "";
-            }
+            // Thông tin công ty in trên phiếu lương lấy từ công ty sở hữu phiếu lương
+            var company = await _context.Companies.AsNoTracking()
+                .FirstAsync(c => c.CompanyId == payslip.CompanyId);
+            var companySettings = HRManagement.DTOs.SystemSettings.CompanySettingsDto.FromCompany(company);
 
             var pdfService = new PayslipPdfService();
             return pdfService.GeneratePdf(payslip.PayrollRecord, payslip.Period, companySettings);

@@ -1,6 +1,7 @@
 using HRManagement.Authorization;
 using HRManagement.DTOs.SystemSettings;
 using HRManagement.Models;
+using HRManagement.Services.Tenants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace HRManagement.Controllers
     public class SystemSettingsController : ControllerBase
     {
         private readonly HrmsDbContext _context;
+        private readonly ITenantContext _tenant;
 
-        public SystemSettingsController(HrmsDbContext context)
+        public SystemSettingsController(HrmsDbContext context, ITenantContext tenant)
         {
             _context = context;
+            _tenant = tenant;
         }
 
         [HttpGet("location")]
@@ -190,39 +193,39 @@ namespace HRManagement.Controllers
         [Authorize]
         public async Task<IActionResult> GetCompanySettings()
         {
-            var keys = new[] { "Company.Name", "Company.Address", "Company.Phone", "Company.Email" };
-            var settings = await _context.SystemSettings
-                .Where(s => keys.Contains(s.SettingKey))
-                .ToListAsync();
+            var company = await FindCurrentCompanyAsync();
+            if (company is null)
+                return NotFound(new { message = "Tài khoản không thuộc công ty nào." });
 
-            var dto = new CompanySettingsDto
-            {
-                CompanyName = "CÔNG TY CỔ PHẦN HR SYSTEM",
-                Address = "",
-                Phone = "",
-                Email = ""
-            };
-            foreach (var s in settings)
-            {
-                if (s.SettingKey == "Company.Name")    dto.CompanyName = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Address") dto.Address     = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Phone")   dto.Phone       = s.SettingValue ?? "";
-                if (s.SettingKey == "Company.Email")   dto.Email       = s.SettingValue ?? "";
-            }
-            return Ok(dto);
+            return Ok(CompanySettingsDto.FromCompany(company));
         }
 
+        // Company info lives on the Companies row (shared with the SuperAdmin screen); the company code
+        // and active status stay under the SuperAdmin's control.
         [HttpPut("company")]
         [RequirePermission("SystemSettings.ManageAdvanced")]
         public async Task<IActionResult> UpdateCompanySettings([FromBody] CompanySettingsDto dto)
         {
-            await UpdateOrInsertSetting("Company.Name",    dto.CompanyName ?? "", "General");
-            await UpdateOrInsertSetting("Company.Address", dto.Address     ?? "", "General");
-            await UpdateOrInsertSetting("Company.Phone",   dto.Phone       ?? "", "General");
-            await UpdateOrInsertSetting("Company.Email",   dto.Email       ?? "", "General");
+            var company = await FindCurrentCompanyAsync();
+            if (company is null)
+                return NotFound(new { message = "Tài khoản không thuộc công ty nào." });
+
+            if (string.IsNullOrWhiteSpace(dto.CompanyName))
+                return BadRequest(new { message = "Tên công ty là bắt buộc." });
+
+            company.CompanyName  = dto.CompanyName.Trim();
+            company.Address      = dto.Address?.Trim();
+            company.Phone        = dto.Phone?.Trim();
+            company.Email        = dto.Email?.Trim();
+            if (dto.TaxCode != null) company.TaxCode = dto.TaxCode.Trim();
+            company.ModifiedDate = DateTime.Now;
+
             await _context.SaveChangesAsync();
             return Ok(new { message = "Cập nhật thông tin công ty thành công." });
         }
+
+        private Task<Company?> FindCurrentCompanyAsync() =>
+            _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == _tenant.CompanyId);
 
         private async Task UpdateOrInsertSetting(string key, string value, string category)
         {
